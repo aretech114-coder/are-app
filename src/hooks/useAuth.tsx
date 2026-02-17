@@ -2,13 +2,22 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
+interface AdminPermission {
+  permission_key: string;
+  label: string;
+  is_enabled: boolean;
+}
+
 interface AuthContext {
   user: User | null;
   session: Session | null;
   role: string | null;
   profile: any | null;
+  permissions: AdminPermission[];
   loading: boolean;
   signOut: () => Promise<void>;
+  hasPermission: (key: string) => boolean;
+  refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContext>({
@@ -16,8 +25,11 @@ const AuthContext = createContext<AuthContext>({
   session: null,
   role: null,
   profile: null,
+  permissions: [],
   loading: true,
   signOut: async () => {},
+  hasPermission: () => false,
+  refreshPermissions: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -25,15 +37,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
+  const [permissions, setPermissions] = useState<AdminPermission[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchPermissions = async () => {
+    const { data } = await supabase
+      .from("admin_permissions")
+      .select("permission_key, label, is_enabled");
+    setPermissions(data || []);
+  };
 
   const fetchUserData = async (userId: string) => {
     const [{ data: roleData }, { data: profileData }] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId).single(),
       supabase.from("profiles").select("*").eq("id", userId).single(),
     ]);
-    setRole(roleData?.role || null);
+    const userRole = roleData?.role || null;
+    setRole(userRole);
     setProfile(profileData || null);
+
+    // Fetch permissions for admin and superadmin
+    if (userRole === "admin" || userRole === "superadmin") {
+      await fetchPermissions();
+    }
   };
 
   useEffect(() => {
@@ -46,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setRole(null);
           setProfile(null);
+          setPermissions([]);
         }
         setLoading(false);
       }
@@ -69,10 +96,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setRole(null);
     setProfile(null);
+    setPermissions([]);
+  };
+
+  const hasPermission = (key: string): boolean => {
+    if (role === "superadmin") return true;
+    const perm = permissions.find((p) => p.permission_key === key);
+    return perm?.is_enabled ?? false;
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, signOut, hasPermission, refreshPermissions: fetchPermissions }}>
       {children}
     </AuthContext.Provider>
   );

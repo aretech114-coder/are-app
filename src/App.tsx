@@ -14,6 +14,8 @@ import ArchivePage from "./pages/ArchivePage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ProfilePage from "./pages/ProfilePage";
 import AdminPage from "./pages/AdminPage";
+import SystemConfigPage from "./pages/SystemConfigPage";
+import WorkflowPage from "./pages/WorkflowPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,8 +28,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { role, hasPermission } = useAuth();
+  if (role !== "admin" && role !== "superadmin") return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { role } = useAuth();
-  if (role !== "admin") return <Navigate to="/" replace />;
+  if (role !== "superadmin") return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -46,6 +54,8 @@ function AppRoutes() {
       <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminPage /></AdminRoute></ProtectedRoute>} />
+      <Route path="/workflow" element={<ProtectedRoute><AdminRoute><WorkflowPage /></AdminRoute></ProtectedRoute>} />
+      <Route path="/system-config" element={<ProtectedRoute><SuperAdminRoute><SystemConfigPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
