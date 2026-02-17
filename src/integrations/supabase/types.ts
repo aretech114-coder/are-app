@@ -318,9 +318,30 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "superadmin" | "admin" | "supervisor" | "agent"
+      app_role:
+        | "superadmin"
+        | "admin"
+        | "supervisor"
+        | "agent"
+        | "ministre"
+        | "dircab"
+        | "dircaba"
+        | "conseiller_juridique"
+        | "secretariat"
       mail_priority: "low" | "normal" | "high" | "urgent"
       mail_status: "pending" | "in_progress" | "processed" | "archived"
+      mail_type:
+        | "standard"
+        | "invitation"
+        | "note_technique"
+        | "accusé_reception"
+      workflow_action:
+        | "approve"
+        | "reject"
+        | "reassign"
+        | "escalate"
+        | "complete"
+        | "archive"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -448,9 +469,33 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["superadmin", "admin", "supervisor", "agent"],
+      app_role: [
+        "superadmin",
+        "admin",
+        "supervisor",
+        "agent",
+        "ministre",
+        "dircab",
+        "dircaba",
+        "conseiller_juridique",
+        "secretariat",
+      ],
       mail_priority: ["low", "normal", "high", "urgent"],
       mail_status: ["pending", "in_progress", "processed", "archived"],
+      mail_type: [
+        "standard",
+        "invitation",
+        "note_technique",
+        "accusé_reception",
+      ],
+      workflow_action: [
+        "approve",
+        "reject",
+        "reassign",
+        "escalate",
+        "complete",
+        "archive",
+      ],
     },
   },
 } as const
