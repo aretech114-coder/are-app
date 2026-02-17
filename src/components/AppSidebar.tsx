@@ -172,7 +172,7 @@ export function AppSidebar() {
               {profile?.full_name || "Agent"}
             </span>
             <span className="text-[10px] text-sidebar-foreground truncate capitalize">
-              {role === "superadmin" ? "Super Admin" : role || "agent"}
+              {role === "superadmin" ? "Super Admin" : role === "dircab" ? "Dir. Cabinet" : role === "ministre" ? "Ministre" : role === "secretariat" ? "Secrétariat" : role || "agent"}
             </span>
           </div>
         </div>
