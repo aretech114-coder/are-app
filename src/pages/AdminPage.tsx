@@ -72,6 +72,7 @@ export default function AdminPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="superadmin">Super Admin</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="supervisor">Superviseur</SelectItem>
                       <SelectItem value="agent">Agent</SelectItem>

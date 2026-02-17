@@ -1,29 +1,26 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Menu,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
-import { Badge } from "@/components/ui/badge";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 
 const mainNav = [
   { title: "Enregistrement", url: "/mail-entry", icon: Mail },
-  { title: "Boîte de réception", url: "/inbox", icon: Inbox, badge: true },
+  { title: "Boîte de réception", url: "/inbox", icon: Inbox },
   { title: "Historique", url: "/history", icon: History },
   { title: "Archives", url: "/archive", icon: Archive },
   { title: "Statistiques", url: "/analytics", icon: BarChart3 },
 ];
 
-const userNav = [
-  { title: "Mon Profil", url: "/profile", icon: User },
-];
-
 export function AppSidebar() {
-  const { role, signOut, profile } = useAuth();
+  const { role, signOut, profile, hasPermission } = useAuth();
+
+  const isSuperAdmin = role === "superadmin";
+  const isAdmin = role === "admin";
 
   return (
     <Sidebar className="sidebar-gradient border-r-0">
@@ -63,7 +60,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {role === "admin" && (
+        {/* Admin section - visible if superadmin OR admin with manage_users permission */}
+        {(isSuperAdmin || (isAdmin && hasPermission("manage_users"))) && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
               Administration
@@ -83,6 +81,47 @@ export function AppSidebar() {
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/workflow"
+                        end
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      >
+                        <Workflow className="h-4 w-4 shrink-0" />
+                        <span className="text-sm">Workflow</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* SuperAdmin only: System Configuration */}
+        {isSuperAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
+              Système
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/system-config"
+                      end
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <Settings className="h-4 w-4 shrink-0" />
+                      <span className="text-sm">Configuration Système</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -94,21 +133,19 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {userNav.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="text-sm">{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/profile"
+                    end
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <User className="h-4 w-4 shrink-0" />
+                    <span className="text-sm">Mon Profil</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <button
@@ -134,8 +171,8 @@ export function AppSidebar() {
             <span className="text-xs font-medium text-sidebar-accent-foreground truncate">
               {profile?.full_name || "Agent"}
             </span>
-            <span className="text-[10px] text-sidebar-foreground truncate">
-              {profile?.email}
+            <span className="text-[10px] text-sidebar-foreground truncate capitalize">
+              {role === "superadmin" ? "Super Admin" : role || "agent"}
             </span>
           </div>
         </div>
