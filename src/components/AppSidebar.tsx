@@ -1,8 +1,9 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -14,6 +15,7 @@ const mainNav = [
   { title: "Historique", url: "/history", icon: History },
   { title: "Archives", url: "/archive", icon: Archive },
   { title: "Statistiques", url: "/analytics", icon: BarChart3 },
+  { title: "Missions", url: "/missions", icon: Plane },
 ];
 
 export function AppSidebar() {
@@ -163,18 +165,21 @@ export function AppSidebar() {
       </SidebarContent>
 
       <div className="mt-auto border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-medium text-sidebar-accent-foreground">
-            {profile?.full_name?.charAt(0)?.toUpperCase() || "?"}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-medium text-sidebar-accent-foreground">
+              {profile?.full_name?.charAt(0)?.toUpperCase() || "?"}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-medium text-sidebar-accent-foreground truncate">
+                {profile?.full_name || "Agent"}
+              </span>
+              <span className="text-[10px] text-sidebar-foreground truncate capitalize">
+                {role === "superadmin" ? "Super Admin" : role === "dircab" ? "Dir. Cabinet" : role === "ministre" ? "Ministre" : role === "secretariat" ? "Secrétariat" : role || "agent"}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs font-medium text-sidebar-accent-foreground truncate">
-              {profile?.full_name || "Agent"}
-            </span>
-            <span className="text-[10px] text-sidebar-foreground truncate capitalize">
-              {role === "superadmin" ? "Super Admin" : role === "dircab" ? "Dir. Cabinet" : role === "ministre" ? "Ministre" : role === "secretariat" ? "Secrétariat" : role || "agent"}
-            </span>
-          </div>
+          <ThemeToggle />
         </div>
       </div>
     </Sidebar>

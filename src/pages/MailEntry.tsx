@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { Send, Printer, Upload, X } from "lucide-react";
@@ -24,6 +25,22 @@ const COUNTRIES = [
   "Guinée", "Togo", "Bénin", "Niger", "Tchad", "France", "Belgique", "Autre",
 ];
 
+const MAIL_TYPES = [
+  { value: "ordinaire", label: "Ordinaire" },
+  { value: "audience", label: "Audience" },
+  { value: "presidence", label: "Présidence" },
+  { value: "institutionnel", label: "Institutionnel" },
+  { value: "interministeriel", label: "Inter-ministériel" },
+  { value: "autre", label: "Autre" },
+];
+
+const ADDRESSEES = [
+  { value: "MINISTRE", label: "Ministre" },
+  { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
+  { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
+  { value: "CONSEILLER JURIDIQUE", label: "Conseiller Juridique" },
+];
+
 export default function MailEntry() {
   const { user } = useAuth();
 
@@ -37,11 +54,21 @@ export default function MailEntry() {
     enabled: !!user,
   });
 
-  const { data: users } = useQuery({
-    queryKey: ["users-for-addressing"],
+  // Fetch previous senders for autocomplete
+  const { data: previousSenders } = useQuery({
+    queryKey: ["previous-senders"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name");
-      return data || [];
+      const { data } = await supabase
+        .from("mails")
+        .select("sender_name, sender_organization, sender_phone, sender_email, sender_address, sender_city, sender_country")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      // Deduplicate by sender_name
+      const map = new Map<string, typeof data extends (infer T)[] ? T : never>();
+      data?.forEach((d) => {
+        if (d.sender_name && !map.has(d.sender_name)) map.set(d.sender_name, d);
+      });
+      return Array.from(map.values());
     },
     enabled: !!user,
   });
@@ -49,9 +76,11 @@ export default function MailEntry() {
   const [form, setForm] = useState({
     reference_number: "",
     sender_name: "",
+    sender_organization: "",
     subject: "",
     reception_date: "",
     mail_type: "",
+    mail_type_other: "",
     priority: "normal",
     sender_phone: "",
     sender_email: "",
@@ -70,7 +99,30 @@ export default function MailEntry() {
   const [showQr, setShowQr] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const [senderSearch, setSenderSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const senderSuggestions = useMemo(() => {
+    if (!senderSearch || senderSearch.length < 2 || !previousSenders) return [];
+    return previousSenders.filter((s) =>
+      s.sender_name?.toLowerCase().includes(senderSearch.toLowerCase())
+    ).slice(0, 8);
+  }, [senderSearch, previousSenders]);
+
+  const selectSender = (sender: any) => {
+    setForm((f) => ({
+      ...f,
+      sender_name: sender.sender_name || "",
+      sender_organization: sender.sender_organization || "",
+      sender_phone: sender.sender_phone || "",
+      sender_email: sender.sender_email || "",
+      sender_address: sender.sender_address || "",
+      sender_city: sender.sender_city || "",
+      sender_country: sender.sender_country || f.sender_country,
+    }));
+    setSenderSearch(sender.sender_name || "");
+    setShowSuggestions(false);
+  };
 
   const generateRef = () => {
     const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -82,8 +134,7 @@ export default function MailEntry() {
 
   const handleFiles = (incoming: FileList | null) => {
     if (!incoming) return;
-    const arr = Array.from(incoming);
-    setFiles((prev) => [...prev, ...arr]);
+    setFiles((prev) => [...prev, ...Array.from(incoming)]);
   };
 
   const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
@@ -102,7 +153,6 @@ export default function MailEntry() {
     const qrCodeData = JSON.stringify({ ref, date: new Date().toISOString(), agent: user.id });
 
     try {
-      // Upload attachments if any
       let attachmentUrl: string | null = null;
       if (files.length > 0) {
         const file = files[0];
@@ -126,7 +176,7 @@ export default function MailEntry() {
         reference_number: ref,
         qr_code_data: qrCodeData,
         sender_name: form.sender_name,
-        sender_organization: null,
+        sender_organization: form.sender_organization || null,
         subject: form.subject,
         description: form.comments || null,
         priority: form.priority as any,
@@ -152,11 +202,12 @@ export default function MailEntry() {
       setShowQr(true);
       toast.success("Courrier enregistré avec succès");
       setForm({
-        reference_number: "", sender_name: "", subject: "", reception_date: "",
-        mail_type: "", priority: "normal", sender_phone: "", sender_email: "",
+        reference_number: "", sender_name: "", sender_organization: "", subject: "", reception_date: "",
+        mail_type: "", mail_type_other: "", priority: "normal", sender_phone: "", sender_email: "",
         sender_address: "", sender_city: "", sender_country: "République démocratique du Congo",
         deposit_time: "", deposit_month: "", deposit_year: "", addressed_to: "", comments: "",
       });
+      setSenderSearch("");
       setFiles([]);
     } catch (err: any) {
       toast.error(err.message);
@@ -189,38 +240,72 @@ export default function MailEntry() {
               </Field>
             </div>
 
-            {/* Row 2: Expéditeur & Objet */}
+            {/* Row 2: Expéditeur (autocomplete) & Organisation */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Expéditeur" required hint="Expéditeur du courrier">
-                <Input value={form.sender_name} onChange={(e) => update("sender_name", e.target.value)} placeholder="Nom de l'expéditeur" required />
+              <Field label="Expéditeur" required hint="Tapez pour rechercher un expéditeur existant">
+                <div className="relative">
+                  <Input
+                    value={senderSearch || form.sender_name}
+                    onChange={(e) => {
+                      setSenderSearch(e.target.value);
+                      update("sender_name", e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => senderSearch.length >= 2 && setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    placeholder="Nom de l'expéditeur"
+                    required
+                  />
+                  {showSuggestions && senderSuggestions.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto">
+                      {senderSuggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onMouseDown={() => selectSender(s)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                        >
+                          <span className="font-medium">{s.sender_name}</span>
+                          {s.sender_organization && (
+                            <span className="text-muted-foreground ml-2">— {s.sender_organization}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Field>
-              <Field label="Objet" required hint="Objet du courrier">
-                <Input value={form.subject} onChange={(e) => update("subject", e.target.value)} placeholder="Objet du courrier" required />
+              <Field label="Organisation" hint="Organisation / Institution de l'expéditeur">
+                <Input value={form.sender_organization} onChange={(e) => update("sender_organization", e.target.value)} placeholder="Organisation" />
               </Field>
             </div>
 
+            {/* Objet */}
+            <Field label="Objet" required hint="Objet du courrier">
+              <Input value={form.subject} onChange={(e) => update("subject", e.target.value)} placeholder="Objet du courrier" required />
+            </Field>
+
             {/* Row 3: Dates & Type & Priorité */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <Field label="Date de réception" required hint="Date de la réception du courrier">
+              <Field label="Date de réception" required>
                 <Input type="date" value={form.reception_date} onChange={(e) => update("reception_date", e.target.value)} required />
               </Field>
               <Field label="Date système">
                 <Input value={today} disabled className="bg-muted" />
               </Field>
-              <Field label="Type de courrier" required hint="Sélectionnez le type lié au présent courrier.">
+              <Field label="Type de courrier" required hint="Catégorie du courrier">
                 <Select value={form.mail_type} onValueChange={(v) => update("mail_type", v)}>
                   <SelectTrigger><SelectValue placeholder="Sélectionnez" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="standard">Ordinaire</SelectItem>
-                    <SelectItem value="invitation">Invitation</SelectItem>
-                    <SelectItem value="note_technique">Note technique</SelectItem>
-                    <SelectItem value="accusé_reception">Accusé de réception</SelectItem>
+                    {MAIL_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Priorité du courrier">
+              <Field label="Priorité">
                 <Select value={form.priority} onValueChange={(v) => update("priority", v)}>
-                  <SelectTrigger><SelectValue placeholder="Sélectionnez" /></SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">Basse</SelectItem>
                     <SelectItem value="normal">Normale</SelectItem>
@@ -231,10 +316,28 @@ export default function MailEntry() {
               </Field>
             </div>
 
+            {/* "Autre" mail type specification */}
+            {form.mail_type === "autre" && (
+              <Field label="Précisez le type" required>
+                <Input value={form.mail_type_other} onChange={(e) => update("mail_type_other", e.target.value)} placeholder="Type de courrier personnalisé" required />
+              </Field>
+            )}
+
+            {/* À qui s'adresse ce courrier */}
+            <Field label="À qui s'adresse ce courrier ?" required hint="Destinataire hiérarchique">
+              <Select value={form.addressed_to} onValueChange={(v) => update("addressed_to", v)}>
+                <SelectTrigger><SelectValue placeholder="Sélectionnez le destinataire" /></SelectTrigger>
+                <SelectContent>
+                  {ADDRESSEES.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
             {/* Pièce jointe */}
-            <Field label="Pièce Jointe" hint="Joindre la version scannée du courrier et/ou tout autre document accompagnant le courrier.">
+            <Field label="Pièce Jointe" hint="Joindre la version scannée du courrier et/ou tout autre document.">
               <div
-                ref={dropRef}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
@@ -262,7 +365,7 @@ export default function MailEntry() {
               <p className="text-xs text-muted-foreground mt-1">Taille max. des fichiers : 50 MB.</p>
             </Field>
 
-            {/* Row: Téléphone & Email */}
+            {/* Téléphone & Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Téléphone de l'expéditeur">
                 <Input type="tel" value={form.sender_phone} onChange={(e) => update("sender_phone", e.target.value)} placeholder="Numéro de téléphone" />
@@ -279,10 +382,10 @@ export default function MailEntry() {
 
             {/* Ville & Pays */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Ville" hint="Ville">
+              <Field label="Ville">
                 <Input value={form.sender_city} onChange={(e) => update("sender_city", e.target.value)} placeholder="Ville" />
               </Field>
-              <Field label="Pays" hint="Pays">
+              <Field label="Pays">
                 <Select value={form.sender_country} onValueChange={(v) => update("sender_country", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -296,7 +399,7 @@ export default function MailEntry() {
 
             {/* Heure, Mois, Année */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Heure de dépôt" hint="Heure d'enregistrement du courrier">
+              <Field label="Heure de dépôt">
                 <Input type="time" value={form.deposit_time} onChange={(e) => update("deposit_time", e.target.value)} />
               </Field>
               <Field label="Mois" required>
@@ -320,18 +423,6 @@ export default function MailEntry() {
                 </Select>
               </Field>
             </div>
-
-            {/* À qui s'adresse ce courrier */}
-            <Field label="À qui s'adresse ce courrier ?" required>
-              <Select value={form.addressed_to} onValueChange={(v) => update("addressed_to", v)}>
-                <SelectTrigger><SelectValue placeholder="Sélectionnez" /></SelectTrigger>
-                <SelectContent>
-                  {(users || []).map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
 
             {/* Commentaire */}
             <Field label="Commentaire" required>

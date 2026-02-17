@@ -178,6 +178,7 @@ export type Database = {
           id: string
           is_read: boolean | null
           mail_type: string | null
+          mail_type_other: string | null
           priority: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
           reception_date: string | null
@@ -211,6 +212,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           mail_type?: string | null
+          mail_type_other?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
           reception_date?: string | null
@@ -244,6 +246,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           mail_type?: string | null
+          mail_type_other?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data?: string
           reception_date?: string | null
@@ -261,6 +264,54 @@ export type Database = {
           updated_at?: string | null
           workflow_completed_at?: string | null
           workflow_started_at?: string | null
+        }
+        Relationships: []
+      }
+      missions: {
+        Row: {
+          assigned_to: string
+          budget_estimate: number | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          destination: string | null
+          end_date: string | null
+          id: string
+          notes: string | null
+          start_date: string
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to: string
+          budget_estimate?: number | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          destination?: string | null
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          start_date: string
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string
+          budget_estimate?: number | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          destination?: string | null
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          start_date?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
         }
         Relationships: []
       }

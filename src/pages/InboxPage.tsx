@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Search, Sparkles, Paperclip, Clock } from "lucide-react";
+import { Search, Sparkles, Paperclip, Clock, FileText, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
@@ -22,6 +22,9 @@ export default function InboxPage() {
   const [showDoc, setShowDoc] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiContent, setAiContent] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     fetchMails();
@@ -209,10 +212,35 @@ export default function InboxPage() {
                   onAdvanced={fetchMails}
                 />
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => toast.info("Assistant IA bientôt disponible")}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    IA
-                  </Button>
+                  <Select
+                    onValueChange={async (type) => {
+                      if (!selected) return;
+                      setAiLoading(true);
+                      setAiContent("");
+                      setShowAiDialog(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke("ai-assistant", {
+                          body: { type, subject: selected.subject, description: selected.description, senderName: selected.sender_name },
+                        });
+                        if (error) throw error;
+                        setAiContent(data.content || "Aucune réponse.");
+                      } catch (e: any) {
+                        setAiContent("Erreur: " + (e.message || "Impossible de générer"));
+                      } finally {
+                        setAiLoading(false);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-auto h-9 text-xs gap-1">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <SelectValue placeholder="Assistant IA" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="note_technique"><FileText className="h-3 w-3 inline mr-1" />Note Technique</SelectItem>
+                      <SelectItem value="accuse_reception"><Mail className="h-3 w-3 inline mr-1" />Accusé de Réception</SelectItem>
+                      <SelectItem value="resume"><Sparkles className="h-3 w-3 inline mr-1" />Résumé</SelectItem>
+                    </SelectContent>
+                  </Select>
                   {selected.attachment_url && (
                     <Button size="sm" variant="outline" onClick={() => setShowDoc(true)}>
                       <Paperclip className="h-4 w-4 mr-2" />
@@ -229,6 +257,46 @@ export default function InboxPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Assistant IA
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-[200px]">
+            {aiLoading ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent mr-3" />
+                Génération en cours...
+              </div>
+            ) : (
+              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{aiContent}</div>
+            )}
+          </div>
+          {!aiLoading && aiContent && (
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" variant="outline" onClick={() => {
+                navigator.clipboard.writeText(aiContent);
+                toast.success("Copié dans le presse-papiers");
+              }}>
+                Copier
+              </Button>
+              {selected && (
+                <Button size="sm" onClick={async () => {
+                  const { error } = await supabase.from("mails").update({ ai_draft: aiContent } as any).eq("id", selected.id);
+                  if (error) toast.error(error.message);
+                  else { toast.success("Brouillon IA sauvegardé"); fetchMails(); }
+                }}>
+                  Sauvegarder comme brouillon
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDoc} onOpenChange={setShowDoc}>
         <DialogContent className="max-w-3xl">
