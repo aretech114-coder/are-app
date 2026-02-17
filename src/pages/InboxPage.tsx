@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +9,10 @@ import { toast } from "sonner";
 import { Search, Sparkles, Paperclip, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { WorkflowStepper } from "@/components/WorkflowStepper";
+import { WorkflowActions } from "@/components/WorkflowActions";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -18,6 +21,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const [showDoc, setShowDoc] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   useEffect(() => {
     fetchMails();
@@ -32,28 +36,20 @@ export default function InboxPage() {
       .order("created_at", { ascending: false });
     setMails(data || []);
     setLoading(false);
+    // Refresh selected if open
+    if (selected) {
+      const updated = data?.find(m => m.id === selected.id);
+      setSelected(updated || null);
+    }
   };
 
   const markAsRead = async (mail: any) => {
     setSelected(mail);
+    setShowTimeline(false);
     if (!mail.is_read) {
       await supabase.from("mails").update({ is_read: true }).eq("id", mail.id);
       setMails((prev) => prev.map((m) => (m.id === mail.id ? { ...m, is_read: true } : m)));
     }
-  };
-
-  const updateStatus = async (mailId: string, status: string) => {
-    await supabase.from("mails").update({ status: status as any }).eq("id", mailId);
-    if (user) {
-      await supabase.from("mail_processing_history").insert({
-        mail_id: mailId,
-        agent_id: user.id,
-        action: `Statut changé à: ${status}`,
-      });
-    }
-    toast.success("Statut mis à jour");
-    fetchMails();
-    setSelected(null);
   };
 
   const filtered = mails.filter(
@@ -68,6 +64,11 @@ export default function InboxPage() {
     normal: "bg-info/10 text-info",
     high: "bg-warning/10 text-warning",
     urgent: "bg-destructive/10 text-destructive",
+  };
+
+  const isOverdue = (mail: any) => {
+    if (!mail.deadline_at) return false;
+    return new Date(mail.deadline_at) < new Date();
   };
 
   return (
@@ -121,6 +122,17 @@ export default function InboxPage() {
                       </span>
                     </div>
                   </div>
+                  {/* Workflow step badge */}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getStepColor(mail.current_step || 1)}`}>
+                      {getStepLabel(mail.current_step || 1)}
+                    </span>
+                    {isOverdue(mail) && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium">
+                        En retard
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1 font-mono">{mail.reference_number}</p>
                 </button>
               ))
@@ -132,6 +144,11 @@ export default function InboxPage() {
         <div className="hidden lg:flex flex-1 border rounded-lg bg-card flex-col overflow-hidden">
           {selected ? (
             <div className="flex flex-col h-full">
+              {/* Workflow Stepper */}
+              <div className="px-5 pt-4 pb-2 border-b bg-muted/20">
+                <WorkflowStepper currentStep={selected.current_step || 1} />
+              </div>
+
               <div className="p-5 border-b">
                 <div className="flex items-start justify-between">
                   <div>
@@ -145,18 +162,13 @@ export default function InboxPage() {
                         {format(new Date(selected.created_at), "dd MMMM yyyy à HH:mm", { locale: fr })}
                       </span>
                       <span className="font-mono">{selected.reference_number}</span>
+                      {selected.deadline_at && (
+                        <span className={`flex items-center gap-1 ${isOverdue(selected) ? "text-destructive font-medium" : ""}`}>
+                          Échéance: {format(new Date(selected.deadline_at), "dd MMM à HH:mm", { locale: fr })}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <Select onValueChange={(v) => updateStatus(selected.id, v)}>
-                    <SelectTrigger className="w-36">
-                      <SelectValue placeholder="Changer statut" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="in_progress">En cours</SelectItem>
-                      <SelectItem value="processed">Traité</SelectItem>
-                      <SelectItem value="archived">Archiver</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
 
@@ -171,19 +183,43 @@ export default function InboxPage() {
                     <p className="text-sm">{selected.ai_draft}</p>
                   </div>
                 )}
+
+                {/* Workflow Timeline toggle */}
+                <div className="mt-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTimeline(!showTimeline)}
+                    className="text-xs"
+                  >
+                    {showTimeline ? "Masquer" : "Voir"} l'historique du workflow
+                  </Button>
+                  {showTimeline && (
+                    <div className="mt-2 p-3 rounded-lg border bg-muted/20">
+                      <WorkflowTimeline mailId={selected.id} />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="p-4 border-t flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => toast.info("Assistant IA bientôt disponible")}>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Assistant IA
-                </Button>
-                {selected.attachment_url && (
-                  <Button size="sm" variant="outline" onClick={() => setShowDoc(true)}>
-                    <Paperclip className="h-4 w-4 mr-2" />
-                    Voir document
+              <div className="p-4 border-t flex items-center justify-between gap-2">
+                <WorkflowActions
+                  mailId={selected.id}
+                  currentStep={selected.current_step || 1}
+                  onAdvanced={fetchMails}
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => toast.info("Assistant IA bientôt disponible")}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    IA
                   </Button>
-                )}
+                  {selected.attachment_url && (
+                    <Button size="sm" variant="outline" onClick={() => setShowDoc(true)}>
+                      <Paperclip className="h-4 w-4 mr-2" />
+                      Document
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

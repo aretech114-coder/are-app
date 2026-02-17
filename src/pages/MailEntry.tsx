@@ -38,6 +38,16 @@ export default function MailEntry() {
     const qrCodeData = JSON.stringify({ ref, date: new Date().toISOString(), agent: user.id });
 
     try {
+      // Calculate deadline from SLA config for step 1
+      const { data: slaData } = await supabase
+        .from("sla_config")
+        .select("default_hours")
+        .eq("step_number", 1)
+        .single();
+      const deadlineHours = slaData?.default_hours || 24;
+      const deadline = new Date();
+      deadline.setHours(deadline.getHours() + deadlineHours);
+
       const { error } = await supabase.from("mails").insert({
         reference_number: ref,
         qr_code_data: qrCodeData,
@@ -47,6 +57,9 @@ export default function MailEntry() {
         description: form.description || null,
         priority: form.priority as any,
         registered_by: user.id,
+        current_step: 1,
+        deadline_at: deadline.toISOString(),
+        workflow_started_at: new Date().toISOString(),
       });
 
       if (error) throw error;

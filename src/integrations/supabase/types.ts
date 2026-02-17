@@ -83,6 +83,50 @@ export type Database = {
         }
         Relationships: []
       }
+      mail_assignments: {
+        Row: {
+          assigned_by: string
+          assigned_to: string
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          instructions: string | null
+          mail_id: string
+          status: string
+          step_number: number
+        }
+        Insert: {
+          assigned_by: string
+          assigned_to: string
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          instructions?: string | null
+          mail_id: string
+          status?: string
+          step_number: number
+        }
+        Update: {
+          assigned_by?: string
+          assigned_to?: string
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          instructions?: string | null
+          mail_id?: string
+          status?: string
+          step_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_assignments_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "mails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mail_processing_history: {
         Row: {
           action: string
@@ -124,10 +168,13 @@ export type Database = {
           assigned_agent_id: string | null
           attachment_url: string | null
           created_at: string | null
+          current_step: number | null
+          deadline_at: string | null
           description: string | null
           document_summary: string | null
           id: string
           is_read: boolean | null
+          mail_type: string | null
           priority: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
           reference_number: string
@@ -137,16 +184,21 @@ export type Database = {
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
           updated_at: string | null
+          workflow_completed_at: string | null
+          workflow_started_at: string | null
         }
         Insert: {
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
           created_at?: string | null
+          current_step?: number | null
+          deadline_at?: string | null
           description?: string | null
           document_summary?: string | null
           id?: string
           is_read?: boolean | null
+          mail_type?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
           reference_number: string
@@ -156,16 +208,21 @@ export type Database = {
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
           updated_at?: string | null
+          workflow_completed_at?: string | null
+          workflow_started_at?: string | null
         }
         Update: {
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
           created_at?: string | null
+          current_step?: number | null
+          deadline_at?: string | null
           description?: string | null
           document_summary?: string | null
           id?: string
           is_read?: boolean | null
+          mail_type?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data?: string
           reference_number?: string
@@ -175,6 +232,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
           updated_at?: string | null
+          workflow_completed_at?: string | null
+          workflow_started_at?: string | null
         }
         Relationships: []
       }
@@ -249,6 +308,36 @@ export type Database = {
         }
         Relationships: []
       }
+      sla_config: {
+        Row: {
+          created_at: string | null
+          default_hours: number
+          description: string | null
+          id: string
+          step_name: string
+          step_number: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_hours?: number
+          description?: string | null
+          id?: string
+          step_name: string
+          step_number: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_hours?: number
+          description?: string | null
+          id?: string
+          step_name?: string
+          step_number?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -299,6 +388,47 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      workflow_transitions: {
+        Row: {
+          action: string
+          created_at: string | null
+          from_step: number | null
+          id: string
+          mail_id: string
+          notes: string | null
+          performed_by: string
+          to_step: number
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          from_step?: number | null
+          id?: string
+          mail_id: string
+          notes?: string | null
+          performed_by: string
+          to_step: number
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          from_step?: number | null
+          id?: string
+          mail_id?: string
+          notes?: string | null
+          performed_by?: string
+          to_step?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_transitions_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "mails"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
