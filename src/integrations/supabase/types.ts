@@ -164,12 +164,15 @@ export type Database = {
       }
       mails: {
         Row: {
+          addressed_to: string | null
           ai_draft: string | null
           assigned_agent_id: string | null
           attachment_url: string | null
+          comments: string | null
           created_at: string | null
           current_step: number | null
           deadline_at: string | null
+          deposit_time: string | null
           description: string | null
           document_summary: string | null
           id: string
@@ -177,10 +180,16 @@ export type Database = {
           mail_type: string | null
           priority: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
+          reception_date: string | null
           reference_number: string
           registered_by: string
+          sender_address: string | null
+          sender_city: string | null
+          sender_country: string | null
+          sender_email: string | null
           sender_name: string
           sender_organization: string | null
+          sender_phone: string | null
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
           updated_at: string | null
@@ -188,12 +197,15 @@ export type Database = {
           workflow_started_at: string | null
         }
         Insert: {
+          addressed_to?: string | null
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
+          comments?: string | null
           created_at?: string | null
           current_step?: number | null
           deadline_at?: string | null
+          deposit_time?: string | null
           description?: string | null
           document_summary?: string | null
           id?: string
@@ -201,10 +213,16 @@ export type Database = {
           mail_type?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
+          reception_date?: string | null
           reference_number: string
           registered_by: string
+          sender_address?: string | null
+          sender_city?: string | null
+          sender_country?: string | null
+          sender_email?: string | null
           sender_name: string
           sender_organization?: string | null
+          sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
           updated_at?: string | null
@@ -212,12 +230,15 @@ export type Database = {
           workflow_started_at?: string | null
         }
         Update: {
+          addressed_to?: string | null
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
+          comments?: string | null
           created_at?: string | null
           current_step?: number | null
           deadline_at?: string | null
+          deposit_time?: string | null
           description?: string | null
           document_summary?: string | null
           id?: string
@@ -225,10 +246,16 @@ export type Database = {
           mail_type?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data?: string
+          reception_date?: string | null
           reference_number?: string
           registered_by?: string
+          sender_address?: string | null
+          sender_city?: string | null
+          sender_country?: string | null
+          sender_email?: string | null
           sender_name?: string
           sender_organization?: string | null
+          sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
           updated_at?: string | null
