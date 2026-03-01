@@ -39,6 +39,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const stepInfo = getStepInfo(currentStep);
 
+  // Map roles to their allowed steps
+  const roleStepMap: Record<string, number[]> = {
+    secretariat: [1, 7],
+    ministre: [2],
+    dircab: [3, 5, 6],
+    dircaba: [3],
+    conseiller_juridique: [4],
+    admin: [1, 2, 3, 4, 5, 6, 7],
+    superadmin: [1, 2, 3, 4, 5, 6, 7],
+  };
+
+  const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
+
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
     if (showDialog && (currentStep === 2 || currentStep === 3)) {
@@ -206,7 +219,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   };
 
   const actions = getActions();
-  if (actions.length === 0) return null;
+  if (actions.length === 0 || !canAct) return null;
 
   const showAnnotation = currentStep === 2 || currentStep === 3;
   const showAssignment = currentStep === 2 || currentStep === 3;
