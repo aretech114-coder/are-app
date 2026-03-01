@@ -261,7 +261,7 @@ export default function InboxPage() {
                       setShowAiDialog(true);
                       try {
                         const { data, error } = await supabase.functions.invoke("ai-assistant", {
-                          body: { type, subject: selected.subject, description: selected.description, senderName: selected.sender_name },
+                          body: { type, subject: selected.subject, description: selected.description, senderName: selected.sender_name, attachmentUrl: selected.attachment_url },
                         });
                         if (error) throw error;
                         setAiContent(data.content || "Aucune réponse.");
