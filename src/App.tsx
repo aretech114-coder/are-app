@@ -18,6 +18,7 @@ import SystemConfigPage from "./pages/SystemConfigPage";
 import WorkflowPage from "./pages/WorkflowPage";
 import MissionsPage from "./pages/MissionsPage";
 import ReunionsPage from "./pages/ReunionsPage";
+import SuiviPage from "./pages/SuiviPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ function AppRoutes() {
       <Route path="/workflow" element={<ProtectedRoute><AdminRoute><WorkflowPage /></AdminRoute></ProtectedRoute>} />
       <Route path="/missions" element={<ProtectedRoute><MissionsPage /></ProtectedRoute>} />
       <Route path="/reunions" element={<ProtectedRoute><ReunionsPage /></ProtectedRoute>} />
+      <Route path="/suivi" element={<ProtectedRoute><SuiviPage /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SuperAdminRoute><SystemConfigPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

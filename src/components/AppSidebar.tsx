@@ -1,5 +1,5 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +24,7 @@ export function AppSidebar() {
 
   const isSuperAdmin = role === "superadmin";
   const isAdmin = role === "admin";
+  const isMinisterOrDircab = role === "ministre" || role === "dircab" || isSuperAdmin || isAdmin;
 
   return (
     <Sidebar className="sidebar-gradient border-r-0">
@@ -62,6 +63,32 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Suivi for Ministre / DirCab */}
+        {isMinisterOrDircab && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
+              Suivi
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/suivi"
+                      end
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <Eye className="h-4 w-4 shrink-0" />
+                      <span className="text-sm">Tableau de Suivi</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Admin section */}
         {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
