@@ -175,20 +175,61 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 p-5 overflow-auto">
-                <p className="text-sm leading-relaxed">{selected.description || "Aucune description disponible."}</p>
+              <div className="flex-1 p-5 overflow-auto space-y-4">
+                {/* Metadata grid */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <DetailItem label="Type de courrier" value={selected.mail_type || "—"} />
+                  <DetailItem label="Priorité" value={selected.priority} />
+                  <DetailItem label="Destinataire" value={selected.addressed_to || "—"} />
+                  <DetailItem label="Statut" value={selected.status} />
+                  {selected.reception_date && (
+                    <DetailItem label="Date de réception" value={format(new Date(selected.reception_date), "dd MMMM yyyy", { locale: fr })} />
+                  )}
+                  {selected.deposit_time && (
+                    <DetailItem label="Heure de dépôt" value={selected.deposit_time} />
+                  )}
+                  {selected.sender_phone && (
+                    <DetailItem label="Téléphone" value={selected.sender_phone} />
+                  )}
+                  {selected.sender_email && (
+                    <DetailItem label="Email" value={selected.sender_email} />
+                  )}
+                  {selected.sender_address && (
+                    <DetailItem label="Adresse" value={`${selected.sender_address}${selected.sender_city ? `, ${selected.sender_city}` : ""}${selected.sender_country ? ` — ${selected.sender_country}` : ""}`} />
+                  )}
+                </div>
+
+                {/* Description / Comments */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">Description / Commentaire</h4>
+                  <p className="text-sm leading-relaxed bg-muted/30 rounded-lg p-3 whitespace-pre-wrap">
+                    {selected.description || selected.comments || "Aucune description disponible."}
+                  </p>
+                </div>
+
+                {/* Attachment preview button */}
+                {selected.attachment_url && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/20">
+                    <Paperclip className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm truncate flex-1">Pièce jointe disponible</span>
+                    <Button size="sm" variant="default" onClick={() => setShowDoc(true)}>
+                      Visualiser
+                    </Button>
+                  </div>
+                )}
+
                 {selected.ai_draft && (
-                  <div className="mt-4 p-4 rounded-lg bg-accent border">
+                  <div className="p-4 rounded-lg bg-accent border">
                     <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
                       <Sparkles className="h-4 w-4 text-primary" />
                       Proposition IA
                     </h4>
-                    <p className="text-sm">{selected.ai_draft}</p>
+                    <p className="text-sm whitespace-pre-wrap">{selected.ai_draft}</p>
                   </div>
                 )}
 
                 {/* Workflow Timeline toggle */}
-                <div className="mt-4">
+                <div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -299,15 +340,53 @@ export default function InboxPage() {
       </Dialog>
 
       <Dialog open={showDoc} onOpenChange={setShowDoc}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Aperçu du document</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Paperclip className="h-5 w-5" />
+              Pièce jointe
+            </DialogTitle>
           </DialogHeader>
-          <div className="min-h-[400px] flex items-center justify-center text-muted-foreground">
-            <p className="text-sm">Aperçu du document (simulation)</p>
+          <div className="min-h-[500px] flex flex-col">
+            {selected?.attachment_url ? (
+              selected.attachment_url.match(/\.(pdf)$/i) ? (
+                <iframe
+                  src={selected.attachment_url}
+                  className="w-full flex-1 min-h-[500px] rounded border"
+                  title="Document PDF"
+                />
+              ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)$/i) ? (
+                <img
+                  src={selected.attachment_url}
+                  alt="Pièce jointe"
+                  className="max-w-full max-h-[500px] object-contain mx-auto rounded"
+                />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                  <FileText className="h-12 w-12" />
+                  <p className="text-sm">Ce type de fichier ne peut pas être prévisualisé directement.</p>
+                  <Button asChild variant="default">
+                    <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                      Télécharger le fichier
+                    </a>
+                  </Button>
+                </div>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">Aucune pièce jointe</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium capitalize">{value}</p>
     </div>
   );
 }
