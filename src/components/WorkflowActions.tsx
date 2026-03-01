@@ -52,6 +52,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [treatmentContent, setTreatmentContent] = useState("");
 
   // Step 2: RDV / Meeting scheduling
+  // Step 2: RDV / Meeting scheduling
   const [scheduleRdv, setScheduleRdv] = useState(false);
   const [rdvDate, setRdvDate] = useState<Date>();
   const [rdvTime, setRdvTime] = useState("");
@@ -59,6 +60,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [rdvLocation, setRdvLocation] = useState("");
   const [rdvTitle, setRdvTitle] = useState("");
   const [rdvDescription, setRdvDescription] = useState("");
+
+  // Step 8: AR generation
+  const [arContent, setArContent] = useState("");
+  const [arLoading, setArLoading] = useState(false);
+  const [mailData, setMailData] = useState<any>(null);
 
   const stepInfo = getStepInfo(currentStep);
 
@@ -98,6 +104,18 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         });
     }
   }, [currentStep, mailId, user]);
+
+  // Fetch mail data for step 8
+  useEffect(() => {
+    if (currentStep === 8 || (showDialog && currentStep === 8)) {
+      supabase.from("mails").select("*").eq("id", mailId).single().then(({ data }) => {
+        if (data) {
+          setMailData(data);
+          if (data.ai_draft) setArContent(data.ai_draft);
+        }
+      });
+    }
+  }, [currentStep, mailId, showDialog]);
 
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
@@ -539,6 +557,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setRdvLocation("");
     setRdvTitle("");
     setRdvDescription("");
+    setArContent("");
+    setArLoading(false);
+    setMailData(null);
   };
 
   const actions = getActions();
@@ -652,6 +673,124 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                   />
                 </div>
               </>
+            )}
+
+            {/* Step 8: Accusé de réception generation and proof of deposit */}
+            {currentStep === 8 && (
+              <div className="space-y-4">
+                {mailData?.mail_type === "accuse_reception" || mailData?.mail_type === "accusé_reception" ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        Accusé de Réception
+                      </Label>
+                      {!arContent && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={arLoading}
+                          onClick={async () => {
+                            setArLoading(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke("ai-assistant", {
+                                body: {
+                                  type: "accuse_reception",
+                                  subject: mailData?.subject,
+                                  description: mailData?.description,
+                                  senderName: mailData?.sender_name,
+                                  senderOrganization: mailData?.sender_organization,
+                                  senderAddress: mailData?.sender_address,
+                                  referenceNumber: mailData?.reference_number,
+                                },
+                              });
+                              if (error) throw error;
+                              const content = data?.content || "";
+                              setArContent(content);
+                              await supabase.from("mails").update({ ai_draft: content } as any).eq("id", mailId);
+                              toast.success("Accusé de réception généré");
+                            } catch (e: any) {
+                              toast.error("Erreur: " + (e.message || "Impossible de générer"));
+                            } finally {
+                              setArLoading(false);
+                            }
+                          }}
+                        >
+                          {arLoading ? "Génération..." : "Générer l'accusé"}
+                        </Button>
+                      )}
+                    </div>
+
+                    {arContent ? (
+                      <div className="space-y-2">
+                        <div className="border rounded-lg p-4 bg-card text-sm whitespace-pre-wrap max-h-64 overflow-auto">
+                          {arContent}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const printWindow = window.open("", "_blank");
+                              if (printWindow) {
+                                printWindow.document.write(`
+                                  <html>
+                                    <head>
+                                      <title>Accusé de Réception — ${mailData?.reference_number || ""}</title>
+                                      <style>
+                                        body { font-family: 'Times New Roman', serif; padding: 40px 60px; line-height: 1.6; }
+                                        .ref { font-size: 12px; color: #666; margin-bottom: 20px; }
+                                        .content { white-space: pre-wrap; }
+                                      </style>
+                                    </head>
+                                    <body>
+                                      <div class="ref">Réf: ${mailData?.reference_number || ""}</div>
+                                      <div class="content">${arContent.replace(/\n/g, "<br/>")}</div>
+                                    </body>
+                                  </html>
+                                `);
+                                printWindow.document.close();
+                                printWindow.print();
+                              }
+                            }}
+                          >
+                            🖨️ Imprimer sur papier en-tête
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              navigator.clipboard.writeText(arContent);
+                              toast.success("Copié dans le presse-papiers");
+                            }}
+                          >
+                            Copier
+                          </Button>
+                        </div>
+                      </div>
+                    ) : arLoading ? (
+                      <div className="flex items-center justify-center py-6 text-muted-foreground">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent mr-2" />
+                        Génération de l'accusé de réception...
+                      </div>
+                    ) : null}
+
+                    <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        <strong>📋 Instructions :</strong> Imprimez l'accusé de réception sur papier en-tête, 
+                        faites-le signer, puis joignez la preuve de dépôt signée ci-dessous avant de confirmer.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-sm text-muted-foreground">
+                      📄 Ce courrier n'est pas de type "Accusé de Réception". 
+                      Joignez la preuve de dépôt ci-dessous pour finaliser.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Step 5/6: Show rejection warning */}
@@ -886,7 +1025,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             <Button variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>Annuler</Button>
             <Button
               onClick={handleAction}
-              disabled={loading || (showTreatment && action === "complete" && (!treatmentType || !treatmentContent))}
+              disabled={loading || (showTreatment && action === "complete" && (!treatmentType || !treatmentContent)) || (currentStep === 8 && !attachmentFile)}
               variant={action === "reject" ? "destructive" : "default"}
             >
               {loading ? "En cours..." : action === "reject" ? "Confirmer le rejet" : "Confirmer"}
