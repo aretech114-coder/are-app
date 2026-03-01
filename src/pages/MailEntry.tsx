@@ -198,9 +198,62 @@ export default function MailEntry() {
       });
 
       if (error) throw error;
+
+      // Auto-routing: assign to the addressed role user
+      const roleMap: Record<string, string> = {
+        "MINISTRE": "ministre",
+        "DIRECTEUR DE CABINET": "dircab",
+        "DIRECTEUR DE CABINET ADJOINT": "dircaba",
+        "CONSEILLER JURIDIQUE": "conseiller_juridique",
+      };
+      const targetRole = roleMap[form.addressed_to];
+      if (targetRole) {
+        // Find user with that role
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", targetRole as any)
+          .limit(1)
+          .single();
+
+        if (roleData?.user_id) {
+          // Assign the mail
+          const { data: insertedMail } = await supabase
+            .from("mails")
+            .select("id")
+            .eq("reference_number", ref)
+            .single();
+
+          if (insertedMail) {
+            await supabase
+              .from("mails")
+              .update({ assigned_agent_id: roleData.user_id, status: "in_progress" as any, current_step: 2 })
+              .eq("id", insertedMail.id);
+
+            // Create notification
+            await supabase.from("notifications").insert({
+              user_id: roleData.user_id,
+              title: "Nouveau courrier assigné",
+              message: `Un courrier "${form.subject}" (Réf: ${ref}) vous a été adressé pour traitement.`,
+              mail_id: insertedMail.id,
+            });
+
+            // Record workflow transition
+            await supabase.from("workflow_transitions").insert({
+              mail_id: insertedMail.id,
+              from_step: 1,
+              to_step: 2,
+              action: "approve",
+              performed_by: user.id,
+              notes: `Routé automatiquement vers ${form.addressed_to}`,
+            });
+          }
+        }
+      }
+
       setQrData({ ref, data: qrCodeData });
       setShowQr(true);
-      toast.success("Courrier enregistré avec succès");
+      toast.success("Courrier enregistré et assigné avec succès");
       setForm({
         reference_number: "", sender_name: "", sender_organization: "", subject: "", reception_date: "",
         mail_type: "", mail_type_other: "", priority: "normal", sender_phone: "", sender_email: "",
