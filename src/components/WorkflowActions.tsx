@@ -64,14 +64,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Map roles to their allowed steps
   const roleStepMap: Record<string, number[]> = {
-    secretariat: [1, 7],
+    secretariat: [1, 8, 9],
     ministre: [2, 6],
     dircab: [3, 5],
     dircaba: [3],
-    conseiller_juridique: [4],
-    conseiller: [4],
-    admin: [1, 2, 3, 4, 5, 6, 7],
-    superadmin: [1, 2, 3, 4, 5, 6, 7],
+    conseiller_juridique: [4, 7],
+    conseiller: [4, 7],
+    admin: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    superadmin: [1, 2, 3, 4, 5, 6, 7, 8, 9],
   };
 
   const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
@@ -79,9 +79,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Minister annotation from step 2 (visible at step 3)
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
 
-  // Check if current user already completed their step 4 assignment
+  // Check if current user already completed their step 4 or step 7 (acknowledgement)
   useEffect(() => {
-    if (currentStep === 4 && user) {
+    if ((currentStep === 4 || currentStep === 7) && user) {
       supabase
         .from("mail_assignments")
         .select("status")
@@ -90,7 +90,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         .eq("step_number", 4)
         .single()
         .then(({ data }) => {
-          setMyAssignmentCompleted(data?.status === "completed");
+          if (currentStep === 4) {
+            setMyAssignmentCompleted(data?.status === "completed");
+          } else if (currentStep === 7) {
+            setMyAssignmentCompleted(data?.status === "acknowledged");
+          }
         });
     }
   }, [currentStep, mailId, user]);
@@ -180,7 +184,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "approve", label: "Valider & Finaliser", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Rejeter (retour étape 4)", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 7) {
-      actions.push({ key: "archive", label: "Archiver", icon: Archive, variant: "outline" });
+      actions.push({ key: "acknowledge", label: "Consultation terminée", icon: CheckCircle, variant: "default" });
+    } else if (currentStep === 8) {
+      actions.push({ key: "complete", label: "Preuve de dépôt ajoutée", icon: Send, variant: "default" });
+    } else if (currentStep === 9) {
+      actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
     }
 
     return actions;
@@ -311,6 +319,56 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
+      // STEP 7 ACKNOWLEDGEMENT LOGIC:
+      // Conseillers acknowledge they've seen the minister's validation
+      if (currentStep === 7 && action === "acknowledge") {
+        // Mark assignment as acknowledged
+        await supabase.from("mail_assignments")
+          .update({ status: "acknowledged" })
+          .eq("mail_id", mailId)
+          .eq("assigned_to", user.id)
+          .eq("step_number", 4);
+
+        // Record transition
+        await supabase.from("workflow_transitions").insert({
+          mail_id: mailId,
+          from_step: 7,
+          to_step: 7,
+          action: "acknowledge",
+          performed_by: user.id,
+          notes: noteParts || "Consultation de la validation confirmée.",
+        });
+
+        // Check if ALL conseillers have acknowledged
+        const { data: allAssignments } = await supabase
+          .from("mail_assignments")
+          .select("id, status")
+          .eq("mail_id", mailId)
+          .eq("step_number", 4);
+
+        const allAcknowledged = allAssignments && allAssignments.length > 0 &&
+          allAssignments.every(a => a.status === "acknowledged");
+
+        if (allAcknowledged) {
+          const result = await advanceWorkflow(mailId, currentStep, "complete", user.id,
+            "✅ Tous les conseillers ont consulté la validation.");
+          if (result.success) {
+            toast.success("Tous les conseillers ont confirmé — dossier avancé à l'étape suivante");
+          } else {
+            toast.error(result.error || "Erreur");
+          }
+        } else {
+          const remaining = allAssignments ? allAssignments.filter(a => a.status !== "acknowledged").length : 0;
+          toast.success(`Consultation confirmée ! En attente de ${remaining} autre(s) conseiller(s).`);
+        }
+
+        setShowDialog(false);
+        resetForm();
+        onAdvanced();
+        setLoading(false);
+        return;
+      }
+
       const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes);
 
       if (result.success) {
@@ -346,23 +404,41 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           }
         }
 
-        // Step 6 approve: notify assigned conseillers if note technique
+        // Step 6 approve: route to step 7 (consultation conseillers) if note technique
+        // Otherwise skip to step 8 (preuve de dépôt)
         if (currentStep === 6 && action === "approve") {
-          const { data: assignments } = await supabase
-            .from("mail_assignments")
-            .select("assigned_to")
-            .eq("mail_id", mailId)
-            .eq("step_number", 4);
+          const { data: mailData } = await supabase.from("mails").select("mail_type").eq("id", mailId).single();
+          
+          if (mailData?.mail_type === "note_technique") {
+            // Notify assigned conseillers for consultation
+            const { data: assignments } = await supabase
+              .from("mail_assignments")
+              .select("assigned_to")
+              .eq("mail_id", mailId)
+              .eq("step_number", 4);
 
-          if (assignments) {
-            for (const a of assignments) {
-              await supabase.from("notifications").insert({
-                user_id: a.assigned_to,
-                title: "Dossier validé par le Ministre",
-                message: "Le dossier sur lequel vous avez travaillé a été validé avec succès.",
-                mail_id: mailId,
-              });
+            if (assignments) {
+              for (const a of assignments) {
+                await supabase.from("notifications").insert({
+                  user_id: a.assigned_to,
+                  title: "Note technique validée par le Ministre",
+                  message: "Votre note technique a été validée. Veuillez consulter et confirmer.",
+                  mail_id: mailId,
+                });
+              }
             }
+          } else {
+            // For accusé de réception, skip step 7 and go to step 8
+            // Override the step to 8
+            await supabase.from("mails").update({ current_step: 8 }).eq("id", mailId);
+            await supabase.from("workflow_transitions").insert({
+              mail_id: mailId,
+              from_step: 7,
+              to_step: 8,
+              action: "skip",
+              performed_by: user.id,
+              notes: "Étape 7 ignorée — type accusé de réception, passage direct à preuve de dépôt.",
+            });
           }
         }
 
@@ -468,19 +544,27 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const actions = getActions();
   if (actions.length === 0 || !canAct) return null;
 
-  // If this conseiller already submitted at step 4, show status instead of actions
+  // If this conseiller already submitted at step 4 or acknowledged at step 7
   if (currentStep === 4 && myAssignmentCompleted) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <CheckCircle className="h-4 w-4 text-green-500" />
+        <CheckCircle className="h-4 w-4 text-success" />
         <span>Votre traitement a été soumis. En attente des autres conseillers.</span>
+      </div>
+    );
+  }
+  if (currentStep === 7 && myAssignmentCompleted) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <CheckCircle className="h-4 w-4 text-success" />
+        <span>Consultation confirmée. En attente des autres conseillers.</span>
       </div>
     );
   }
 
   const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
   const showAssignment = currentStep === 2 || currentStep === 3;
-  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4;
+  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 8;
   const showTreatment = currentStep === 4;
 
   const roleLabels: Record<string, string> = {
@@ -501,7 +585,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     4: "Traitement du dossier — Conseiller",
     5: "Vérification — DirCab",
     6: "Validation — Ministre",
-    7: "Archivage",
+    7: "Consultation — Conseiller",
+    8: "Retour & Preuve de Dépôt — Secrétariat",
+    9: "Archivage Final",
   };
 
   return (

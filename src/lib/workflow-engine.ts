@@ -7,7 +7,9 @@ export const WORKFLOW_STEPS = [
   { step: 4, name: "Traitement", role: "conseiller_juridique", description: "Rédaction notes techniques ou réponses" },
   { step: 5, name: "Vérification", role: "dircab", description: "Vérification par le DirCab avant validation" },
   { step: 6, name: "Validation Ministre", role: "ministre", description: "Validation finale ou rejet par le Ministre" },
-  { step: 7, name: "Archivage", role: "secretariat", description: "Clôture et transfert au dépôt central" },
+  { step: 7, name: "Consultation Conseillers", role: "conseiller_juridique", description: "Les conseillers consultent la validation de leur note technique" },
+  { step: 8, name: "Retour & Preuve de Dépôt", role: "secretariat", description: "Retour du document avec preuve de dépôt et scan" },
+  { step: 9, name: "Archivage Final", role: "secretariat", description: "Clôture définitive et transfert au dépôt central" },
 ] as const;
 
 export type WorkflowStepInfo = typeof WORKFLOW_STEPS[number];
@@ -29,7 +31,9 @@ export function getStepColor(stepNumber: number): string {
     4: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
     5: "bg-orange-500/10 text-orange-600 border-orange-200",
     6: "bg-cyan-500/10 text-cyan-600 border-cyan-200",
-    7: "bg-slate-500/10 text-slate-600 border-slate-200",
+    7: "bg-teal-500/10 text-teal-600 border-teal-200",
+    8: "bg-indigo-500/10 text-indigo-600 border-indigo-200",
+    9: "bg-slate-500/10 text-slate-600 border-slate-200",
   };
   return colors[stepNumber] || "bg-muted text-muted-foreground";
 }
@@ -57,19 +61,24 @@ export async function advanceWorkflow(
       newStep = currentStep + 1;
       break;
     case "archive":
-      newStep = 7;
+      newStep = 9;
       newStatus = "archived";
+      break;
+    case "acknowledge":
+      // Step 7: conseillers acknowledge the validation
+      newStep = currentStep + 1;
       break;
     default:
       newStep = currentStep + 1;
   }
 
-  if (newStep > 7) {
-    newStep = 7;
+  if (newStep > 9) {
+    newStep = 9;
     newStatus = "archived";
   }
 
-  if (newStep === 7) {
+  // Only mark as archived when explicitly archiving at step 9
+  if (action === "archive" && newStep === 9) {
     newStatus = "archived";
   }
 
@@ -103,7 +112,7 @@ export async function advanceWorkflow(
     deadline_at: deadline.toISOString(),
   };
 
-  if (newStep === 7) {
+  if (newStep === 9) {
     updateData.workflow_completed_at = new Date().toISOString();
   }
 
