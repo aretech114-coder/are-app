@@ -2,14 +2,20 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { advanceWorkflow, getStepInfo, WORKFLOW_STEPS } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -41,6 +47,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Step 4: treatment type
   const [treatmentType, setTreatmentType] = useState<string>("");
   const [treatmentContent, setTreatmentContent] = useState("");
+
+  // Step 2: RDV / Meeting scheduling
+  const [scheduleRdv, setScheduleRdv] = useState(false);
+  const [rdvDate, setRdvDate] = useState<Date>();
+  const [rdvTime, setRdvTime] = useState("");
+  const [rdvEndTime, setRdvEndTime] = useState("");
+  const [rdvLocation, setRdvLocation] = useState("");
+  const [rdvTitle, setRdvTitle] = useState("");
+  const [rdvDescription, setRdvDescription] = useState("");
 
   const stepInfo = getStepInfo(currentStep);
 
@@ -178,6 +193,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         treatmentType && `📄 Type de document: ${treatmentType === "note_technique" ? "Note Technique" : "Accusé de Réception"}`,
         treatmentContent && `📋 Contenu:\n${treatmentContent}`,
         notes && `💬 Notes: ${notes}`,
+        scheduleRdv && rdvDate && `📅 RDV planifié: ${format(rdvDate, "dd/MM/yyyy", { locale: fr })}${rdvTime ? ` à ${rdvTime}` : ""}${rdvLocation ? ` — Lieu: ${rdvLocation}` : ""}`,
       ].filter(Boolean).join("\n");
 
       // For step 6 rejection, override to go back to step 4
@@ -271,6 +287,22 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           }
         }
 
+        // Save calendar event if RDV was scheduled
+        if (scheduleRdv && rdvDate && user) {
+          const participants = selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean) as string[];
+          await supabase.from("calendar_events").insert({
+            mail_id: mailId,
+            title: rdvTitle || "RDV — Courrier",
+            description: rdvDescription || annotation || null,
+            event_date: format(rdvDate, "yyyy-MM-dd"),
+            event_time: rdvTime || null,
+            end_time: rdvEndTime || null,
+            location: rdvLocation || null,
+            participants,
+            created_by: user.id,
+          } as any);
+        }
+
         toast.success(`Courrier avancé à l'étape ${result.newStep}`);
         setShowDialog(false);
         resetForm();
@@ -293,6 +325,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setTreatmentType("");
     setTreatmentContent("");
     setMinisterAnnotation("");
+    setScheduleRdv(false);
+    setRdvDate(undefined);
+    setRdvTime("");
+    setRdvEndTime("");
+    setRdvLocation("");
+    setRdvTitle("");
+    setRdvDescription("");
   };
 
   const actions = getActions();
@@ -428,6 +467,112 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                   onChange={(e) => setAnnotation(e.target.value)}
                   rows={4}
                 />
+              </div>
+            )}
+
+            {/* Step 2: RDV / Meeting scheduling */}
+            {currentStep === 2 && (
+              <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={scheduleRdv}
+                    onCheckedChange={(checked) => setScheduleRdv(!!checked)}
+                  />
+                  <span className="text-sm font-semibold flex items-center gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    Planifier un RDV / Réunion pour ce courrier
+                  </span>
+                </label>
+
+                {scheduleRdv && (
+                  <div className="space-y-3 pl-6 animate-fade-in">
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Titre du RDV</Label>
+                      <Input
+                        placeholder="Ex: Audience avec le Directeur Général..."
+                        value={rdvTitle}
+                        onChange={(e) => setRdvTitle(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm flex items-center gap-1">
+                          <CalendarIcon className="h-3 w-3" /> Date
+                        </Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !rdvDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {rdvDate ? format(rdvDate, "dd MMM yyyy", { locale: fr }) : "Choisir une date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={rdvDate}
+                              onSelect={setRdvDate}
+                              disabled={(date) => date < new Date()}
+                              initialFocus
+                              className={cn("p-3 pointer-events-auto")}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-sm flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> Heure de début
+                        </Label>
+                        <Input
+                          type="time"
+                          value={rdvTime}
+                          onChange={(e) => setRdvTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> Heure de fin
+                        </Label>
+                        <Input
+                          type="time"
+                          value={rdvEndTime}
+                          onChange={(e) => setRdvEndTime(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-sm flex items-center gap-1">
+                          <MapPin className="h-3 w-3" /> Lieu
+                        </Label>
+                        <Input
+                          placeholder="Salle de réunion, bureau..."
+                          value={rdvLocation}
+                          onChange={(e) => setRdvLocation(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Description / Ordre du jour</Label>
+                      <Textarea
+                        placeholder="Points à aborder lors de la réunion..."
+                        value={rdvDescription}
+                        onChange={(e) => setRdvDescription(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
