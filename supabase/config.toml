@@ -2,3 +2,9 @@ project_id = "rpsoucyybuudhwvsktah"
 
 [functions.ai-assistant]
 verify_jwt = false
+
+[functions.sla-checker]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false

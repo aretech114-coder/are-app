@@ -5,8 +5,8 @@ export const WORKFLOW_STEPS = [
   { step: 2, name: "Routage Hiérarchique", role: "ministre", description: "Dispatch: Ministre → Dircab → Dircaba" },
   { step: 3, name: "Filtrage Stratégique", role: "dircab", description: "Validation des instructions et réaffectation" },
   { step: 4, name: "Traitement", role: "conseiller_juridique", description: "Rédaction notes techniques ou réponses" },
-  { step: 5, name: "Validation", role: "dircab", description: "Approbation ou renvoi à l'étape 4" },
-  { step: 6, name: "Action Finale", role: "dircab", description: "Accusé de réception ou Note technique" },
+  { step: 5, name: "Vérification", role: "dircab", description: "Vérification par le DirCab avant validation" },
+  { step: 6, name: "Validation Ministre", role: "ministre", description: "Validation finale ou rejet par le Ministre" },
   { step: 7, name: "Archivage", role: "secretariat", description: "Clôture et transfert au dépôt central" },
 ] as const;
 
@@ -49,8 +49,8 @@ export async function advanceWorkflow(
       newStep = currentStep + 1;
       break;
     case "reject":
-      // Step 5 rejection goes back to step 4
-      if (currentStep === 5) newStep = 4;
+      // Step 5 or 6 rejection goes back to step 4
+      if (currentStep === 5 || currentStep === 6) newStep = 4;
       else newStep = currentStep - 1;
       break;
     case "complete":
