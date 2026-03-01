@@ -290,6 +290,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         // Save calendar event if RDV was scheduled
         if (scheduleRdv && rdvDate && user) {
           const participants = selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean) as string[];
+          const participantIds = selectedAssignees;
           await supabase.from("calendar_events").insert({
             mail_id: mailId,
             title: rdvTitle || "RDV — Courrier",
@@ -299,6 +300,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             end_time: rdvEndTime || null,
             location: rdvLocation || null,
             participants,
+            participant_ids: participantIds,
             created_by: user.id,
           } as any);
         }

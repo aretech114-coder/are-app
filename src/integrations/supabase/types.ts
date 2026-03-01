@@ -55,6 +55,7 @@ export type Database = {
           id: string
           location: string | null
           mail_id: string | null
+          participant_ids: string[] | null
           participants: string[] | null
           title: string
           updated_at: string
@@ -69,6 +70,7 @@ export type Database = {
           id?: string
           location?: string | null
           mail_id?: string | null
+          participant_ids?: string[] | null
           participants?: string[] | null
           title: string
           updated_at?: string
@@ -83,6 +85,7 @@ export type Database = {
           id?: string
           location?: string | null
           mail_id?: string | null
+          participant_ids?: string[] | null
           participants?: string[] | null
           title?: string
           updated_at?: string
