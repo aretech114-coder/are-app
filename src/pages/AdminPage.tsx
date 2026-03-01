@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 const ROLES = [
   { value: "superadmin", label: "Super Admin" },
@@ -41,6 +42,15 @@ export default function AdminPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("agent");
+
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editUser, setEditUser] = useState<any>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -88,6 +98,44 @@ export default function AdminPage() {
       toast.error(err.message || "Erreur inattendue");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openEdit = (u: any) => {
+    const userRole = u.user_roles?.[0]?.role || "agent";
+    setEditUser(u);
+    setEditFullName(u.full_name || "");
+    setEditEmail(u.email || "");
+    setEditPassword("");
+    setEditRole(userRole);
+    setEditOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!editUser) return;
+    setSaving(true);
+    try {
+      const body: any = { user_id: editUser.id };
+      if (editFullName !== editUser.full_name) body.full_name = editFullName;
+      if (editEmail !== editUser.email) body.email = editEmail;
+      if (editPassword) body.password = editPassword;
+      const currentRole = editUser.user_roles?.[0]?.role || "agent";
+      if (editRole !== currentRole) body.role = editRole;
+
+      const res = await supabase.functions.invoke("update-user", { body });
+      if (res.error) {
+        toast.error(res.error.message || "Erreur");
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success("Utilisateur mis à jour");
+        setEditOpen(false);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -186,18 +234,19 @@ export default function AdminPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Rôle</TableHead>
                 <TableHead>Inscrit le</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Aucun utilisateur
                   </TableCell>
                 </TableRow>
@@ -225,6 +274,11 @@ export default function AdminPage() {
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(u.created_at).toLocaleDateString("fr-FR")}
                       </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(u)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -233,6 +287,48 @@ export default function AdminPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier l'utilisateur</DialogTitle>
+            <DialogDescription>Modifiez les informations ci-dessous. Laissez le mot de passe vide pour ne pas le changer.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editFullName">Nom complet</Label>
+              <Input id="editFullName" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} disabled={saving} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editEmail">Email</Label>
+              <Input id="editEmail" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} disabled={saving} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editPassword">Nouveau mot de passe</Label>
+              <Input id="editPassword" type="password" placeholder="Laisser vide pour ne pas changer" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} disabled={saving} />
+            </div>
+            <div className="space-y-2">
+              <Label>Rôle</Label>
+              <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>Annuler</Button>
+            <Button onClick={handleUpdate} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
