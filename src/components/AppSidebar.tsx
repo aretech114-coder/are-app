@@ -62,27 +62,29 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Admin section - visible if superadmin OR admin with manage_users permission */}
-        {(isSuperAdmin || (isAdmin && hasPermission("manage_users"))) && (
+        {/* Admin section */}
+        {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
               Administration
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/admin"
-                      end
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <Shield className="h-4 w-4 shrink-0" />
-                      <span className="text-sm">Gestion Utilisateurs</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {isSuperAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/admin"
+                        end
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      >
+                        <Shield className="h-4 w-4 shrink-0" />
+                        <span className="text-sm">Gestion Utilisateurs</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
