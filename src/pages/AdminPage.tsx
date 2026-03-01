@@ -85,12 +85,22 @@ export default function AdminPage() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("*, user_roles(role)")
-      .order("created_at", { ascending: false });
-    setUsers(profiles || []);
-    setLoading(false);
+    try {
+      const [{ data: profiles }, { data: roles }] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("user_id, role"),
+      ]);
+      const rolesMap = new Map((roles || []).map((r: any) => [r.user_id, r.role]));
+      const merged = (profiles || []).map((p: any) => ({
+        ...p,
+        user_roles: rolesMap.has(p.id) ? [{ role: rolesMap.get(p.id) }] : [],
+      }));
+      setUsers(merged);
+    } catch {
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

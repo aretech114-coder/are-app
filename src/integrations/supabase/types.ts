@@ -543,6 +543,7 @@ export type Database = {
         | "dircaba"
         | "conseiller_juridique"
         | "secretariat"
+        | "conseiller"
       mail_priority: "low" | "normal" | "high" | "urgent"
       mail_status: "pending" | "in_progress" | "processed" | "archived"
       mail_type:
@@ -694,6 +695,7 @@ export const Constants = {
         "dircaba",
         "conseiller_juridique",
         "secretariat",
+        "conseiller",
       ],
       mail_priority: ["low", "normal", "high", "urgent"],
       mail_status: ["pending", "in_progress", "processed", "archived"],
