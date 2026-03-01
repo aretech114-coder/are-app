@@ -57,12 +57,31 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
 
+  // Minister annotation from step 2 (visible at step 3)
+  const [ministerAnnotation, setMinisterAnnotation] = useState("");
+
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
     if (showDialog && (currentStep === 2 || currentStep === 3)) {
       fetchAssignableUsers();
     }
+    if (showDialog && currentStep === 3) {
+      fetchMinisterAnnotation();
+    }
   }, [showDialog, currentStep]);
+
+  const fetchMinisterAnnotation = async () => {
+    const { data } = await supabase
+      .from("workflow_transitions")
+      .select("notes")
+      .eq("mail_id", mailId)
+      .eq("from_step", 2)
+      .eq("to_step", 3)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    if (data?.notes) setMinisterAnnotation(data.notes);
+  };
 
   const fetchAssignableUsers = async () => {
     const targetRoles = ["conseiller_juridique", "dircab", "dircaba", "agent"];
@@ -259,6 +278,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setSelectedAssignees([]);
     setTreatmentType("");
     setTreatmentContent("");
+    setMinisterAnnotation("");
   };
 
   const actions = getActions();
@@ -359,6 +379,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                     Le dossier sera renvoyé à l'étape 4 (Traitement) pour correction par les conseillers assignés.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Show Minister's annotation at Step 3 */}
+            {currentStep === 3 && ministerAnnotation && (
+              <div className="p-3 rounded-lg border bg-accent/30 space-y-1">
+                <p className="text-xs font-semibold text-primary">📝 Annotation du Ministre</p>
+                <p className="text-sm whitespace-pre-wrap">{ministerAnnotation}</p>
               </div>
             )}
 
