@@ -693,6 +693,26 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                           onClick={async () => {
                             setArLoading(true);
                             try {
+                              // Fetch full workflow history for context
+                              const { data: transitions } = await supabase
+                                .from("workflow_transitions")
+                                .select("from_step, to_step, notes, action, performed_by")
+                                .eq("mail_id", mailId)
+                                .order("created_at", { ascending: true });
+
+                              // Fetch performer names
+                              const performerIds = [...new Set(transitions?.map(t => t.performed_by) || [])];
+                              const { data: profiles } = performerIds.length > 0
+                                ? await supabase.from("profiles").select("id, full_name").in("id", performerIds)
+                                : { data: [] };
+                              const nameMap = new Map((profiles || []).map(p => [p.id, p.full_name] as [string, string]));
+
+                              // Build chronological workflow summary
+                              const workflowSummary = transitions?.map(t => {
+                                const performer = nameMap.get(t.performed_by) || "Système";
+                                return `[Étape ${t.from_step} → ${t.to_step}] (${performer}) Action: ${t.action}${t.notes ? `\n${t.notes}` : ""}`;
+                              }).join("\n\n") || "";
+
                               const { data, error } = await supabase.functions.invoke("ai-assistant", {
                                 body: {
                                   type: "accuse_reception",
@@ -702,6 +722,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                                   senderOrganization: mailData?.sender_organization,
                                   senderAddress: mailData?.sender_address,
                                   referenceNumber: mailData?.reference_number,
+                                  attachmentUrl: mailData?.attachment_url,
+                                  workflowHistory: workflowSummary,
+                                  aiDraft: mailData?.ai_draft,
                                 },
                               });
                               if (error) throw error;
