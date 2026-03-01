@@ -513,6 +513,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_app_role: { Args: { new_role: string }; Returns: undefined }
+      get_enum_values: {
+        Args: never
+        Returns: {
+          value: string
+        }[]
+      }
       get_my_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

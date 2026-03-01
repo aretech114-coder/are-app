@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.create-user]
 verify_jwt = false
+
+[functions.manage-roles]
+verify_jwt = false
+
+[functions.update-user]
+verify_jwt = false

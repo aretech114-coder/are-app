@@ -9,20 +9,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const ROLES = [
-  { value: "superadmin", label: "Super Admin" },
-  { value: "admin", label: "Admin" },
-  { value: "supervisor", label: "Superviseur" },
-  { value: "agent", label: "Agent" },
-  { value: "ministre", label: "Ministre" },
-  { value: "dircab", label: "Directeur de Cabinet" },
-  { value: "dircaba", label: "Dir. Cabinet Adjoint" },
-  { value: "conseiller_juridique", label: "Conseiller Juridique" },
-  { value: "secretariat", label: "Secrétariat" },
-];
+const DEFAULT_ROLE_LABELS: Record<string, string> = {
+  superadmin: "Super Admin",
+  admin: "Admin",
+  supervisor: "Superviseur",
+  agent: "Agent",
+  ministre: "Ministre",
+  dircab: "Directeur de Cabinet",
+  dircaba: "Dir. Cabinet Adjoint",
+  conseiller_juridique: "Conseiller Juridique",
+  secretariat: "Secrétariat",
+};
 
 const roleBadgeVariant = (role: string) => {
   switch (role) {
@@ -43,6 +44,15 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("agent");
 
+  // Dynamic roles
+  const [allRoles, setAllRoles] = useState<{ value: string; label: string }[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+
+  // New role creation
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleLabel, setNewRoleLabel] = useState("");
+  const [creatingRole, setCreatingRole] = useState(false);
+
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
   const [editUser, setEditUser] = useState<any>(null);
@@ -51,6 +61,27 @@ export default function AdminPage() {
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const fetchRoles = async () => {
+    setRolesLoading(true);
+    try {
+      const res = await supabase.functions.invoke("manage-roles", {
+        body: { action: "list" },
+      });
+      if (res.data?.roles) {
+        const roles = res.data.roles.map((r: any) => ({
+          value: typeof r === "string" ? r : r.value,
+          label: DEFAULT_ROLE_LABELS[typeof r === "string" ? r : r.value] || (typeof r === "string" ? r : r.value),
+        }));
+        setAllRoles(roles);
+      }
+    } catch {
+      // Fallback to defaults
+      setAllRoles(Object.entries(DEFAULT_ROLE_LABELS).map(([value, label]) => ({ value, label })));
+    } finally {
+      setRolesLoading(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -62,7 +93,10 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchRoles();
+    fetchUsers();
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +111,6 @@ export default function AdminPage() {
 
     setCreating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("create-user", {
         body: { email: email.trim(), password, full_name: fullName.trim(), role },
       });
@@ -98,6 +131,38 @@ export default function AdminPage() {
       toast.error(err.message || "Erreur inattendue");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoleName.trim() || !newRoleLabel.trim()) {
+      toast.error("Le nom technique et le libellé sont requis");
+      return;
+    }
+
+    setCreatingRole(true);
+    try {
+      const res = await supabase.functions.invoke("manage-roles", {
+        body: { action: "create", role_name: newRoleName.trim().toLowerCase(), role_label: newRoleLabel.trim() },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || "Erreur");
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(`Rôle "${newRoleLabel}" créé avec succès`);
+        setNewRoleName("");
+        setNewRoleLabel("");
+        // Update local label map and refresh
+        DEFAULT_ROLE_LABELS[newRoleName.trim().toLowerCase()] = newRoleLabel.trim();
+        fetchRoles();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setCreatingRole(false);
     }
   };
 
@@ -139,154 +204,240 @@ export default function AdminPage() {
     }
   };
 
+  const getRoleLabel = (roleValue: string) => {
+    return allRoles.find((r) => r.value === roleValue)?.label || DEFAULT_ROLE_LABELS[roleValue] || roleValue;
+  };
+
   return (
     <div className="animate-fade-in space-y-6">
       <div>
         <h1 className="page-header flex items-center gap-2">
           <Shield className="h-6 w-6 text-primary" />
-          Gestion des Utilisateurs
+          Gestion des Utilisateurs & Rôles
         </h1>
-        <p className="page-description">Créez et gérez les comptes utilisateurs du système</p>
+        <p className="page-description">Créez et gérez les comptes utilisateurs et les rôles du système</p>
       </div>
 
-      {/* Creation Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <UserPlus className="h-5 w-5" />
-            Créer un utilisateur
-          </CardTitle>
-          <CardDescription>
-            Le compte sera actif immédiatement (email confirmé automatiquement)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Nom complet</Label>
-              <Input
-                id="fullName"
-                placeholder="Jean Dupont"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                disabled={creating}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="jean@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={creating}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={creating}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Rôle</Label>
-              <Select value={role} onValueChange={setRole} disabled={creating}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" disabled={creating} className="h-10">
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              <span className="ml-2">{creating ? "Création..." : "Créer"}</span>
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="users" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            Utilisateurs
+          </TabsTrigger>
+          <TabsTrigger value="roles" className="flex items-center gap-2">
+            <Tags className="h-4 w-4" />
+            Rôles
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">Utilisateurs ({users.length})</CardTitle>
-            <CardDescription>Liste de tous les comptes enregistrés</CardDescription>
-          </div>
-          <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Utilisateur</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead>Inscrit le</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Aucun utilisateur
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((u) => {
-                  const userRole = u.user_roles?.[0]?.role || "agent";
-                  const roleLabel = ROLES.find((r) => r.value === userRole)?.label || userRole;
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={u.avatar_url} />
-                            <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                              {u.full_name?.charAt(0)?.toUpperCase() || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">{u.full_name || "Sans nom"}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={roleBadgeVariant(userRole) as any}>{roleLabel}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(u.created_at).toLocaleDateString("fr-FR")}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(u)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+        {/* ========== USERS TAB ========== */}
+        <TabsContent value="users" className="space-y-6">
+          {/* Creation Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <UserPlus className="h-5 w-5" />
+                Créer un utilisateur
+              </CardTitle>
+              <CardDescription>
+                Le compte sera actif immédiatement (email confirmé automatiquement)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nom complet</Label>
+                  <Input id="fullName" placeholder="Jean Dupont" value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={creating} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" placeholder="jean@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={creating} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Mot de passe</Label>
+                  <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} disabled={creating} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Rôle</Label>
+                  <Select value={role} onValueChange={setRole} disabled={creating}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {allRoles.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" disabled={creating} className="h-10">
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                  <span className="ml-2">{creating ? "Création..." : "Créer"}</span>
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Users Table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Utilisateurs ({users.length})</CardTitle>
+                <CardDescription>Liste de tous les comptes enregistrés</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Utilisateur</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rôle</TableHead>
+                    <TableHead>Inscrit le</TableHead>
+                    <TableHead className="w-12"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
-                  );
-                })
+                  ) : users.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        Aucun utilisateur
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    users.map((u) => {
+                      const userRole = u.user_roles?.[0]?.role || "agent";
+                      return (
+                        <TableRow key={u.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={u.avatar_url} />
+                                <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                  {u.full_name?.charAt(0)?.toUpperCase() || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm font-medium">{u.full_name || "Sans nom"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={roleBadgeVariant(userRole) as any}>{getRoleLabel(userRole)}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(u.created_at).toLocaleDateString("fr-FR")}
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(u)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ========== ROLES TAB ========== */}
+        <TabsContent value="roles" className="space-y-6">
+          {/* Create Role */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Plus className="h-5 w-5" />
+                Créer un nouveau rôle
+              </CardTitle>
+              <CardDescription>
+                Ajoutez un nouveau type de rôle au système. Le nom technique sera utilisé en interne.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateRole} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="newRoleName">Nom technique</Label>
+                  <Input
+                    id="newRoleName"
+                    placeholder="chef_service"
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                    disabled={creatingRole}
+                  />
+                  <p className="text-xs text-muted-foreground">Lettres minuscules, chiffres et underscores uniquement</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newRoleLabel">Libellé affiché</Label>
+                  <Input
+                    id="newRoleLabel"
+                    placeholder="Chef de Service"
+                    value={newRoleLabel}
+                    onChange={(e) => setNewRoleLabel(e.target.value)}
+                    disabled={creatingRole}
+                  />
+                </div>
+                <Button type="submit" disabled={creatingRole} className="h-10">
+                  {creatingRole ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  <span className="ml-2">{creatingRole ? "Création..." : "Créer le rôle"}</span>
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Roles List */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Rôles du système ({allRoles.length})</CardTitle>
+                <CardDescription>Liste de tous les rôles disponibles</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchRoles} disabled={rolesLoading}>
+                <RefreshCw className={`h-4 w-4 ${rolesLoading ? "animate-spin" : ""}`} />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {rolesLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {allRoles.map((r) => {
+                    const isDefault = !!DEFAULT_ROLE_LABELS[r.value];
+                    const usersWithRole = users.filter((u) => u.user_roles?.[0]?.role === r.value).length;
+                    return (
+                      <div
+                        key={r.value}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={roleBadgeVariant(r.value) as any}>{r.label}</Badge>
+                            {isDefault && (
+                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">système</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground font-mono">{r.value}</p>
+                        </div>
+                        <span className="text-sm font-medium text-muted-foreground">{usersWithRole}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit User Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -313,7 +464,7 @@ export default function AdminPage() {
               <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((r) => (
+                  {allRoles.map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
