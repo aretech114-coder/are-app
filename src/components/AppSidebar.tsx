@@ -1,5 +1,5 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,13 +10,14 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainNav = [
-  { title: "Enregistrement", url: "/mail-entry", icon: Mail },
-  { title: "Boîte de réception", url: "/inbox", icon: Inbox },
-  { title: "Historique", url: "/history", icon: History },
-  { title: "Archives", url: "/archive", icon: Archive },
-  { title: "Statistiques", url: "/analytics", icon: BarChart3 },
-  { title: "Missions", url: "/missions", icon: Plane },
-  { title: "Réunions", url: "/reunions", icon: CalendarDays },
+  { title: "Enregistrement", url: "/mail-entry", icon: Mail, roles: ["reception", "superadmin", "admin"] },
+  { title: "Registre", url: "/reception-dashboard", icon: ClipboardList, roles: ["reception"] },
+  { title: "Boîte de réception", url: "/inbox", icon: Inbox, roles: ["__all__"] },
+  { title: "Historique", url: "/history", icon: History, roles: ["__all__"] },
+  { title: "Archives", url: "/archive", icon: Archive, roles: ["__all__"] },
+  { title: "Statistiques", url: "/analytics", icon: BarChart3, roles: ["__all__"] },
+  { title: "Missions", url: "/missions", icon: Plane, roles: ["__all__"] },
+  { title: "Réunions", url: "/reunions", icon: CalendarDays, roles: ["__all__"] },
 ];
 
 export function AppSidebar() {
@@ -24,7 +25,14 @@ export function AppSidebar() {
 
   const isSuperAdmin = role === "superadmin";
   const isAdmin = role === "admin";
+  const isReception = role === "reception";
   const isMinisterOrDircab = role === "ministre" || role === "dircab" || isSuperAdmin || isAdmin;
+
+  const visibleNav = mainNav.filter((item) => {
+    if (isSuperAdmin || isAdmin) return true;
+    if (item.roles.includes("__all__") && !isReception) return true;
+    return item.roles.includes(role || "");
+  });
 
   return (
     <Sidebar className="sidebar-gradient border-r-0">
@@ -45,7 +53,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNav.map((item) => (
+              {visibleNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -205,7 +213,7 @@ export function AppSidebar() {
                 {profile?.full_name || "Agent"}
               </span>
               <span className="text-[10px] text-sidebar-foreground truncate capitalize">
-                {role === "superadmin" ? "Super Admin" : role === "dircab" ? "Dir. Cabinet" : role === "ministre" ? "Ministre" : role === "secretariat" ? "Secrétariat" : role || "agent"}
+                {role === "superadmin" ? "Super Admin" : role === "dircab" ? "Dir. Cabinet" : role === "ministre" ? "Ministre" : role === "secretariat" ? "Secrétariat" : role === "reception" ? "Réception" : role || "agent"}
               </span>
             </div>
           </div>
