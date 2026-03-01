@@ -163,7 +163,11 @@ export default function MailEntry() {
       let attachmentUrl: string | null = null;
       if (files.length > 0) {
         const file = files[0];
-        const filePath = `mail-attachments/${ref}/${file.name}`;
+        const sanitizedName = file.name
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "_")
+          .replace(/_+/g, "_");
+        const filePath = `mail-attachments/${ref.replace(/[^a-zA-Z0-9/_-]/g, "_")}/${Date.now()}_${sanitizedName}`;
         const { error: uploadErr } = await supabase.storage.from("avatars").upload(filePath, file);
         if (uploadErr) throw uploadErr;
         const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
