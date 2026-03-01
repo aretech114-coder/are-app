@@ -12,6 +12,7 @@ import { fr } from "date-fns/locale";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WorkflowActions } from "@/components/WorkflowActions";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
 
 export default function InboxPage() {
@@ -226,6 +227,11 @@ export default function InboxPage() {
                     </h4>
                     <p className="text-sm whitespace-pre-wrap">{selected.ai_draft}</p>
                   </div>
+                )}
+
+                {/* Step 4 context: annotations, assignees, meetings, orientations */}
+                {(selected.current_step === 4) && (
+                  <Step4ContextPanel mailId={selected.id} />
                 )}
 
                 {/* Workflow Timeline toggle */}
