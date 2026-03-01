@@ -4,11 +4,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { advanceWorkflow, getStepInfo, WORKFLOW_STEPS } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle } from "lucide-react";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -37,13 +38,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
+  // Step 4: treatment type
+  const [treatmentType, setTreatmentType] = useState<string>("");
+  const [treatmentContent, setTreatmentContent] = useState("");
+
   const stepInfo = getStepInfo(currentStep);
 
   // Map roles to their allowed steps
   const roleStepMap: Record<string, number[]> = {
     secretariat: [1, 7],
-    ministre: [2],
-    dircab: [3, 5, 6],
+    ministre: [2, 6],
+    dircab: [3, 5],
     dircaba: [3],
     conseiller_juridique: [4],
     admin: [1, 2, 3, 4, 5, 6, 7],
@@ -60,7 +65,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   }, [showDialog, currentStep]);
 
   const fetchAssignableUsers = async () => {
-    // Get users with relevant roles for assignment
     const targetRoles = ["conseiller_juridique", "dircab", "dircaba", "agent"];
     const { data: roles } = await supabase
       .from("user_roles")
@@ -99,19 +103,18 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     if (currentStep === 1) {
       actions.push({ key: "complete", label: "Réception terminée", icon: Send, variant: "default" });
     } else if (currentStep === 2) {
-      // Ministre: annotate + assign + forward
       actions.push({ key: "approve", label: "Annoter & Transmettre au DirCab", icon: ArrowRight, variant: "default" });
     } else if (currentStep === 3) {
-      // DirCab: confirm assignments & forward
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au Ministre", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 4) {
-      actions.push({ key: "complete", label: "Soumettre pour validation", icon: Send, variant: "default" });
+      actions.push({ key: "complete", label: "Soumettre pour vérification", icon: Send, variant: "default" });
     } else if (currentStep === 5) {
-      actions.push({ key: "approve", label: "Approuver", icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: "Rejeter (retour étape 4)", icon: XCircle, variant: "destructive" });
+      actions.push({ key: "approve", label: "Approuver → Validation Ministre", icon: CheckCircle, variant: "default" });
+      actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 6) {
-      actions.push({ key: "complete", label: "Finaliser", icon: CheckCircle, variant: "default" });
+      actions.push({ key: "approve", label: "Valider & Finaliser", icon: CheckCircle, variant: "default" });
+      actions.push({ key: "reject", label: "Rejeter (retour étape 4)", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 7) {
       actions.push({ key: "archive", label: "Archiver", icon: Archive, variant: "outline" });
     }
@@ -124,7 +127,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setLoading(true);
 
     try {
-      // Upload minister annotation attachment if provided
+      // Upload attachment if provided
       let annotationAttachmentUrl: string | null = null;
       if (attachmentFile) {
         const filePath = `annotations/${mailId}/${Date.now()}_${attachmentFile.name}`;
@@ -134,17 +137,33 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         annotationAttachmentUrl = urlData.publicUrl;
       }
 
-      // Build full notes with annotation
-      const fullNotes = [
+      // Build full notes
+      const noteParts = [
         annotation && `📝 Annotation: ${annotation}`,
         annotationAttachmentUrl && `📎 Document joint: ${annotationAttachmentUrl}`,
         selectedAssignees.length > 0 && `👥 Personnes assignées: ${selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean).join(", ")}`,
+        treatmentType && `📄 Type de document: ${treatmentType === "note_technique" ? "Note Technique" : "Accusé de Réception"}`,
+        treatmentContent && `📋 Contenu:\n${treatmentContent}`,
         notes && `💬 Notes: ${notes}`,
       ].filter(Boolean).join("\n");
 
-      const result = await advanceWorkflow(mailId, currentStep, action, user.id, fullNotes || notes);
+      // For step 6 rejection, override to go back to step 4
+      let effectiveAction = action;
+      if (currentStep === 6 && action === "reject") {
+        effectiveAction = "reject";
+      }
+
+      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes);
 
       if (result.success) {
+        // Save treatment content to mail if at step 4
+        if (currentStep === 4 && treatmentContent) {
+          await supabase.from("mails").update({
+            ai_draft: treatmentContent,
+            mail_type: treatmentType || undefined,
+          } as any).eq("id", mailId);
+        }
+
         // Create assignments if people were selected
         if (selectedAssignees.length > 0) {
           const targetStep = currentStep === 2 ? 4 : currentStep === 3 ? 4 : currentStep + 1;
@@ -158,15 +177,39 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               status: currentStep === 2 ? "proposed" : "pending",
             });
 
-            // Notify assignee
             await supabase.from("notifications").insert({
               user_id: assigneeId,
-              title: currentStep === 2 
-                ? "Pré-assignation par le Ministre" 
+              title: currentStep === 2
+                ? "Pré-assignation par le Ministre"
                 : "Dossier assigné pour traitement",
               message: `Le courrier vous a été ${currentStep === 2 ? "pré-assigné" : "assigné"} pour traitement.${annotation ? ` Annotation: ${annotation}` : ""}`,
               mail_id: mailId,
             });
+          }
+        }
+
+        // Step 6 approve: notify assigned conseillers if note technique
+        if (currentStep === 6 && action === "approve") {
+          const { data: assignments } = await supabase
+            .from("mail_assignments")
+            .select("assigned_to")
+            .eq("mail_id", mailId)
+            .eq("step_number", 4);
+
+          if (assignments) {
+            for (const a of assignments) {
+              await supabase.from("notifications").insert({
+                user_id: a.assigned_to,
+                title: "Dossier validé par le Ministre",
+                message: "Le dossier sur lequel vous avez travaillé a été validé avec succès.",
+                mail_id: mailId,
+              });
+              // Mark assignment as completed
+              await supabase.from("mail_assignments")
+                .update({ status: "completed", completed_at: new Date().toISOString() })
+                .eq("mail_id", mailId)
+                .eq("assigned_to", a.assigned_to);
+            }
           }
         }
 
@@ -181,13 +224,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             .single();
 
           if (nextRoleUser) {
-            // Update assigned_agent_id for the next step
             await supabase
               .from("mails")
               .update({ assigned_agent_id: nextRoleUser.user_id })
               .eq("id", mailId);
 
-            // Notify next role
             await supabase.from("notifications").insert({
               user_id: nextRoleUser.user_id,
               title: `Courrier en attente — ${nextStep.name}`,
@@ -216,20 +257,32 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setAnnotation("");
     setAttachmentFile(null);
     setSelectedAssignees([]);
+    setTreatmentType("");
+    setTreatmentContent("");
   };
 
   const actions = getActions();
   if (actions.length === 0 || !canAct) return null;
 
-  const showAnnotation = currentStep === 2 || currentStep === 3;
+  const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
   const showAssignment = currentStep === 2 || currentStep === 3;
-  const showAttachment = currentStep === 2 || currentStep === 3;
+  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4;
+  const showTreatment = currentStep === 4;
 
   const roleLabels: Record<string, string> = {
     conseiller_juridique: "Conseiller Juridique",
     dircab: "Directeur de Cabinet",
     dircaba: "Dir. Cabinet Adjoint",
     agent: "Agent",
+  };
+
+  const dialogTitle: Record<number, string> = {
+    2: "Annotation du Ministre",
+    3: "Filtrage & Confirmation — DirCab",
+    4: "Traitement du dossier — Conseiller",
+    5: "Vérification — DirCab",
+    6: "Validation — Ministre",
+    7: "Archivage",
   };
 
   return (
@@ -255,7 +308,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         <DialogContent className="max-w-lg max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>
-              {currentStep === 2 ? "Annotation du Ministre" : currentStep === 3 ? "Filtrage & Confirmation — DirCab" : "Confirmer l'action"}
+              {dialogTitle[currentStep] || "Confirmer l'action"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -263,17 +316,67 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               Étape actuelle : <strong>{stepInfo?.name}</strong>
             </p>
 
+            {/* Step 4: Treatment type and content */}
+            {showTreatment && action === "complete" && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">Type de document à produire</Label>
+                  <Select value={treatmentType} onValueChange={setTreatmentType}>
+                    <SelectTrigger><SelectValue placeholder="Sélectionnez le type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="note_technique">
+                        <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Note Technique</span>
+                      </SelectItem>
+                      <SelectItem value="accuse_reception">
+                        <span className="flex items-center gap-1.5"><Send className="h-3.5 w-3.5" /> Accusé de Réception</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
+                    Contenu du document
+                  </Label>
+                  <Textarea
+                    placeholder="Rédigez votre note technique ou accusé de réception ici..."
+                    value={treatmentContent}
+                    onChange={(e) => setTreatmentContent(e.target.value)}
+                    rows={8}
+                    className="min-h-[200px]"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Step 5/6: Show rejection warning */}
+            {(currentStep === 5 || currentStep === 6) && action === "reject" && (
+              <div className="flex items-start gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Rejet du dossier</p>
+                  <p className="text-xs text-muted-foreground">
+                    Le dossier sera renvoyé à l'étape 4 (Traitement) pour correction par les conseillers assignés.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Annotation field */}
             {showAnnotation && (
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
-                  {currentStep === 2 ? "Annotation / Instructions du Ministre" : "Notes du DirCab"}
+                  {currentStep === 2 ? "Annotation / Instructions du Ministre" : currentStep === 6 ? "Commentaire de validation" : "Notes du DirCab"}
                 </Label>
                 <Textarea
-                  placeholder={currentStep === 2 
-                    ? "Instructions du Ministre pour le traitement de ce dossier..." 
-                    : "Observations du DirCab sur les assignations..."}
+                  placeholder={
+                    currentStep === 2
+                      ? "Instructions du Ministre pour le traitement de ce dossier..."
+                      : currentStep === 6
+                        ? "Observations du Ministre sur la validation..."
+                        : "Observations du DirCab sur les assignations..."
+                  }
                   value={annotation}
                   onChange={(e) => setAnnotation(e.target.value)}
                   rows={4}
@@ -362,8 +465,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>Annuler</Button>
-            <Button onClick={handleAction} disabled={loading}>
-              {loading ? "En cours..." : "Confirmer"}
+            <Button
+              onClick={handleAction}
+              disabled={loading || (showTreatment && action === "complete" && (!treatmentType || !treatmentContent))}
+              variant={action === "reject" ? "destructive" : "default"}
+            >
+              {loading ? "En cours..." : action === "reject" ? "Confirmer le rejet" : "Confirmer"}
             </Button>
           </DialogFooter>
         </DialogContent>

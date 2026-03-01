@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -34,7 +35,7 @@ const MAIL_TYPES = [
   { value: "autre", label: "Autre" },
 ];
 
-const ADDRESSEES = [
+const ADDRESSEES_FULL = [
   { value: "MINISTRE", label: "Ministre" },
   { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
   { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
@@ -101,6 +102,12 @@ export default function MailEntry() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [senderSearch, setSenderSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [ministreAbsent, setMinistreAbsent] = useState(false);
+
+  // Filter addressees based on "Ministre Absent" toggle
+  const ADDRESSEES = ministreAbsent
+    ? ADDRESSEES_FULL.filter(a => a.value !== "MINISTRE")
+    : ADDRESSEES_FULL;
 
   const senderSuggestions = useMemo(() => {
     if (!senderSearch || senderSearch.length < 2 || !previousSenders) return [];
@@ -217,7 +224,6 @@ export default function MailEntry() {
           .single();
 
         if (roleData?.user_id) {
-          // Assign the mail
           const { data: insertedMail } = await supabase
             .from("mails")
             .select("id")
@@ -225,12 +231,16 @@ export default function MailEntry() {
             .single();
 
           if (insertedMail) {
+            // Determine initial step based on addressee
+            // If Ministre absent (non-Ministre addressee), skip step 2
+            const isDirectToMinistre = form.addressed_to === "MINISTRE";
+            const initialStep = isDirectToMinistre ? 2 : (form.addressed_to === "DIRECTEUR DE CABINET" || form.addressed_to === "DIRECTEUR DE CABINET ADJOINT") ? 3 : 4;
+
             await supabase
               .from("mails")
-              .update({ assigned_agent_id: roleData.user_id, status: "in_progress" as any, current_step: 2 })
+              .update({ assigned_agent_id: roleData.user_id, status: "in_progress" as any, current_step: initialStep })
               .eq("id", insertedMail.id);
 
-            // Create notification
             await supabase.from("notifications").insert({
               user_id: roleData.user_id,
               title: "Nouveau courrier assigné",
@@ -238,14 +248,13 @@ export default function MailEntry() {
               mail_id: insertedMail.id,
             });
 
-            // Record workflow transition
             await supabase.from("workflow_transitions").insert({
               mail_id: insertedMail.id,
               from_step: 1,
-              to_step: 2,
+              to_step: initialStep,
               action: "approve",
               performed_by: user.id,
-              notes: `Routé automatiquement vers ${form.addressed_to}`,
+              notes: `Routé automatiquement vers ${form.addressed_to}${ministreAbsent ? " (Ministre absent)" : ""}`,
             });
           }
         }
@@ -375,6 +384,24 @@ export default function MailEntry() {
                 <Input value={form.mail_type_other} onChange={(e) => update("mail_type_other", e.target.value)} placeholder="Type de courrier personnalisé" required />
               </Field>
             )}
+
+            {/* Ministre Absent toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+              <div>
+                <Label className="text-sm font-semibold">Ministre Absent</Label>
+                <p className="text-xs text-muted-foreground">Activer pour router directement vers le DirCab ou autre</p>
+              </div>
+              <Switch
+                checked={ministreAbsent}
+                onCheckedChange={(checked) => {
+                  setMinistreAbsent(checked);
+                  // Reset addressed_to if Ministre was selected
+                  if (checked && form.addressed_to === "MINISTRE") {
+                    update("addressed_to", "");
+                  }
+                }}
+              />
+            </div>
 
             {/* À qui s'adresse ce courrier */}
             <Field label="À qui s'adresse ce courrier ?" required hint="Destinataire hiérarchique">
