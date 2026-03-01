@@ -230,7 +230,7 @@ export default function InboxPage() {
                 )}
 
                 {/* Step 4 context: annotations, assignees, meetings, orientations */}
-                {(selected.current_step === 4) && (
+                {(selected.current_step === 4 || selected.current_step === 3 || selected.current_step === 5) && (
                   <Step4ContextPanel mailId={selected.id} />
                 )}
 
