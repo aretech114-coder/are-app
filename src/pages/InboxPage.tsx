@@ -349,13 +349,22 @@ export default function InboxPage() {
           </DialogHeader>
           <div className="min-h-[500px] flex flex-col">
             {selected?.attachment_url ? (
-              selected.attachment_url.match(/\.(pdf)$/i) ? (
-                <iframe
-                  src={selected.attachment_url}
-                  className="w-full flex-1 min-h-[500px] rounded border"
-                  title="Document PDF"
-                />
-              ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)$/i) ? (
+              selected.attachment_url.match(/\.pdf/i) ? (
+                <div className="flex flex-col flex-1 gap-2">
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                        Ouvrir dans un nouvel onglet
+                      </a>
+                    </Button>
+                  </div>
+                  <iframe
+                    src={`https://docs.google.com/gview?url=${encodeURIComponent(selected.attachment_url)}&embedded=true`}
+                    className="w-full flex-1 min-h-[500px] rounded border"
+                    title="Document PDF"
+                  />
+                </div>
+              ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)/i) ? (
                 <img
                   src={selected.attachment_url}
                   alt="Pièce jointe"
