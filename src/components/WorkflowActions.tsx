@@ -39,6 +39,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [annotation, setAnnotation] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
+
+
 
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
@@ -75,6 +78,22 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Minister annotation from step 2 (visible at step 3)
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
+
+  // Check if current user already completed their step 4 assignment
+  useEffect(() => {
+    if (currentStep === 4 && user) {
+      supabase
+        .from("mail_assignments")
+        .select("status")
+        .eq("mail_id", mailId)
+        .eq("assigned_to", user.id)
+        .eq("step_number", 4)
+        .single()
+        .then(({ data }) => {
+          setMyAssignmentCompleted(data?.status === "completed");
+        });
+    }
+  }, [currentStep, mailId, user]);
 
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
@@ -203,6 +222,95 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         effectiveAction = "reject";
       }
 
+      // STEP 4 MULTI-ASSIGNEE LOGIC:
+      // When a conseiller completes step 4, mark their assignment as completed.
+      // Only advance the workflow when ALL assignees have completed.
+      if (currentStep === 4 && action === "complete") {
+        // Save treatment content
+        if (treatmentContent) {
+          // Append to existing ai_draft or set it
+          const { data: currentMail } = await supabase.from("mails").select("ai_draft").eq("id", mailId).single();
+          const existingDraft = currentMail?.ai_draft || "";
+          const { data: myProfile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
+          const authorName = myProfile?.full_name || "Conseiller";
+          const newDraft = existingDraft
+            ? `${existingDraft}\n\n--- ${authorName} ---\n${treatmentContent}`
+            : `--- ${authorName} ---\n${treatmentContent}`;
+
+          await supabase.from("mails").update({
+            ai_draft: newDraft,
+            mail_type: treatmentType || undefined,
+          } as any).eq("id", mailId);
+        }
+
+        // Mark my assignment as completed
+        await supabase.from("mail_assignments")
+          .update({ status: "completed", completed_at: new Date().toISOString() })
+          .eq("mail_id", mailId)
+          .eq("assigned_to", user.id)
+          .eq("step_number", 4);
+
+        // Record a workflow transition note (without advancing)
+        await supabase.from("workflow_transitions").insert({
+          mail_id: mailId,
+          from_step: 4,
+          to_step: 4,
+          action: "submit_treatment",
+          performed_by: user.id,
+          notes: noteParts || notes || null,
+        });
+
+        // Check if ALL assignees for step 4 have completed
+        const { data: allAssignments } = await supabase
+          .from("mail_assignments")
+          .select("id, status")
+          .eq("mail_id", mailId)
+          .eq("step_number", 4);
+
+        const allCompleted = allAssignments && allAssignments.length > 0 &&
+          allAssignments.every(a => a.status === "completed");
+
+        if (allCompleted) {
+          // All done — advance workflow to step 5
+          const result = await advanceWorkflow(mailId, currentStep, "complete", user.id,
+            `✅ Tous les conseillers assignés ont terminé leur traitement.`);
+          if (result.success) {
+            // Auto-route to DirCab for verification
+            const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
+            if (nextStep) {
+              const { data: nextRoleUser } = await supabase
+                .from("user_roles")
+                .select("user_id")
+                .eq("role", nextStep.role as any)
+                .limit(1)
+                .single();
+
+              if (nextRoleUser) {
+                await supabase.from("mails").update({ assigned_agent_id: nextRoleUser.user_id }).eq("id", mailId);
+                await supabase.from("notifications").insert({
+                  user_id: nextRoleUser.user_id,
+                  title: `Courrier en attente — ${nextStep.name}`,
+                  message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
+                  mail_id: mailId,
+                });
+              }
+            }
+            toast.success("Tous les conseillers ont soumis — dossier avancé à l'étape 5");
+          } else {
+            toast.error(result.error || "Erreur lors de l'avancement");
+          }
+        } else {
+          const remaining = allAssignments ? allAssignments.filter(a => a.status !== "completed").length : 0;
+          toast.success(`Traitement soumis ! En attente de ${remaining} autre(s) conseiller(s).`);
+        }
+
+        setShowDialog(false);
+        resetForm();
+        onAdvanced();
+        setLoading(false);
+        return;
+      }
+
       const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes);
 
       if (result.success) {
@@ -254,11 +362,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 message: "Le dossier sur lequel vous avez travaillé a été validé avec succès.",
                 mail_id: mailId,
               });
-              // Mark assignment as completed
-              await supabase.from("mail_assignments")
-                .update({ status: "completed", completed_at: new Date().toISOString() })
-                .eq("mail_id", mailId)
-                .eq("assigned_to", a.assigned_to);
             }
           }
         }
@@ -364,6 +467,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const actions = getActions();
   if (actions.length === 0 || !canAct) return null;
+
+  // If this conseiller already submitted at step 4, show status instead of actions
+  if (currentStep === 4 && myAssignmentCompleted) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <CheckCircle className="h-4 w-4 text-green-500" />
+        <span>Votre traitement a été soumis. En attente des autres conseillers.</span>
+      </div>
+    );
+  }
 
   const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
   const showAssignment = currentStep === 2 || currentStep === 3;
