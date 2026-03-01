@@ -1,5 +1,5 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +16,7 @@ const mainNav = [
   { title: "Archives", url: "/archive", icon: Archive },
   { title: "Statistiques", url: "/analytics", icon: BarChart3 },
   { title: "Missions", url: "/missions", icon: Plane },
+  { title: "Réunions", url: "/reunions", icon: CalendarDays },
 ];
 
 export function AppSidebar() {
