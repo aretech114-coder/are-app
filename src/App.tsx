@@ -54,7 +54,7 @@ function AppRoutes() {
       <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-      <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminPage /></AdminRoute></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute><SuperAdminRoute><AdminPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="/workflow" element={<ProtectedRoute><AdminRoute><WorkflowPage /></AdminRoute></ProtectedRoute>} />
       <Route path="/missions" element={<ProtectedRoute><MissionsPage /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SuperAdminRoute><SystemConfigPage /></SuperAdminRoute></ProtectedRoute>} />
