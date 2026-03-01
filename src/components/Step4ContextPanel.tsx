@@ -26,6 +26,8 @@ interface Meeting {
 export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
   const [dircabOrientation, setDircabOrientation] = useState("");
+  const [dircabVerification, setDircabVerification] = useState("");
+  const [ministerValidation, setMinisterValidation] = useState("");
   const [assignedPersons, setAssignedPersons] = useState<AssignedPerson[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +76,24 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
       setDircabOrientation(match ? match[1].trim() : dircabTransition.notes);
     }
 
+    // Extract DirCab verification (step 5 → 6)
+    const verificationTransition = transitionsRes.data?.find(
+      (t) => t.from_step === 5 && t.to_step === 6
+    );
+    if (verificationTransition?.notes) {
+      const match = verificationTransition.notes.match(/💬 Notes:\s*(.+?)(?:\n|$)/);
+      setDircabVerification(match ? match[1].trim() : verificationTransition.notes);
+    }
+
+    // Extract Minister validation (step 6 → 7 or 6 → 8)
+    const validationTransition = transitionsRes.data?.find(
+      (t) => t.from_step === 6 && (t.to_step === 7 || t.to_step === 8)
+    );
+    if (validationTransition?.notes) {
+      const match = validationTransition.notes.match(/📝 Annotation:\s*(.+?)(?:\n|$)/);
+      setMinisterValidation(match ? match[1].trim() : validationTransition.notes);
+    }
+
     // Fetch assigned person names
     if (assignmentsRes.data && assignmentsRes.data.length > 0) {
       const userIds = assignmentsRes.data.map((a) => a.assigned_to);
@@ -99,7 +119,7 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
     );
   }
 
-  const hasContent = ministerAnnotation || dircabOrientation || assignedPersons.length > 0 || meetings.length > 0;
+  const hasContent = ministerAnnotation || dircabOrientation || dircabVerification || ministerValidation || assignedPersons.length > 0 || meetings.length > 0;
   if (!hasContent) return null;
 
   return (
@@ -113,6 +133,28 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
           <div className="min-w-0">
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Annotation du Ministre</p>
             <p className="text-sm mt-0.5 whitespace-pre-wrap">{ministerAnnotation}</p>
+          </div>
+        </div>
+      )}
+
+      {/* DirCab verification */}
+      {dircabVerification && (
+        <div className="flex gap-2.5 p-3 rounded-lg border bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
+          <Navigation className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-orange-700 dark:text-orange-300">Vérification du DirCab (Étape 5)</p>
+            <p className="text-sm mt-0.5 whitespace-pre-wrap">{dircabVerification}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Minister validation */}
+      {ministerValidation && (
+        <div className="flex gap-2.5 p-3 rounded-lg border bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
+          <MessageSquare className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">Validation du Ministre (Étape 6)</p>
+            <p className="text-sm mt-0.5 whitespace-pre-wrap">{ministerValidation}</p>
           </div>
         </div>
       )}

@@ -31,13 +31,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { type, subject, description, senderName, attachmentUrl } = await req.json();
+    const { type, subject, description, senderName, attachmentUrl, workflowHistory, aiDraft } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const systemPrompts: Record<string, string> = {
       note_technique: `Tu es un conseiller juridique ministériel. Rédige une note technique professionnelle en français basée sur le courrier fourni et son document joint s'il y en a. Structure: Objet, Contexte, Analyse, Recommandations, Conclusion. Sois concis et formel. Appuie-toi sur le contenu exact du document joint pour être précis.`,
-      accuse_reception: `Tu es un secrétaire de cabinet ministériel. Rédige un accusé de réception formel en français pour le courrier fourni. Utilise les informations du document joint s'il y en a pour personnaliser la réponse. Inclus: référence, date, confirmation de réception, prochaines étapes. Ton diplomatique et professionnel.`,
+      accuse_reception: `Tu es un secrétaire de cabinet ministériel. Rédige un accusé de réception formel en français pour le courrier fourni. Utilise les informations du document joint s'il y en a pour personnaliser la réponse. Prends en compte l'historique complet du workflow (annotations du Ministre, orientations du DirCab, vérifications, traitements des conseillers avec leurs pièces jointes) pour une analyse chronologique complète du processus. Inclus: référence, date, confirmation de réception, synthèse des décisions prises, prochaines étapes. Ton diplomatique et professionnel.`,
       resume: `Tu es un assistant ministériel. Résume le contenu du courrier et de son document joint en détail en français. Identifie les points d'action principaux, les demandes clés et les éléments importants du document.`,
     };
 
@@ -48,9 +48,13 @@ serve(async (req) => {
 - Objet: ${subject || "Non spécifié"}
 - Contenu/Description: ${description || "Aucune description fournie"}
 
+${workflowHistory ? `--- HISTORIQUE COMPLET DU WORKFLOW ---\n${workflowHistory}\n--- FIN HISTORIQUE ---` : ""}
+
+${aiDraft ? `--- TRAITEMENTS DES CONSEILLERS ---\n${aiDraft}\n--- FIN TRAITEMENTS ---` : ""}
+
 ${attachmentUrl ? "Un document est joint à ce courrier (voir ci-dessous). Analyse-le en profondeur pour ta réponse." : "Aucune pièce jointe."}
 
-Génère le document demandé.`;
+Génère le document demandé en tenant compte de tout le contexte ci-dessus.`;
 
     // Build message content - multimodal if attachment exists
     let userMessage: any;
