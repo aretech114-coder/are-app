@@ -149,7 +149,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       // Upload attachment if provided
       let annotationAttachmentUrl: string | null = null;
       if (attachmentFile) {
-        const filePath = `annotations/${mailId}/${Date.now()}_${attachmentFile.name}`;
+        const sanitizedName = attachmentFile.name
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "_")
+          .replace(/_+/g, "_");
+        const filePath = `annotations/${mailId}/${Date.now()}_${sanitizedName}`;
         const { error: uploadErr } = await supabase.storage.from("avatars").upload(filePath, attachmentFile);
         if (uploadErr) throw uploadErr;
         const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
