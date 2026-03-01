@@ -19,6 +19,7 @@ import WorkflowPage from "./pages/WorkflowPage";
 import MissionsPage from "./pages/MissionsPage";
 import ReunionsPage from "./pages/ReunionsPage";
 import SuiviPage from "./pages/SuiviPage";
+import ReceptionDashboard from "./pages/ReceptionDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,24 +43,37 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ReceptionRoute({ children }: { children: React.ReactNode }) {
+  const { role } = useAuth();
+  if (role === "reception") return <Navigate to="/reception-dashboard" replace />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   if (loading) return null;
+
+  const defaultRoute = role === "reception" ? "/reception-dashboard" : "/";
 
   return (
     <Routes>
-      <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
-      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/auth" element={user ? <Navigate to={defaultRoute} replace /> : <Auth />} />
+      <Route path="/" element={
+        <ProtectedRoute>
+          {role === "reception" ? <Navigate to="/reception-dashboard" replace /> : <Dashboard />}
+        </ProtectedRoute>
+      } />
       <Route path="/mail-entry" element={<ProtectedRoute><MailEntry /></ProtectedRoute>} />
-      <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
-      <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-      <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
-      <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+      <Route path="/reception-dashboard" element={<ProtectedRoute><ReceptionDashboard /></ProtectedRoute>} />
+      <Route path="/inbox" element={<ProtectedRoute><ReceptionRoute><InboxPage /></ReceptionRoute></ProtectedRoute>} />
+      <Route path="/history" element={<ProtectedRoute><ReceptionRoute><HistoryPage /></ReceptionRoute></ProtectedRoute>} />
+      <Route path="/archive" element={<ProtectedRoute><ReceptionRoute><ArchivePage /></ReceptionRoute></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><ReceptionRoute><AnalyticsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><SuperAdminRoute><AdminPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="/workflow" element={<ProtectedRoute><AdminRoute><WorkflowPage /></AdminRoute></ProtectedRoute>} />
-      <Route path="/missions" element={<ProtectedRoute><MissionsPage /></ProtectedRoute>} />
-      <Route path="/reunions" element={<ProtectedRoute><ReunionsPage /></ProtectedRoute>} />
+      <Route path="/missions" element={<ProtectedRoute><ReceptionRoute><MissionsPage /></ReceptionRoute></ProtectedRoute>} />
+      <Route path="/reunions" element={<ProtectedRoute><ReceptionRoute><ReunionsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/suivi" element={<ProtectedRoute><SuiviPage /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SuperAdminRoute><SystemConfigPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
