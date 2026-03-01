@@ -220,12 +220,23 @@ export default function InboxPage() {
                 )}
 
                 {selected.ai_draft && (
-                  <div className="p-4 rounded-lg bg-accent border">
-                    <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      Proposition IA
+                  <div className="p-4 rounded-lg bg-accent border space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      Traitement(s) soumis
                     </h4>
-                    <p className="text-sm whitespace-pre-wrap">{selected.ai_draft}</p>
+                    {selected.ai_draft.split(/\n\n(?=--- )/).map((block: string, idx: number) => {
+                      const nameMatch = block.match(/^--- (.+?) ---\n?([\s\S]*)$/);
+                      if (nameMatch) {
+                        return (
+                          <div key={idx} className="p-3 rounded-lg bg-background/50 border">
+                            <p className="text-xs font-semibold text-primary mb-1">{nameMatch[1]}</p>
+                            <p className="text-sm whitespace-pre-wrap">{nameMatch[2].trim()}</p>
+                          </div>
+                        );
+                      }
+                      return <p key={idx} className="text-sm whitespace-pre-wrap">{block}</p>;
+                    })}
                   </div>
                 )}
 
