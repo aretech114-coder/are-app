@@ -66,6 +66,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     dircab: [3, 5],
     dircaba: [3],
     conseiller_juridique: [4],
+    conseiller: [4],
     admin: [1, 2, 3, 4, 5, 6, 7],
     superadmin: [1, 2, 3, 4, 5, 6, 7],
   };
@@ -265,25 +266,50 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         // Auto-route to next role
         const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
         if (nextStep) {
-          const { data: nextRoleUser } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("role", nextStep.role as any)
-            .limit(1)
-            .single();
-
-          if (nextRoleUser) {
+          // If moving to step 4 and conseillers were selected, assign them
+          if (result.newStep === 4 && selectedAssignees.length > 0) {
             await supabase
               .from("mails")
-              .update({ assigned_agent_id: nextRoleUser.user_id })
+              .update({ assigned_agent_id: selectedAssignees[0] })
               .eq("id", mailId);
 
-            await supabase.from("notifications").insert({
-              user_id: nextRoleUser.user_id,
-              title: `Courrier en attente — ${nextStep.name}`,
-              message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
-              mail_id: mailId,
-            });
+            for (const assigneeId of selectedAssignees) {
+              await supabase.from("notifications").insert({
+                user_id: assigneeId,
+                title: `Courrier en attente — ${nextStep.name}`,
+                message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
+                mail_id: mailId,
+              });
+            }
+          } else {
+            const rolesToCheck = nextStep.role === "conseiller_juridique"
+              ? ["conseiller_juridique", "conseiller"]
+              : [nextStep.role];
+
+            let nextRoleUser = null;
+            for (const r of rolesToCheck) {
+              const { data } = await supabase
+                .from("user_roles")
+                .select("user_id")
+                .eq("role", r as any)
+                .limit(1)
+                .single();
+              if (data) { nextRoleUser = data; break; }
+            }
+
+            if (nextRoleUser) {
+              await supabase
+                .from("mails")
+                .update({ assigned_agent_id: nextRoleUser.user_id })
+                .eq("id", mailId);
+
+              await supabase.from("notifications").insert({
+                user_id: nextRoleUser.user_id,
+                title: `Courrier en attente — ${nextStep.name}`,
+                message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
+                mail_id: mailId,
+              });
+            }
           }
         }
 
