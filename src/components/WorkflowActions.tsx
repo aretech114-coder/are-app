@@ -84,12 +84,22 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   };
 
   const fetchAssignableUsers = async () => {
-    const targetRoles = ["conseiller_juridique", "dircab", "dircaba", "agent"];
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .in("role", targetRoles as any);
+    let rolesQuery;
+    if (currentStep === 2) {
+      // Minister sees all users except superadmin
+      rolesQuery = supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .neq("role", "superadmin" as any);
+    } else {
+      const targetRoles = ["conseiller_juridique", "dircab", "dircaba", "agent"];
+      rolesQuery = supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("role", targetRoles as any);
+    }
 
+    const { data: roles } = await rolesQuery;
     if (!roles) return;
 
     const userIds = roles.map(r => r.user_id);
@@ -298,6 +308,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     dircab: "Directeur de Cabinet",
     dircaba: "Dir. Cabinet Adjoint",
     agent: "Agent",
+    ministre: "Ministre",
+    secretariat: "Secrétariat",
+    admin: "Administrateur",
+    supervisor: "Superviseur",
+    conseiller: "Conseiller",
   };
 
   const dialogTitle: Record<number, string> = {
