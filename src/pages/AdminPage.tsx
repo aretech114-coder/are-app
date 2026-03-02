@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Constants } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,18 +66,33 @@ export default function AdminPage() {
   const fetchRoles = async () => {
     setRolesLoading(true);
     try {
-      const res = await supabase.functions.invoke("manage-roles", {
-        body: { action: "list" },
-      });
-      if (res.data?.roles) {
-        const roles = res.data.roles.map((r: any) => ({
-          value: typeof r === "string" ? r : r.value,
-          label: DEFAULT_ROLE_LABELS[typeof r === "string" ? r : r.value] || (typeof r === "string" ? r : r.value),
-        }));
-        setAllRoles(roles);
+      // Primary source: enum values from generated types (always reliable)
+      const enumValues = Constants.public.Enums.app_role;
+      const roles = enumValues.map((value: string) => ({
+        value,
+        label: DEFAULT_ROLE_LABELS[value] || value,
+      }));
+      setAllRoles(roles);
+
+      // Try to enrich with dynamic roles from edge function
+      try {
+        const res = await supabase.functions.invoke("manage-roles", {
+          body: { action: "list" },
+        });
+        if (res.data?.roles) {
+          const dynamicRoles = res.data.roles.map((r: any) => ({
+            value: typeof r === "string" ? r : r.value,
+            label: DEFAULT_ROLE_LABELS[typeof r === "string" ? r : r.value] || (typeof r === "string" ? r : r.value),
+          }));
+          // Merge: keep all enum roles + add any dynamic ones not already present
+          const existingValues = new Set(roles.map((r: any) => r.value));
+          const merged = [...roles, ...dynamicRoles.filter((r: any) => !existingValues.has(r.value))];
+          setAllRoles(merged);
+        }
+      } catch {
+        // Edge function failed, enum values are already set — no problem
       }
     } catch {
-      // Fallback to defaults
       setAllRoles(Object.entries(DEFAULT_ROLE_LABELS).map(([value, label]) => ({ value, label })));
     } finally {
       setRolesLoading(false);
