@@ -38,11 +38,11 @@ export function AppSidebar() {
     <Sidebar className="sidebar-gradient border-r-0">
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
         <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-          GED
+          CP
         </div>
         <div className="flex flex-col">
           <span className="text-sm font-semibold text-sidebar-accent-foreground">CourierPro</span>
-          <span className="text-xs text-sidebar-foreground">Gestion Électronique</span>
+          <span className="text-xs text-sidebar-foreground">Gestion Courrier</span>
         </div>
       </div>
 
