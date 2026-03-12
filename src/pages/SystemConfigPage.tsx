@@ -131,6 +131,12 @@ export default function SystemConfigPage() {
     toast.success(newValue === "true" ? "Lien activé" : "Lien désactivé");
   };
 
+  const toggleRememberMe = async () => {
+    const newValue = settings.show_remember_me === "true" ? "false" : "true";
+    await updateSetting("show_remember_me", newValue);
+    toast.success(newValue === "true" ? "Case activée" : "Case désactivée");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
