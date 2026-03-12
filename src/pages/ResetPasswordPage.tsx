@@ -38,8 +38,12 @@ export default function ResetPasswordPage() {
       toast.error("Les mots de passe ne correspondent pas");
       return;
     }
-    if (password.length < 6) {
-      toast.error("Le mot de passe doit contenir au moins 6 caractères");
+    if (password.length < 8) {
+      toast.error("Le mot de passe doit contenir au moins 8 caractères");
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      toast.error("Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre");
       return;
     }
 
