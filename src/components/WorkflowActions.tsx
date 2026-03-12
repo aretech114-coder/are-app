@@ -225,10 +225,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           .replace(/[^a-zA-Z0-9._-]/g, "_")
           .replace(/_+/g, "_");
         const filePath = `annotations/${mailId}/${Date.now()}_${sanitizedName}`;
-        const { error: uploadErr } = await supabase.storage.from("avatars").upload(filePath, attachmentFile);
+        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, attachmentFile);
         if (uploadErr) throw uploadErr;
-        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-        annotationAttachmentUrl = urlData.publicUrl;
+        const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
+        annotationAttachmentUrl = urlData?.signedUrl || null;
       }
 
       // Build full notes
