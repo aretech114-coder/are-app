@@ -181,7 +181,35 @@ export default function SystemConfigPage() {
         </CardContent>
       </Card>
 
-      {/* Branding */}
+      {/* Auth Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            Authentification
+          </CardTitle>
+          <CardDescription>
+            Paramètres de la page de connexion.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Lien « Mot de passe oublié ? »</Label>
+              <p className="text-xs text-muted-foreground">
+                {settings.show_forgot_password !== "false"
+                  ? "Le lien est visible sur la page de connexion"
+                  : "Le lien est masqué sur la page de connexion"}
+              </p>
+            </div>
+            <Switch
+              checked={settings.show_forgot_password !== "false"}
+              onCheckedChange={toggleForgotPassword}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
