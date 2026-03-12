@@ -213,6 +213,20 @@ export default function SystemConfigPage() {
               onCheckedChange={toggleForgotPassword}
             />
           </div>
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30 mt-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Case « Se souvenir de moi »</Label>
+              <p className="text-xs text-muted-foreground">
+                {settings.show_remember_me !== "false"
+                  ? "La case est visible sur la page de connexion"
+                  : "La case est masquée sur la page de connexion"}
+              </p>
+            </div>
+            <Switch
+              checked={settings.show_remember_me !== "false"}
+              onCheckedChange={toggleRememberMe}
+            />
+          </div>
         </CardContent>
       </Card>
 
