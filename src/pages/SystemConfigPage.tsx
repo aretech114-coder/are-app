@@ -125,6 +125,12 @@ export default function SystemConfigPage() {
     toast.success(newValue === "true" ? "Indexation activée" : "Indexation désactivée");
   };
 
+  const toggleForgotPassword = async () => {
+    const newValue = settings.show_forgot_password === "true" ? "false" : "true";
+    await updateSetting("show_forgot_password", newValue);
+    toast.success(newValue === "true" ? "Lien activé" : "Lien désactivé");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
