@@ -100,6 +100,14 @@ export default function Auth() {
                   Se souvenir de moi
                 </Label>
               </div>
+              <div className="flex items-center justify-between">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Mot de passe oublié ?
+                </Link>
+              </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Chargement..." : "Se connecter"}
                 <ArrowRight className="ml-2 h-4 w-4" />
