@@ -11,10 +11,54 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify the caller is authorized (service role key or authenticated superadmin/admin)
+    const authHeader = req.headers.get("Authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+    // Allow calls with service role key (cron jobs)
+    const isServiceRole = authHeader === `Bearer ${supabaseServiceKey}`;
+
+    if (!isServiceRole) {
+      // If not service role, verify it's an authenticated admin
+      if (!authHeader?.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Non autorisé" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const callerClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(JSON.stringify({ error: "Non autorisé" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Only superadmin/admin can manually trigger SLA checks
+      const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+      const userId = claimsData.claims.sub;
+      const { data: roleData } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
+
+      if (!roleData || !["superadmin", "admin"].includes(roleData.role)) {
+        return new Response(JSON.stringify({ error: "Accès réservé aux administrateurs" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const now = new Date().toISOString();
 
     // Find overdue mails (deadline passed, not archived/processed)

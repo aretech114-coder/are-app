@@ -12,9 +12,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify caller is superadmin
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Non autorisé" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -25,24 +24,27 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller role using their JWT
+    // Verify caller using getClaims
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user: caller } } = await callerClient.auth.getUser();
-    if (!caller) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Non autorisé" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const callerId = claimsData.claims.sub;
+
     // Check superadmin role
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id)
+      .eq("user_id", callerId)
       .single();
 
     if (roleData?.role !== "superadmin") {
@@ -61,7 +63,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create user via admin API (no auto-login for the caller)
+    // Validate password strength server-side
+    if (password.length < 8) {
+      return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins 8 caractères" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Prevent creating superadmin accounts
+    if (role === "superadmin") {
+      return new Response(JSON.stringify({ error: "Impossible de créer un compte superadmin" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Create user via admin API
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
