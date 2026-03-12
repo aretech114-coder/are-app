@@ -783,22 +783,29 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                             onClick={() => {
                               const printWindow = window.open("", "_blank");
                               if (printWindow) {
+                                const escapeHtml = (s: string) => s
+                                  .replace(/&/g, '&amp;')
+                                  .replace(/</g, '&lt;')
+                                  .replace(/>/g, '&gt;')
+                                  .replace(/"/g, '&quot;');
+                                const safeRef = escapeHtml(mailData?.reference_number || "");
+                                const safeContent = escapeHtml(arContent).replace(/\n/g, "<br/>");
                                 printWindow.document.write(`
-                                  <html>
-                                    <head>
-                                      <title>Accusé de Réception — ${mailData?.reference_number || ""}</title>
-                                      <style>
-                                        body { font-family: 'Times New Roman', serif; padding: 40px 60px; line-height: 1.6; }
-                                        .ref { font-size: 12px; color: #666; margin-bottom: 20px; }
-                                        .content { white-space: pre-wrap; }
-                                      </style>
-                                    </head>
-                                    <body>
-                                      <div class="ref">Réf: ${mailData?.reference_number || ""}</div>
-                                      <div class="content">${arContent.replace(/\n/g, "<br/>")}</div>
-                                    </body>
-                                  </html>
-                                `);
+                                   <html>
+                                     <head>
+                                       <title>Accusé de Réception — ${safeRef}</title>
+                                       <style>
+                                         body { font-family: 'Times New Roman', serif; padding: 40px 60px; line-height: 1.6; }
+                                         .ref { font-size: 12px; color: #666; margin-bottom: 20px; }
+                                         .content { white-space: pre-wrap; }
+                                       </style>
+                                     </head>
+                                     <body>
+                                       <div class="ref">Réf: ${safeRef}</div>
+                                       <div class="content">${safeContent}</div>
+                                     </body>
+                                   </html>
+                                 `);
                                 printWindow.document.close();
                                 printWindow.print();
                               }
