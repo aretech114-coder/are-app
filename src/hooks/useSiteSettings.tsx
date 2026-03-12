@@ -9,6 +9,7 @@ interface SiteSettings {
   sidebar_logo_url: string;
   allow_indexing: string;
   show_forgot_password: string;
+  show_remember_me: string;
 }
 
 const defaults: SiteSettings = {
@@ -19,6 +20,7 @@ const defaults: SiteSettings = {
   sidebar_logo_url: "",
   allow_indexing: "false",
   show_forgot_password: "true",
+  show_remember_me: "true",
 };
 
 interface SiteSettingsContext {

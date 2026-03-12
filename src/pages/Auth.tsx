@@ -90,16 +90,18 @@ export default function Auth() {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="remember"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
-                />
-                <Label htmlFor="remember" className="text-sm cursor-pointer">
-                  Se souvenir de moi
-                </Label>
-              </div>
+              {settings.show_remember_me !== "false" && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="remember"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  />
+                  <Label htmlFor="remember" className="text-sm cursor-pointer">
+                    Se souvenir de moi
+                  </Label>
+                </div>
+              )}
               {settings.show_forgot_password !== "false" && (
                 <div className="flex items-center justify-between">
                   <Link

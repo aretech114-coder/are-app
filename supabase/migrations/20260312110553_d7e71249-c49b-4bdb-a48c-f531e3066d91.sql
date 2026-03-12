@@ -1,0 +1,2 @@
+INSERT INTO public.site_settings (setting_key, setting_value, setting_type, label, description)
+VALUES ('show_remember_me', 'true', 'boolean', 'Case Se souvenir de moi', 'Afficher la case "Se souvenir de moi" sur la page de connexion');
