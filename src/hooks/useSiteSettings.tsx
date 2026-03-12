@@ -8,6 +8,7 @@ interface SiteSettings {
   favicon_url: string;
   sidebar_logo_url: string;
   allow_indexing: string;
+  show_forgot_password: string;
 }
 
 const defaults: SiteSettings = {
@@ -17,6 +18,7 @@ const defaults: SiteSettings = {
   favicon_url: "",
   sidebar_logo_url: "",
   allow_indexing: "false",
+  show_forgot_password: "true",
 };
 
 interface SiteSettingsContext {
