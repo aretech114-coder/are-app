@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Search, Download, Mail, CalendarDays, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export default function ReceptionDashboard() {
   const { user } = useAuth();
