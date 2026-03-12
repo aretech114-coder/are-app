@@ -168,10 +168,10 @@ export default function MailEntry() {
           .replace(/[^a-zA-Z0-9._-]/g, "_")
           .replace(/_+/g, "_");
         const filePath = `mail-attachments/${ref.replace(/[^a-zA-Z0-9/_-]/g, "_")}/${Date.now()}_${sanitizedName}`;
-        const { error: uploadErr } = await supabase.storage.from("avatars").upload(filePath, file);
+        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, file);
         if (uploadErr) throw uploadErr;
-        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-        attachmentUrl = urlData.publicUrl;
+        const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
+        attachmentUrl = urlData?.signedUrl || null;
       }
 
       const { data: slaData } = await supabase
