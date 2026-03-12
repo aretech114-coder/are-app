@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound } from "lucide-react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Permission {
@@ -125,6 +125,12 @@ export default function SystemConfigPage() {
     toast.success(newValue === "true" ? "Indexation activée" : "Indexation désactivée");
   };
 
+  const toggleForgotPassword = async () => {
+    const newValue = settings.show_forgot_password === "true" ? "false" : "true";
+    await updateSetting("show_forgot_password", newValue);
+    toast.success(newValue === "true" ? "Lien activé" : "Lien désactivé");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -175,7 +181,35 @@ export default function SystemConfigPage() {
         </CardContent>
       </Card>
 
-      {/* Branding */}
+      {/* Auth Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            Authentification
+          </CardTitle>
+          <CardDescription>
+            Paramètres de la page de connexion.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Lien « Mot de passe oublié ? »</Label>
+              <p className="text-xs text-muted-foreground">
+                {settings.show_forgot_password !== "false"
+                  ? "Le lien est visible sur la page de connexion"
+                  : "Le lien est masqué sur la page de connexion"}
+              </p>
+            </div>
+            <Switch
+              checked={settings.show_forgot_password !== "false"}
+              onCheckedChange={toggleForgotPassword}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
