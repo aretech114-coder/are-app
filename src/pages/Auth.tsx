@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +99,14 @@ export default function Auth() {
                 <Label htmlFor="remember" className="text-sm cursor-pointer">
                   Se souvenir de moi
                 </Label>
+              </div>
+              <div className="flex items-center justify-between">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Mot de passe oublié ?
+                </Link>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Chargement..." : "Se connecter"}

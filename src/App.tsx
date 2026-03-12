@@ -21,6 +21,8 @@ import MissionsPage from "./pages/MissionsPage";
 import ReunionsPage from "./pages/ReunionsPage";
 import SuiviPage from "./pages/SuiviPage";
 import ReceptionDashboard from "./pages/ReceptionDashboard";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +61,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={user ? <Navigate to={defaultRoute} replace /> : <Auth />} />
+      <Route path="/forgot-password" element={user ? <Navigate to={defaultRoute} replace /> : <ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={
         <ProtectedRoute>
           {role === "reception" ? <Navigate to="/reception-dashboard" replace /> : <Dashboard />}
