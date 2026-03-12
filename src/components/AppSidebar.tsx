@@ -3,6 +3,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -22,6 +23,7 @@ const mainNav = [
 
 export function AppSidebar() {
   const { role, signOut, profile, hasPermission } = useAuth();
+  const { settings } = useSiteSettings();
 
   const isSuperAdmin = role === "superadmin";
   const isAdmin = role === "admin";
@@ -37,12 +39,16 @@ export function AppSidebar() {
   return (
     <Sidebar className="sidebar-gradient border-r-0">
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-          CP
-        </div>
+        {settings.sidebar_logo_url ? (
+          <img src={settings.sidebar_logo_url} alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
+        ) : (
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+            {settings.sidebar_initials || "CP"}
+          </div>
+        )}
         <div className="flex flex-col">
-          <span className="text-sm font-semibold text-sidebar-accent-foreground">CourierPro</span>
-          <span className="text-xs text-sidebar-foreground">Gestion Courrier</span>
+          <span className="text-sm font-semibold text-sidebar-accent-foreground">{settings.site_title || "CourierPro"}</span>
+          <span className="text-xs text-sidebar-foreground">{settings.site_subtitle || "Gestion Courrier"}</span>
         </div>
       </div>
 
