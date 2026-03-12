@@ -23,6 +23,7 @@ const mainNav = [
 
 export function AppSidebar() {
   const { role, signOut, profile, hasPermission } = useAuth();
+  const { settings } = useSiteSettings();
 
   const isSuperAdmin = role === "superadmin";
   const isAdmin = role === "admin";
