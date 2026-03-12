@@ -3,6 +3,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
