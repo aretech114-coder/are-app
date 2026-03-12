@@ -21,6 +21,8 @@ import MissionsPage from "./pages/MissionsPage";
 import ReunionsPage from "./pages/ReunionsPage";
 import SuiviPage from "./pages/SuiviPage";
 import ReceptionDashboard from "./pages/ReceptionDashboard";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
