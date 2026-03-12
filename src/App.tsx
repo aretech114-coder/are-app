@@ -61,6 +61,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={user ? <Navigate to={defaultRoute} replace /> : <Auth />} />
+      <Route path="/forgot-password" element={user ? <Navigate to={defaultRoute} replace /> : <ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={
         <ProtectedRoute>
           {role === "reception" ? <Navigate to="/reception-dashboard" replace /> : <Dashboard />}
