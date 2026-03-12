@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X } from "lucide-react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Permission {
@@ -17,17 +17,28 @@ interface Permission {
   is_enabled: boolean;
 }
 
+function sanitizeFileName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 export default function SystemConfigPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
-  const { settings, updateSetting, refresh } = useSiteSettings();
+  const { settings, updateSetting } = useSiteSettings();
 
-  // Local state for text fields
   const [siteTitle, setSiteTitle] = useState("");
   const [siteSubtitle, setSiteSubtitle] = useState("");
   const [sidebarInitials, setSidebarInitials] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -64,6 +75,33 @@ export default function SystemConfigPage() {
       prev.map((p) => (p.id === id ? { ...p, is_enabled: !currentValue } : p))
     );
     toast.success("Permission mise à jour");
+  };
+
+  const uploadFile = async (
+    file: File,
+    folder: string,
+    setUploading: (v: boolean) => void,
+    setUrl: (url: string) => void
+  ) => {
+    setUploading(true);
+    try {
+      const safeName = sanitizeFileName(file.name);
+      const filePath = `${folder}/${Date.now()}_${safeName}`;
+      const { error } = await supabase.storage
+        .from("branding")
+        .upload(filePath, file, { upsert: true });
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("branding")
+        .getPublicUrl(filePath);
+      setUrl(urlData.publicUrl);
+      toast.success("Image uploadée avec succès");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de l'upload");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const saveBranding = async () => {
@@ -148,7 +186,7 @@ export default function SystemConfigPage() {
             Personnalisez le titre, le logo et le favicon de la plateforme.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="site_title">Titre de la plateforme</Label>
@@ -169,35 +207,121 @@ export default function SystemConfigPage() {
               />
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="sidebar_initials">Initiales du logo</Label>
-              <Input
-                id="sidebar_initials"
-                value={sidebarInitials}
-                onChange={(e) => setSidebarInitials(e.target.value)}
-                placeholder="CP"
-                maxLength={4}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="favicon_url">URL du Favicon</Label>
-              <Input
-                id="favicon_url"
-                value={faviconUrl}
-                onChange={(e) => setFaviconUrl(e.target.value)}
-                placeholder="https://exemple.com/favicon.png"
-              />
+
+          <div className="space-y-2">
+            <Label htmlFor="sidebar_initials">Initiales du logo</Label>
+            <Input
+              id="sidebar_initials"
+              value={sidebarInitials}
+              onChange={(e) => setSidebarInitials(e.target.value)}
+              placeholder="CP"
+              maxLength={4}
+              className="max-w-32"
+            />
+          </div>
+
+          {/* Favicon upload */}
+          <div className="space-y-2">
+            <Label>Favicon</Label>
+            <div className="flex items-center gap-3">
+              {faviconUrl ? (
+                <div className="relative">
+                  <img src={faviconUrl} alt="Favicon" className="w-10 h-10 rounded-lg object-cover border" />
+                  <button
+                    onClick={() => setFaviconUrl("")}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5 flex-1">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingFavicon}
+                    onClick={() => faviconInputRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    {uploadingFavicon ? "Upload..." : "Uploader une image"}
+                  </Button>
+                </div>
+                <Input
+                  value={faviconUrl}
+                  onChange={(e) => setFaviconUrl(e.target.value)}
+                  placeholder="Ou saisir une URL..."
+                  className="text-xs h-8"
+                />
+                <input
+                  ref={faviconInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFile(file, "favicon", setUploadingFavicon, setFaviconUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
             </div>
           </div>
+
+          {/* Logo upload */}
           <div className="space-y-2">
-            <Label htmlFor="sidebar_logo_url">URL du logo (barre latérale)</Label>
-            <Input
-              id="sidebar_logo_url"
-              value={sidebarLogoUrl}
-              onChange={(e) => setSidebarLogoUrl(e.target.value)}
-              placeholder="https://exemple.com/logo.png"
-            />
+            <Label>Logo de la barre latérale</Label>
+            <div className="flex items-center gap-3">
+              {sidebarLogoUrl ? (
+                <div className="relative">
+                  <img src={sidebarLogoUrl} alt="Logo" className="w-10 h-10 rounded-lg object-cover border" />
+                  <button
+                    onClick={() => setSidebarLogoUrl("")}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5 flex-1">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingLogo}
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    {uploadingLogo ? "Upload..." : "Uploader une image"}
+                  </Button>
+                </div>
+                <Input
+                  value={sidebarLogoUrl}
+                  onChange={(e) => setSidebarLogoUrl(e.target.value)}
+                  placeholder="Ou saisir une URL..."
+                  className="text-xs h-8"
+                />
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFile(file, "logo", setUploadingLogo, setSidebarLogoUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+            </div>
             <p className="text-xs text-muted-foreground">
               Si renseigné, cette image remplacera les initiales dans la barre latérale.
             </p>
