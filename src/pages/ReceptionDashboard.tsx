@@ -53,22 +53,41 @@ export default function ReceptionDashboard() {
     (m) => format(new Date(m.created_at), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
   ).length;
 
-  const exportToExcel = () => {
-    const rows = filtered.map((m) => ({
-      "Référence": m.reference_number,
-      "Objet": m.subject,
-      "Expéditeur": m.sender_name,
-      "Organisation": m.sender_organization || "",
-      "Type": m.mail_type || "standard",
-      "Priorité": m.priority,
-      "Destinataire": m.addressed_to || "",
-      "Date d'enregistrement": format(new Date(m.created_at), "dd/MM/yyyy HH:mm", { locale: fr }),
-      "Date de réception": m.reception_date ? format(new Date(m.reception_date), "dd/MM/yyyy", { locale: fr }) : "",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Courriers");
-    XLSX.writeFile(wb, `courriers_reception_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  const exportToExcel = async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Courriers");
+    ws.columns = [
+      { header: "Référence", key: "ref", width: 18 },
+      { header: "Objet", key: "subject", width: 30 },
+      { header: "Expéditeur", key: "sender", width: 20 },
+      { header: "Organisation", key: "org", width: 20 },
+      { header: "Type", key: "type", width: 14 },
+      { header: "Priorité", key: "priority", width: 12 },
+      { header: "Destinataire", key: "to", width: 20 },
+      { header: "Date d'enregistrement", key: "created", width: 20 },
+      { header: "Date de réception", key: "received", width: 18 },
+    ];
+    filtered.forEach((m) => {
+      ws.addRow({
+        ref: m.reference_number,
+        subject: m.subject,
+        sender: m.sender_name,
+        org: m.sender_organization || "",
+        type: m.mail_type || "standard",
+        priority: m.priority,
+        to: m.addressed_to || "",
+        created: format(new Date(m.created_at), "dd/MM/yyyy HH:mm", { locale: fr }),
+        received: m.reception_date ? format(new Date(m.reception_date), "dd/MM/yyyy", { locale: fr }) : "",
+      });
+    });
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `courriers_reception_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const priorityColors: Record<string, string> = {
