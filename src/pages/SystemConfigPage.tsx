@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound } from "lucide-react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Permission {
