@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Insert events" ON public.calendar_events;
