@@ -2,7 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -21,24 +22,22 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller using getClaims
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Verify caller using getUser with service role client
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await adminClient.auth.getUser(token);
+
+    if (userError || !userData?.user) {
+      console.error("Auth error:", userError?.message);
       return new Response(JSON.stringify({ error: "Non autorisé" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const callerId = claimsData.claims.sub;
+    const callerId = userData.user.id;
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
@@ -70,8 +69,8 @@ Deno.serve(async (req) => {
     }
 
     // Validate password strength if provided
-    if (password && password.length < 8) {
-      return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins 8 caractères" }), {
+    if (password && password.length < 6) {
+      return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins 6 caractères" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -110,6 +109,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
+    console.error("Unexpected error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
