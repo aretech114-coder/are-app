@@ -498,7 +498,7 @@ export default function AdminPage() {
               <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {allRoles.map((r) => (
+                  {allRoles.filter(r => isSuperAdmin ? r.value !== "superadmin" : r.value !== "superadmin").map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
