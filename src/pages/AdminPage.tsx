@@ -499,8 +499,8 @@ export default function AdminPage() {
 
         {/* ========== USERS TAB ========== */}
         <TabsContent value="users" className="space-y-6">
-          {/* Creation Form - Only for SuperAdmin */}
-          {isSuperAdmin && (
+          {/* Creation Form - SuperAdmin or Admin with explicit permission */}
+          {canCreateUsers && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
