@@ -30,6 +30,9 @@ export function AppSidebar() {
   const isReception = role === "reception";
   const isMinisterOrDircab = role === "ministre" || role === "dircab" || isSuperAdmin || isAdmin;
 
+  const canAccessAdminUsers = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
+  const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
+
   const visibleNav = mainNav.filter((item) => {
     if (isSuperAdmin || isAdmin) return true;
     if (item.roles.includes("__all__") && !isReception) return true;
