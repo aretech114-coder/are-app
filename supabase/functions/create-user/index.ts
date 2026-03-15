@@ -39,18 +39,37 @@ Deno.serve(async (req) => {
 
     const callerId = userData.user.id;
 
-    // Check superadmin role
+    // Check caller role and fine-grained permissions
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId)
       .single();
 
-    if (roleData?.role !== "superadmin") {
-      return new Response(JSON.stringify({ error: "Accès réservé au SuperAdmin" }), {
+    const callerRole = roleData?.role;
+    const isSuperAdmin = callerRole === "superadmin";
+    const isAdmin = callerRole === "admin";
+
+    if (!isSuperAdmin && !isAdmin) {
+      return new Response(JSON.stringify({ error: "Accès réservé aux administrateurs" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (isAdmin) {
+      const { data: createPermission } = await adminClient
+        .from("admin_permissions")
+        .select("is_enabled")
+        .eq("permission_key", "create_users")
+        .single();
+
+      if (!createPermission?.is_enabled) {
+        return new Response(JSON.stringify({ error: "Vous n'avez pas la permission de créer des utilisateurs" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { email, password, full_name, role } = await req.json();
