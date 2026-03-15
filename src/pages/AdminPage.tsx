@@ -664,14 +664,14 @@ export default function AdminPage() {
                                   <Eye className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               )}
-                              {/* Edit button - admin can't edit superadmin */}
-                              {!(isAdmin && isTargetSuperAdmin) && (
+                              {/* Edit button - requires edit/reset permission; admin can't edit superadmin */}
+                              {canOpenEditDialog && !(isAdmin && isTargetSuperAdmin) && (
                                 <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8">
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
-                              {/* Delete button - superadmin only, not self, not other superadmins */}
-                              {isSuperAdmin && !isSelf && !isTargetSuperAdmin && (
+                              {/* Delete button - requires delete permission, not self, not superadmin target */}
+                              {canDeleteUsers && !isSelf && !isTargetSuperAdmin && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
