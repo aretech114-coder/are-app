@@ -425,25 +425,23 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           } as any).eq("id", mailId);
         }
 
-        // Create assignments if people were selected
-        if (selectedAssignees.length > 0) {
-          const targetStep = currentStep === 2 ? 4 : currentStep === 3 ? 4 : currentStep + 1;
+        // Step 2: Create "proposed" assignments for conseillers pre-selected by Ministre
+        // Step 3: Assignments are created in the auto-route section below
+        if (selectedAssignees.length > 0 && currentStep === 2) {
           for (const assigneeId of selectedAssignees) {
             await supabase.from("mail_assignments").insert({
               mail_id: mailId,
               assigned_by: user.id,
               assigned_to: assigneeId,
-              step_number: targetStep,
+              step_number: 4,
               instructions: annotation || null,
-              status: currentStep === 2 ? "proposed" : "pending",
+              status: "proposed",
             });
 
             await supabase.from("notifications").insert({
               user_id: assigneeId,
-              title: currentStep === 2
-                ? "Pré-assignation par le Ministre"
-                : "Dossier assigné pour traitement",
-              message: `Le courrier vous a été ${currentStep === 2 ? "pré-assigné" : "assigné"} pour traitement.${annotation ? ` Annotation: ${annotation}` : ""}`,
+              title: "Pré-assignation par le Ministre",
+              message: `Le courrier vous a été pré-assigné pour traitement.${annotation ? ` Annotation: ${annotation}` : ""}`,
               mail_id: mailId,
             });
           }
