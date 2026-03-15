@@ -227,6 +227,12 @@ export default function AdminPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canCreateUsers) {
+      toast.error("Vous n'avez pas la permission de créer des utilisateurs");
+      return;
+    }
+
     if (!fullName.trim() || !email.trim() || !password.trim()) {
       toast.error("Tous les champs sont requis");
       return;
