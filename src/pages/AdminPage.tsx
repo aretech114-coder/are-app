@@ -154,7 +154,8 @@ export default function AdminPage() {
         setEmail("");
         setPassword("");
         setRole("agent");
-        fetchUsers();
+        // Small delay to allow the database trigger to create the profile/role
+        setTimeout(() => fetchUsers(), 1500);
       }
     } catch (err: any) {
       toast.error(err.message || "Erreur inattendue");
