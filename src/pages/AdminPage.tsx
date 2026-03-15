@@ -105,17 +105,32 @@ export default function AdminPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const [{ data: profiles }, { data: roles }] = await Promise.all([
+      const [profilesRes, rolesRes] = await Promise.all([
         supabase.from("profiles").select("*").order("created_at", { ascending: false }),
         supabase.from("user_roles").select("user_id, role"),
       ]);
-      const rolesMap = new Map((roles || []).map((r: any) => [r.user_id, r.role]));
-      const merged = (profiles || []).map((p: any) => ({
+      
+      if (profilesRes.error) {
+        console.error("[AdminPage] Erreur profiles:", profilesRes.error.message, profilesRes.error);
+        toast.error("Erreur chargement profils: " + profilesRes.error.message);
+      }
+      if (rolesRes.error) {
+        console.error("[AdminPage] Erreur user_roles:", rolesRes.error.message, rolesRes.error);
+      }
+      
+      const profiles = profilesRes.data || [];
+      const roles = rolesRes.data || [];
+      console.log("[AdminPage] Profils chargés:", profiles.length, "| Rôles chargés:", roles.length);
+      
+      const rolesMap = new Map(roles.map((r: any) => [r.user_id, r.role]));
+      const merged = profiles.map((p: any) => ({
         ...p,
         user_roles: rolesMap.has(p.id) ? [{ role: rolesMap.get(p.id) }] : [],
       }));
       setUsers(merged);
-    } catch {
+    } catch (err: any) {
+      console.error("[AdminPage] Erreur inattendue fetchUsers:", err);
+      toast.error("Erreur chargement: " + (err.message || "connexion échouée"));
       setUsers([]);
     } finally {
       setLoading(false);
