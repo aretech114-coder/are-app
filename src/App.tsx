@@ -94,9 +94,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <SiteSettingsProvider>
-            <AppRoutes />
-          </SiteSettingsProvider>
+          <ImpersonationProvider>
+            <SiteSettingsProvider>
+              <AppRoutes />
+            </SiteSettingsProvider>
+          </ImpersonationProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
