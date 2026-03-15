@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useImpersonation } from "@/hooks/useImpersonation";
 import { Constants } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +12,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const DEFAULT_ROLE_LABELS: Record<string, string> = {
@@ -38,8 +40,12 @@ const roleBadgeVariant = (role: string) => {
 };
 
 export default function AdminPage() {
-  const { role: currentUserRole } = useAuth();
+  const { role: currentUserRole, user } = useAuth();
+  const { startImpersonation } = useImpersonation();
   const isSuperAdmin = currentUserRole === "superadmin";
+  const isAdmin = currentUserRole === "admin";
+  const canImpersonate = isSuperAdmin || isAdmin;
+
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -67,10 +73,14 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const fetchRoles = async () => {
     setRolesLoading(true);
     try {
-      // Primary source: enum values from generated types (always reliable)
       const enumValues = Constants.public.Enums.app_role;
       const roles = enumValues.map((value: string) => ({
         value,
@@ -78,7 +88,6 @@ export default function AdminPage() {
       }));
       setAllRoles(roles);
 
-      // Try to enrich with dynamic roles from edge function
       try {
         const res = await supabase.functions.invoke("manage-roles", {
           body: { action: "list" },
@@ -88,13 +97,12 @@ export default function AdminPage() {
             value: typeof r === "string" ? r : r.value,
             label: DEFAULT_ROLE_LABELS[typeof r === "string" ? r : r.value] || (typeof r === "string" ? r : r.value),
           }));
-          // Merge: keep all enum roles + add any dynamic ones not already present
           const existingValues = new Set(roles.map((r: any) => r.value));
           const merged = [...roles, ...dynamicRoles.filter((r: any) => !existingValues.has(r.value))];
           setAllRoles(merged);
         }
       } catch {
-        // Edge function failed, enum values are already set — no problem
+        // Edge function failed, enum values are already set
       }
     } catch {
       setAllRoles(Object.entries(DEFAULT_ROLE_LABELS).map(([value, label]) => ({ value, label })));
@@ -110,19 +118,17 @@ export default function AdminPage() {
         supabase.from("profiles").select("*").order("created_at", { ascending: false }),
         supabase.from("user_roles").select("user_id, role"),
       ]);
-      
+
       if (profilesRes.error) {
-        console.error("[AdminPage] Erreur profiles:", profilesRes.error.message, profilesRes.error);
+        console.error("[AdminPage] Erreur profiles:", profilesRes.error.message);
         toast.error("Erreur chargement profils: " + profilesRes.error.message);
       }
       if (rolesRes.error) {
-        console.error("[AdminPage] Erreur user_roles:", rolesRes.error.message, rolesRes.error);
+        console.error("[AdminPage] Erreur user_roles:", rolesRes.error.message);
       }
-      
+
       const profiles = profilesRes.data || [];
       const roles = rolesRes.data || [];
-      console.log("[AdminPage] Profils chargés:", profiles.length, "| Rôles chargés:", roles.length);
-      
       const rolesMap = new Map(roles.map((r: any) => [r.user_id, r.role]));
       const merged = profiles.map((p: any) => ({
         ...p,
@@ -170,7 +176,6 @@ export default function AdminPage() {
         setEmail("");
         setPassword("");
         setRole("agent");
-        // Small delay to allow the database trigger to create the profile/role
         setTimeout(() => fetchUsers(), 1500);
       }
     } catch (err: any) {
@@ -201,7 +206,6 @@ export default function AdminPage() {
         toast.success(`Rôle "${newRoleLabel}" créé avec succès`);
         setNewRoleName("");
         setNewRoleLabel("");
-        // Update local label map and refresh
         DEFAULT_ROLE_LABELS[newRoleName.trim().toLowerCase()] = newRoleLabel.trim();
         fetchRoles();
       }
@@ -272,6 +276,46 @@ export default function AdminPage() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const openDeleteDialog = (u: any) => {
+    setDeleteUser(u);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteUser) return;
+    setDeleting(true);
+    try {
+      const res = await supabase.functions.invoke("delete-user", {
+        body: { user_id: deleteUser.id },
+      });
+      if (res.error) {
+        toast.error(res.error.message || "Erreur de suppression");
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(`Utilisateur "${deleteUser.full_name}" supprimé`);
+        setDeleteOpen(false);
+        setDeleteUser(null);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleImpersonate = (u: any) => {
+    const userRole = u.user_roles?.[0]?.role || "agent";
+    startImpersonation({
+      id: u.id,
+      full_name: u.full_name || "Sans nom",
+      email: u.email,
+      role: getRoleLabel(userRole),
+    });
+    toast.success(`Impersonation activée : ${u.full_name}`);
   };
 
   const getRoleLabel = (roleValue: string) => {
@@ -377,7 +421,7 @@ export default function AdminPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Rôle</TableHead>
                     <TableHead>Inscrit le</TableHead>
-                    <TableHead className="w-12"></TableHead>
+                    <TableHead className="w-32 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -396,6 +440,8 @@ export default function AdminPage() {
                   ) : (
                     users.map((u) => {
                       const userRole = u.user_roles?.[0]?.role || "agent";
+                      const isSelf = u.id === user?.id;
+                      const isTargetSuperAdmin = userRole === "superadmin";
                       return (
                         <TableRow key={u.id}>
                           <TableCell>
@@ -417,9 +463,36 @@ export default function AdminPage() {
                             {new Date(u.created_at).toLocaleDateString("fr-FR")}
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(u)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              {/* Impersonate button */}
+                              {canImpersonate && !isSelf && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleImpersonate(u)}
+                                  title={`Voir en tant que ${u.full_name}`}
+                                  className="h-8 w-8"
+                                >
+                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              )}
+                              {/* Edit button */}
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {/* Delete button - superadmin only, not self, not other superadmins */}
+                              {isSuperAdmin && !isSelf && !isTargetSuperAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openDeleteDialog(u)}
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -433,7 +506,6 @@ export default function AdminPage() {
 
         {/* ========== ROLES TAB ========== */}
         <TabsContent value="roles" className="space-y-6">
-          {/* Create Role */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -475,7 +547,6 @@ export default function AdminPage() {
             </CardContent>
           </Card>
 
-          {/* Roles List */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -546,7 +617,7 @@ export default function AdminPage() {
               <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {allRoles.filter(r => isSuperAdmin ? r.value !== "superadmin" : r.value !== "superadmin").map((r) => (
+                  {allRoles.filter(r => r.value !== "superadmin").map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -562,6 +633,30 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l'utilisateur</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer <strong>{deleteUser?.full_name}</strong> ({deleteUser?.email}) ? 
+              Cette action est irréversible. Le compte, le profil et le rôle seront définitivement supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
