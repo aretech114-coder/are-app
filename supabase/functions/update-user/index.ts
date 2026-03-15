@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     }
 
     // Prevent admin from modifying superadmin users
-    if (roleData?.role === "admin") {
+    if (isAdmin) {
       const { data: targetRole } = await adminClient
         .from("user_roles")
         .select("role")
