@@ -564,8 +564,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             }
           }
         }
-          }
-        }
 
         // Save calendar event if RDV was scheduled
         if (scheduleRdv && rdvDate && user) {
