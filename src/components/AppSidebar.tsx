@@ -112,7 +112,7 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {isSuperAdmin && (
+                {(isSuperAdmin || isAdmin) && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink

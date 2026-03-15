@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Constants } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,8 @@ const roleBadgeVariant = (role: string) => {
 };
 
 export default function AdminPage() {
+  const { role: currentUserRole } = useAuth();
+  const isSuperAdmin = currentUserRole === "superadmin";
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -151,7 +154,8 @@ export default function AdminPage() {
         setEmail("");
         setPassword("");
         setRole("agent");
-        fetchUsers();
+        // Small delay to allow the database trigger to create the profile/role
+        setTimeout(() => fetchUsers(), 1500);
       }
     } catch (err: any) {
       toast.error(err.message || "Erreur inattendue");
@@ -250,15 +254,18 @@ export default function AdminPage() {
             <UserPlus className="h-4 w-4" />
             Utilisateurs
           </TabsTrigger>
+          {isSuperAdmin && (
           <TabsTrigger value="roles" className="flex items-center gap-2">
             <Tags className="h-4 w-4" />
             Rôles
           </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ========== USERS TAB ========== */}
         <TabsContent value="users" className="space-y-6">
-          {/* Creation Form */}
+          {/* Creation Form - Only for SuperAdmin */}
+          {isSuperAdmin && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -288,7 +295,7 @@ export default function AdminPage() {
                   <Select value={role} onValueChange={setRole} disabled={creating}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {allRoles.map((r) => (
+                      {allRoles.filter(r => r.value !== "superadmin").map((r) => (
                         <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -301,6 +308,7 @@ export default function AdminPage() {
               </form>
             </CardContent>
           </Card>
+          )}
 
           {/* Users Table */}
           <Card>
@@ -490,7 +498,7 @@ export default function AdminPage() {
               <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {allRoles.map((r) => (
+                  {allRoles.filter(r => isSuperAdmin ? r.value !== "superadmin" : r.value !== "superadmin").map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>

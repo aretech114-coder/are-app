@@ -45,8 +45,8 @@ Deno.serve(async (req) => {
       .eq("user_id", callerId)
       .single();
 
-    if (roleData?.role !== "superadmin") {
-      return new Response(JSON.stringify({ error: "Accès réservé au SuperAdmin" }), {
+    if (roleData?.role !== "superadmin" && roleData?.role !== "admin") {
+      return new Response(JSON.stringify({ error: "Accès réservé aux administrateurs" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
