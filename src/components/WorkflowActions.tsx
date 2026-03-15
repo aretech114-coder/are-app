@@ -69,15 +69,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const stepInfo = getStepInfo(currentStep);
 
   // Map roles to their allowed steps
+  // Reception is NOT a workflow step — only submission
   const roleStepMap: Record<string, number[]> = {
-    secretariat: [1, 8, 9],
+    secretariat: [8, 9],
     ministre: [2, 6],
     dircab: [3, 5],
     dircaba: [3],
     conseiller_juridique: [4, 7],
     conseiller: [4, 7],
-    admin: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    superadmin: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    admin: [2, 3, 4, 5, 6, 7, 8, 9],
+    superadmin: [2, 3, 4, 5, 6, 7, 8, 9],
   };
 
   const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
