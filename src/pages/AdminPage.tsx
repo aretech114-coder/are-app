@@ -262,7 +262,8 @@ export default function AdminPage() {
 
         {/* ========== USERS TAB ========== */}
         <TabsContent value="users" className="space-y-6">
-          {/* Creation Form */}
+          {/* Creation Form - Only for SuperAdmin */}
+          {isSuperAdmin && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -292,7 +293,7 @@ export default function AdminPage() {
                   <Select value={role} onValueChange={setRole} disabled={creating}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {allRoles.map((r) => (
+                      {allRoles.filter(r => r.value !== "superadmin").map((r) => (
                         <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -305,6 +306,7 @@ export default function AdminPage() {
               </form>
             </CardContent>
           </Card>
+          )}
 
           {/* Users Table */}
           <Card>
