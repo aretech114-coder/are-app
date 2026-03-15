@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
       user_metadata: { full_name },
     });
 
-    let userId = newUser.user.id;
+    let userId = newUser?.user?.id ?? "";
 
     if (createError) {
       const msg = createError.message?.toLowerCase() || "";
