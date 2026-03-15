@@ -454,15 +454,25 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           const { data: mailData } = await supabase.from("mails").select("mail_type").eq("id", mailId).single();
           
           if (mailData?.mail_type === "note_technique") {
-            // Notify assigned conseillers for consultation
-            const { data: assignments } = await supabase
+            // Create step 7 assignments for all conseillers who had step 4 assignments
+            const { data: step4Assignments } = await supabase
               .from("mail_assignments")
               .select("assigned_to")
               .eq("mail_id", mailId)
               .eq("step_number", 4);
 
-            if (assignments) {
-              for (const a of assignments) {
+            if (step4Assignments) {
+              for (const a of step4Assignments) {
+                // Create step 7 assignment
+                await supabase.from("mail_assignments").insert({
+                  mail_id: mailId,
+                  assigned_by: user.id,
+                  assigned_to: a.assigned_to,
+                  step_number: 7,
+                  status: "pending",
+                  instructions: "Consultation de la validation du Ministre",
+                });
+
                 await supabase.from("notifications").insert({
                   user_id: a.assigned_to,
                   title: "Note technique validée par le Ministre",
@@ -473,7 +483,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             }
           } else {
             // For accusé de réception, skip step 7 and go to step 8
-            // Override the step to 8
             await supabase.from("mails").update({ current_step: 8 }).eq("id", mailId);
             await supabase.from("workflow_transitions").insert({
               mail_id: mailId,
