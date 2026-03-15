@@ -45,7 +45,11 @@ Deno.serve(async (req) => {
       .eq("user_id", callerId)
       .single();
 
-    if (roleData?.role !== "superadmin" && roleData?.role !== "admin") {
+    const callerRole = roleData?.role;
+    const isSuperAdmin = callerRole === "superadmin";
+    const isAdmin = callerRole === "admin";
+
+    if (!isSuperAdmin && !isAdmin) {
       return new Response(JSON.stringify({ error: "Accès réservé aux administrateurs" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -59,6 +63,34 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (isAdmin) {
+      const { data: permissions } = await adminClient
+        .from("admin_permissions")
+        .select("permission_key, is_enabled")
+        .in("permission_key", ["edit_users", "reset_passwords"]);
+
+      const permissionMap = new Map((permissions || []).map((p: any) => [p.permission_key, p.is_enabled]));
+      const canEditUsers = permissionMap.get("edit_users") === true;
+      const canResetPasswords = permissionMap.get("reset_passwords") === true;
+
+      const wantsProfileEdit = typeof full_name !== "undefined" || typeof email !== "undefined" || typeof role !== "undefined";
+      const wantsPasswordReset = typeof password === "string" && password.length > 0;
+
+      if (wantsProfileEdit && !canEditUsers) {
+        return new Response(JSON.stringify({ error: "Vous n'avez pas la permission de modifier les utilisateurs" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (wantsPasswordReset && !canResetPasswords) {
+        return new Response(JSON.stringify({ error: "Vous n'avez pas la permission de réinitialiser les mots de passe" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Prevent admin from modifying superadmin users
