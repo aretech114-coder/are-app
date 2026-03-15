@@ -211,6 +211,7 @@ export default function MailEntry() {
       if (error) throw error;
 
       // Auto-routing: assign to the addressed role user
+      let routed = false;
       const roleMap: Record<string, string> = {
         "MINISTRE": "ministre",
         "DIRECTEUR DE CABINET": "dircab",
@@ -219,54 +220,70 @@ export default function MailEntry() {
       };
       const targetRole = roleMap[form.addressed_to];
       if (targetRole) {
-        // Find user with that role
-        const { data: roleData } = await supabase
+        const { data: roleData, error: roleErr } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("role", targetRole as any)
           .limit(1)
           .single();
 
+        if (roleErr) {
+          console.error("Erreur recherche rôle:", roleErr.message);
+        }
+
         if (roleData?.user_id) {
-          const { data: insertedMail } = await supabase
+          const { data: insertedMail, error: fetchErr } = await supabase
             .from("mails")
             .select("id")
             .eq("reference_number", ref)
             .single();
 
+          if (fetchErr) {
+            console.error("Erreur récupération courrier inséré:", fetchErr.message);
+          }
+
           if (insertedMail) {
-            // Determine initial step based on addressee
-            // If Ministre absent (non-Ministre addressee), skip step 2
             const isDirectToMinistre = form.addressed_to === "MINISTRE";
             const initialStep = isDirectToMinistre ? 2 : (form.addressed_to === "DIRECTEUR DE CABINET" || form.addressed_to === "DIRECTEUR DE CABINET ADJOINT") ? 3 : 4;
 
-            await supabase
+            const { error: updateErr } = await supabase
               .from("mails")
               .update({ assigned_agent_id: roleData.user_id, status: "in_progress" as any, current_step: initialStep })
               .eq("id", insertedMail.id);
 
-            await supabase.from("notifications").insert({
-              user_id: roleData.user_id,
-              title: "Nouveau courrier assigné",
-              message: `Un courrier "${form.subject}" (Réf: ${ref}) vous a été adressé pour traitement.`,
-              mail_id: insertedMail.id,
-            });
+            if (updateErr) {
+              console.error("Erreur update mail routing:", updateErr.message);
+              toast.warning("Courrier enregistré mais le routage a échoué: " + updateErr.message);
+            } else {
+              routed = true;
 
-            await supabase.from("workflow_transitions").insert({
-              mail_id: insertedMail.id,
-              from_step: 1,
-              to_step: initialStep,
-              action: "approve",
-              performed_by: user.id,
-              notes: `Routé automatiquement vers ${form.addressed_to}${ministreAbsent ? " (Ministre absent)" : ""}`,
-            });
+              const { error: notifErr } = await supabase.from("notifications").insert({
+                user_id: roleData.user_id,
+                title: "Nouveau courrier assigné",
+                message: `Un courrier "${form.subject}" (Réf: ${ref}) vous a été adressé pour traitement.`,
+                mail_id: insertedMail.id,
+              });
+              if (notifErr) console.error("Erreur notification:", notifErr.message);
+
+              const { error: transErr } = await supabase.from("workflow_transitions").insert({
+                mail_id: insertedMail.id,
+                from_step: 1,
+                to_step: initialStep,
+                action: "approve",
+                performed_by: user.id,
+                notes: `Routé automatiquement vers ${form.addressed_to}${ministreAbsent ? " (Ministre absent)" : ""}`,
+              });
+              if (transErr) console.error("Erreur transition:", transErr.message);
+            }
           }
+        } else {
+          console.warn("Aucun utilisateur trouvé avec le rôle:", targetRole);
         }
       }
 
       setQrData({ ref, data: qrCodeData });
       setShowQr(true);
-      toast.success("Courrier enregistré et assigné avec succès");
+      toast.success(routed ? "Courrier enregistré et routé avec succès" : "Courrier enregistré (routage non effectué — vérifiez les rôles)");
       setForm({
         reference_number: "", sender_name: "", sender_organization: "", subject: "", reception_date: "",
         mail_type: "", mail_type_other: "", priority: "normal", sender_phone: "", sender_email: "",
