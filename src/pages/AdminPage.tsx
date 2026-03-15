@@ -357,7 +357,38 @@ export default function AdminPage() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const res = await supabase.functions.invoke("sync-users");
+      let res = await supabase.functions.invoke("sync-users", { body: {} });
+
+      // Fallback HTTP call for environments where invoke() fails with transport-level errors
+      if (res.error?.message?.toLowerCase().includes("failed to send a request")) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        if (!accessToken) {
+          toast.error("Session expirée. Reconnectez-vous puis relancez la synchronisation.");
+          return;
+        }
+
+        const fallbackResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-users`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({}),
+        });
+
+        const fallbackData = await fallbackResponse.json().catch(() => ({}));
+
+        if (!fallbackResponse.ok) {
+          toast.error(fallbackData?.error || `Erreur de synchronisation (${fallbackResponse.status})`);
+          return;
+        }
+
+        res = { data: fallbackData, error: null } as any;
+      }
+
       if (res.error) {
         toast.error(res.error.message || "Erreur de synchronisation");
       } else if (res.data?.error) {
