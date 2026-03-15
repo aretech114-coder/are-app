@@ -787,7 +787,11 @@ export default function AdminPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Modifier l'utilisateur</DialogTitle>
-            <DialogDescription>Modifiez les informations ci-dessous. Laissez le mot de passe vide pour ne pas le changer.</DialogDescription>
+            <DialogDescription>
+              {canEditUsers
+                ? "Modifiez les informations ci-dessous. Laissez le mot de passe vide pour ne pas le changer."
+                : "Vous pouvez uniquement définir un nouveau mot de passe pour cet utilisateur."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
