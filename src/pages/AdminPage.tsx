@@ -40,6 +40,23 @@ const roleBadgeVariant = (role: string) => {
   }
 };
 
+const ADMIN_USER_PERMISSION_KEYS = [
+  "manage_users",
+  "create_users",
+  "edit_users",
+  "delete_users",
+  "impersonate_users",
+  "reset_passwords",
+] as const;
+
+interface AdminUserPermission {
+  id: string;
+  permission_key: typeof ADMIN_USER_PERMISSION_KEYS[number];
+  label: string;
+  description: string | null;
+  is_enabled: boolean;
+}
+
 export default function AdminPage() {
   const { role: currentUserRole, user } = useAuth();
   const { startImpersonation } = useImpersonation();
