@@ -103,6 +103,10 @@ export default function AdminPage() {
   const [deleteUser, setDeleteUser] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // SuperAdmin toggles for Admin user-management capabilities
+  const [adminUserPermissions, setAdminUserPermissions] = useState<AdminUserPermission[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+
   const fetchRoles = async () => {
     setRolesLoading(true);
     try {
