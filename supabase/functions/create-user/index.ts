@@ -103,15 +103,50 @@ Deno.serve(async (req) => {
       user_metadata: { full_name },
     });
 
-    if (createError) {
-      console.error("Create user error:", createError.message);
-      return new Response(JSON.stringify({ error: createError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    let userId = newUser.user.id;
 
-    const userId = newUser.user.id;
+    if (createError) {
+      const msg = createError.message?.toLowerCase() || "";
+      const alreadyExists =
+        msg.includes("already") ||
+        msg.includes("registered") ||
+        msg.includes("exists") ||
+        msg.includes("duplicate");
+
+      if (!alreadyExists) {
+        console.error("Create user error:", createError.message);
+        return new Response(JSON.stringify({ error: createError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Recover existing auth user when account still exists in auth but not in app tables
+      const { data: listedUsers, error: listError } = await adminClient.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+
+      if (listError) {
+        return new Response(JSON.stringify({ error: `Utilisateur déjà existant, impossible de synchroniser: ${listError.message}` }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const existingUser = (listedUsers.users || []).find(
+        (u) => (u.email || "").toLowerCase() === email.toLowerCase()
+      );
+
+      if (!existingUser?.id) {
+        return new Response(JSON.stringify({ error: "Le compte existe déjà, mais il est introuvable côté authentification" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      userId = existingUser.id;
+    }
 
     // Wait briefly for the trigger to complete, then ensure profile and role exist
     await new Promise((resolve) => setTimeout(resolve, 500));
