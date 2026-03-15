@@ -250,6 +250,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await supabase.functions.invoke("sync-users");
+      if (res.error) {
+        toast.error(res.error.message || "Erreur de synchronisation");
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        const { profiles_created, roles_created, auth_users_total } = res.data;
+        if (profiles_created === 0 && roles_created === 0) {
+          toast.success(`Tout est synchronisé (${auth_users_total} utilisateurs)`);
+        } else {
+          toast.success(`Synchronisé : ${profiles_created} profil(s) et ${roles_created} rôle(s) créé(s)`);
+        }
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const getRoleLabel = (roleValue: string) => {
     return allRoles.find((r) => r.value === roleValue)?.label || DEFAULT_ROLE_LABELS[roleValue] || roleValue;
   };
