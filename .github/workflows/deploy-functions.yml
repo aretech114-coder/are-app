@@ -29,5 +29,6 @@ jobs:
           supabase functions deploy sla-checker --no-verify-jwt
           supabase functions deploy ai-assistant --no-verify-jwt
           supabase functions deploy sync-users --no-verify-jwt
+          supabase functions deploy delete-user --no-verify-jwt
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
