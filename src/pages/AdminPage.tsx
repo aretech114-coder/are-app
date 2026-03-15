@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -65,6 +65,7 @@ export default function AdminPage() {
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchRoles = async () => {
     setRolesLoading(true);
@@ -249,6 +250,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await supabase.functions.invoke("sync-users");
+      if (res.error) {
+        toast.error(res.error.message || "Erreur de synchronisation");
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        const { profiles_created, roles_created, auth_users_total } = res.data;
+        if (profiles_created === 0 && roles_created === 0) {
+          toast.success(`Tout est synchronisé (${auth_users_total} utilisateurs)`);
+        } else {
+          toast.success(`Synchronisé : ${profiles_created} profil(s) et ${roles_created} rôle(s) créé(s)`);
+        }
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const getRoleLabel = (roleValue: string) => {
     return allRoles.find((r) => r.value === roleValue)?.label || DEFAULT_ROLE_LABELS[roleValue] || roleValue;
   };
@@ -332,9 +357,17 @@ export default function AdminPage() {
                 <CardTitle className="text-lg">Utilisateurs ({users.length})</CardTitle>
                 <CardDescription>Liste de tous les comptes enregistrés</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              </Button>
+              <div className="flex items-center gap-2">
+                {isSuperAdmin && (
+                  <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing} title="Synchroniser les utilisateurs manquants">
+                    <DatabaseBackup className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+                    {syncing ? "Sync..." : "Sync"}
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
