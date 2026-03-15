@@ -464,6 +464,15 @@ export default function AdminPage() {
     return allRoles.find((r) => r.value === roleValue)?.label || DEFAULT_ROLE_LABELS[roleValue] || roleValue;
   };
 
+  if (!canAccessUserManagement) {
+    return (
+      <div className="animate-fade-in space-y-2">
+        <h1 className="page-header">Gestion des Utilisateurs</h1>
+        <p className="page-description">Accès refusé : activez la permission « Gérer les utilisateurs » pour le rôle Admin.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in space-y-6">
       <div>
