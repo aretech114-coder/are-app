@@ -357,9 +357,17 @@ export default function AdminPage() {
                 <CardTitle className="text-lg">Utilisateurs ({users.length})</CardTitle>
                 <CardDescription>Liste de tous les comptes enregistrés</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              </Button>
+              <div className="flex items-center gap-2">
+                {isSuperAdmin && (
+                  <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing} title="Synchroniser les utilisateurs manquants">
+                    <DatabaseBackup className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+                    {syncing ? "Sync..." : "Sync"}
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
