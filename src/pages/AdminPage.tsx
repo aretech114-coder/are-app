@@ -6,6 +6,7 @@ import { Constants } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,12 +40,36 @@ const roleBadgeVariant = (role: string) => {
   }
 };
 
+const ADMIN_USER_PERMISSION_KEYS = [
+  "manage_users",
+  "create_users",
+  "edit_users",
+  "delete_users",
+  "impersonate_users",
+  "reset_passwords",
+] as const;
+
+interface AdminUserPermission {
+  id: string;
+  permission_key: typeof ADMIN_USER_PERMISSION_KEYS[number];
+  label: string;
+  description: string | null;
+  is_enabled: boolean;
+}
+
 export default function AdminPage() {
-  const { role: currentUserRole, user } = useAuth();
+  const { role: currentUserRole, user, hasPermission } = useAuth();
   const { startImpersonation } = useImpersonation();
   const isSuperAdmin = currentUserRole === "superadmin";
   const isAdmin = currentUserRole === "admin";
-  const canImpersonate = isSuperAdmin || isAdmin;
+
+  const canAccessUserManagement = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
+  const canCreateUsers = isSuperAdmin || (isAdmin && hasPermission("create_users"));
+  const canEditUsers = isSuperAdmin || (isAdmin && hasPermission("edit_users"));
+  const canDeleteUsers = isSuperAdmin || (isAdmin && hasPermission("delete_users"));
+  const canResetPasswords = isSuperAdmin || (isAdmin && hasPermission("reset_passwords"));
+  const canImpersonate = isSuperAdmin || (isAdmin && hasPermission("impersonate_users"));
+  const canOpenEditDialog = canEditUsers || canResetPasswords;
 
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +102,10 @@ export default function AdminPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteUser, setDeleteUser] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // SuperAdmin toggles for Admin user-management capabilities
+  const [adminUserPermissions, setAdminUserPermissions] = useState<AdminUserPermission[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   const fetchRoles = async () => {
     setRolesLoading(true);
@@ -144,13 +173,66 @@ export default function AdminPage() {
     }
   };
 
+  const fetchAdminUserPermissions = async () => {
+    if (!isSuperAdmin) return;
+
+    setPermissionsLoading(true);
+    const { data, error } = await supabase
+      .from("admin_permissions")
+      .select("id, permission_key, label, description, is_enabled")
+      .in("permission_key", [...ADMIN_USER_PERMISSION_KEYS]);
+
+    if (error) {
+      toast.error("Erreur chargement permissions admin: " + error.message);
+      setPermissionsLoading(false);
+      return;
+    }
+
+    const order = new Map(ADMIN_USER_PERMISSION_KEYS.map((key, index) => [key, index]));
+    const sorted = (data || []).sort(
+      (a: any, b: any) => (order.get(a.permission_key as any) ?? 999) - (order.get(b.permission_key as any) ?? 999)
+    ) as AdminUserPermission[];
+
+    setAdminUserPermissions(sorted);
+    setPermissionsLoading(false);
+  };
+
+  const toggleAdminUserPermission = async (permissionId: string, currentValue: boolean) => {
+    const { error } = await supabase
+      .from("admin_permissions")
+      .update({ is_enabled: !currentValue })
+      .eq("id", permissionId);
+
+    if (error) {
+      toast.error("Impossible de mettre à jour la permission: " + error.message);
+      return;
+    }
+
+    setAdminUserPermissions((prev) =>
+      prev.map((permission) =>
+        permission.id === permissionId
+          ? { ...permission, is_enabled: !currentValue }
+          : permission
+      )
+    );
+
+    toast.success("Permission admin mise à jour");
+  };
+
   useEffect(() => {
     fetchRoles();
     fetchUsers();
-  }, []);
+    if (isSuperAdmin) fetchAdminUserPermissions();
+  }, [isSuperAdmin]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canCreateUsers) {
+      toast.error("Vous n'avez pas la permission de créer des utilisateurs");
+      return;
+    }
+
     if (!fullName.trim() || !email.trim() || !password.trim()) {
       toast.error("Tous les champs sont requis");
       return;
@@ -228,14 +310,32 @@ export default function AdminPage() {
 
   const handleUpdate = async () => {
     if (!editUser) return;
+
+    if (!canOpenEditDialog) {
+      toast.error("Vous n'avez pas la permission de modifier cet utilisateur");
+      return;
+    }
+
     setSaving(true);
     try {
       const body: any = { user_id: editUser.id };
-      if (editFullName !== editUser.full_name) body.full_name = editFullName;
-      if (editEmail !== editUser.email) body.email = editEmail;
-      if (editPassword) body.password = editPassword;
       const currentRole = editUser.user_roles?.[0]?.role || "agent";
-      if (editRole !== currentRole) body.role = editRole;
+
+      if (canEditUsers) {
+        if (editFullName !== editUser.full_name) body.full_name = editFullName;
+        if (editEmail !== editUser.email) body.email = editEmail;
+        if (editRole !== currentRole) body.role = editRole;
+      }
+
+      if (canResetPasswords && editPassword) {
+        body.password = editPassword;
+      }
+
+      if (Object.keys(body).length === 1) {
+        toast.error("Aucune modification autorisée à enregistrer");
+        setSaving(false);
+        return;
+      }
 
       const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) {
@@ -257,7 +357,38 @@ export default function AdminPage() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const res = await supabase.functions.invoke("sync-users");
+      let res = await supabase.functions.invoke("sync-users", { body: {} });
+
+      // Fallback HTTP call for environments where invoke() fails with transport-level errors
+      if (res.error?.message?.toLowerCase().includes("failed to send a request")) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        if (!accessToken) {
+          toast.error("Session expirée. Reconnectez-vous puis relancez la synchronisation.");
+          return;
+        }
+
+        const fallbackResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-users`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({}),
+        });
+
+        const fallbackData = await fallbackResponse.json().catch(() => ({}));
+
+        if (!fallbackResponse.ok) {
+          toast.error(fallbackData?.error || `Erreur de synchronisation (${fallbackResponse.status})`);
+          return;
+        }
+
+        res = { data: fallbackData, error: null } as any;
+      }
+
       if (res.error) {
         toast.error(res.error.message || "Erreur de synchronisation");
       } else if (res.data?.error) {
@@ -285,6 +416,12 @@ export default function AdminPage() {
 
   const handleDelete = async () => {
     if (!deleteUser) return;
+
+    if (!canDeleteUsers) {
+      toast.error("Vous n'avez pas la permission de supprimer des utilisateurs");
+      return;
+    }
+
     setDeleting(true);
     try {
       const res = await supabase.functions.invoke("delete-user", {
@@ -308,6 +445,11 @@ export default function AdminPage() {
   };
 
   const handleImpersonate = (u: any) => {
+    if (!canImpersonate) {
+      toast.error("Vous n'avez pas la permission d'impersonation");
+      return;
+    }
+
     const userRole = u.user_roles?.[0]?.role || "agent";
     startImpersonation({
       id: u.id,
@@ -321,6 +463,15 @@ export default function AdminPage() {
   const getRoleLabel = (roleValue: string) => {
     return allRoles.find((r) => r.value === roleValue)?.label || DEFAULT_ROLE_LABELS[roleValue] || roleValue;
   };
+
+  if (!canAccessUserManagement) {
+    return (
+      <div className="animate-fade-in space-y-2">
+        <h1 className="page-header">Gestion des Utilisateurs</h1>
+        <p className="page-description">Accès refusé : activez la permission « Gérer les utilisateurs » pour le rôle Admin.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -348,8 +499,8 @@ export default function AdminPage() {
 
         {/* ========== USERS TAB ========== */}
         <TabsContent value="users" className="space-y-6">
-          {/* Creation Form - Only for SuperAdmin */}
-          {isSuperAdmin && (
+          {/* Creation Form - SuperAdmin or Admin with explicit permission */}
+          {canCreateUsers && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -392,6 +543,43 @@ export default function AdminPage() {
               </form>
             </CardContent>
           </Card>
+          )}
+
+          {/* SuperAdmin toggles for Admin user-management rights */}
+          {isSuperAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Droits Admin • Gestion des utilisateurs</CardTitle>
+                <CardDescription>
+                  Activez précisément ce que le rôle Admin peut faire : accès, ajout, modification, suppression, impersonation et reset mot de passe.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {permissionsLoading ? (
+                  <div className="flex items-center justify-center py-4 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Chargement des permissions...
+                  </div>
+                ) : (
+                  adminUserPermissions.map((permission) => (
+                    <div
+                      key={permission.id}
+                      className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3"
+                    >
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">{permission.label}</Label>
+                        {permission.description && (
+                          <p className="text-xs text-muted-foreground">{permission.description}</p>
+                        )}
+                      </div>
+                      <Switch
+                        checked={permission.is_enabled}
+                        onCheckedChange={() => toggleAdminUserPermission(permission.id, permission.is_enabled)}
+                      />
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Users Table */}
@@ -476,14 +664,14 @@ export default function AdminPage() {
                                   <Eye className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               )}
-                              {/* Edit button - admin can't edit superadmin */}
-                              {!(isAdmin && isTargetSuperAdmin) && (
+                              {/* Edit button - requires edit/reset permission; admin can't edit superadmin */}
+                              {canOpenEditDialog && !(isAdmin && isTargetSuperAdmin) && (
                                 <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8">
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
-                              {/* Delete button - superadmin only, not self, not other superadmins */}
-                              {isSuperAdmin && !isSelf && !isTargetSuperAdmin && (
+                              {/* Delete button - requires delete permission, not self, not superadmin target */}
+                              {canDeleteUsers && !isSelf && !isTargetSuperAdmin && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -599,24 +787,46 @@ export default function AdminPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Modifier l'utilisateur</DialogTitle>
-            <DialogDescription>Modifiez les informations ci-dessous. Laissez le mot de passe vide pour ne pas le changer.</DialogDescription>
+            <DialogDescription>
+              {canEditUsers
+                ? "Modifiez les informations ci-dessous. Laissez le mot de passe vide pour ne pas le changer."
+                : "Vous pouvez uniquement définir un nouveau mot de passe pour cet utilisateur."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="editFullName">Nom complet</Label>
-              <Input id="editFullName" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} disabled={saving} />
+              <Input
+                id="editFullName"
+                value={editFullName}
+                onChange={(e) => setEditFullName(e.target.value)}
+                disabled={saving || !canEditUsers}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="editEmail">Email</Label>
-              <Input id="editEmail" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} disabled={saving} />
+              <Input
+                id="editEmail"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                disabled={saving || !canEditUsers}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="editPassword">Nouveau mot de passe</Label>
-              <Input id="editPassword" type="password" placeholder="Laisser vide pour ne pas changer" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} disabled={saving} />
+              <Input
+                id="editPassword"
+                type="password"
+                placeholder={canResetPasswords ? "Laisser vide pour ne pas changer" : "Permission reset requise"}
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                disabled={saving || !canResetPasswords}
+              />
             </div>
             <div className="space-y-2">
               <Label>Rôle</Label>
-              <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
+              <Select value={editRole} onValueChange={setEditRole} disabled={saving || !canEditUsers}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {allRoles.filter(r => r.value !== "superadmin").map((r) => (

@@ -35,18 +35,37 @@ Deno.serve(async (req) => {
 
     const callerId = userData.user.id;
 
-    // Only superadmin can delete users
+    // Check caller role and fine-grained permissions
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId)
       .single();
 
-    if (roleData?.role !== "superadmin") {
-      return new Response(JSON.stringify({ error: "Seul le Super Admin peut supprimer des utilisateurs" }), {
+    const callerRole = roleData?.role;
+    const isSuperAdmin = callerRole === "superadmin";
+    const isAdmin = callerRole === "admin";
+
+    if (!isSuperAdmin && !isAdmin) {
+      return new Response(JSON.stringify({ error: "Accès réservé aux administrateurs" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (isAdmin) {
+      const { data: deletePermission } = await adminClient
+        .from("admin_permissions")
+        .select("is_enabled")
+        .eq("permission_key", "delete_users")
+        .single();
+
+      if (!deletePermission?.is_enabled) {
+        return new Response(JSON.stringify({ error: "Vous n'avez pas la permission de supprimer des utilisateurs" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { user_id } = await req.json();

@@ -30,6 +30,9 @@ export function AppSidebar() {
   const isReception = role === "reception";
   const isMinisterOrDircab = role === "ministre" || role === "dircab" || isSuperAdmin || isAdmin;
 
+  const canAccessAdminUsers = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
+  const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
+
   const visibleNav = mainNav.filter((item) => {
     if (isSuperAdmin || isAdmin) return true;
     if (item.roles.includes("__all__") && !isReception) return true;
@@ -105,14 +108,14 @@ export function AppSidebar() {
         )}
 
         {/* Admin section */}
-        {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
+        {(canAccessAdminUsers || canAccessWorkflow) && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
               Administration
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {(isSuperAdmin || isAdmin) && (
+                {canAccessAdminUsers && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
@@ -127,7 +130,7 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
-                {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
+                {canAccessWorkflow && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
