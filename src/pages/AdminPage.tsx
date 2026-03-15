@@ -310,14 +310,32 @@ export default function AdminPage() {
 
   const handleUpdate = async () => {
     if (!editUser) return;
+
+    if (!canOpenEditDialog) {
+      toast.error("Vous n'avez pas la permission de modifier cet utilisateur");
+      return;
+    }
+
     setSaving(true);
     try {
       const body: any = { user_id: editUser.id };
-      if (editFullName !== editUser.full_name) body.full_name = editFullName;
-      if (editEmail !== editUser.email) body.email = editEmail;
-      if (editPassword) body.password = editPassword;
       const currentRole = editUser.user_roles?.[0]?.role || "agent";
-      if (editRole !== currentRole) body.role = editRole;
+
+      if (canEditUsers) {
+        if (editFullName !== editUser.full_name) body.full_name = editFullName;
+        if (editEmail !== editUser.email) body.email = editEmail;
+        if (editRole !== currentRole) body.role = editRole;
+      }
+
+      if (canResetPasswords && editPassword) {
+        body.password = editPassword;
+      }
+
+      if (Object.keys(body).length === 1) {
+        toast.error("Aucune modification autorisée à enregistrer");
+        setSaving(false);
+        return;
+      }
 
       const res = await supabase.functions.invoke("update-user", { body });
       if (res.error) {
