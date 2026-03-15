@@ -416,6 +416,12 @@ export default function AdminPage() {
 
   const handleDelete = async () => {
     if (!deleteUser) return;
+
+    if (!canDeleteUsers) {
+      toast.error("Vous n'avez pas la permission de supprimer des utilisateurs");
+      return;
+    }
+
     setDeleting(true);
     try {
       const res = await supabase.functions.invoke("delete-user", {
