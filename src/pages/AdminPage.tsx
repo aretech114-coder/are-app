@@ -545,6 +545,43 @@ export default function AdminPage() {
           </Card>
           )}
 
+          {/* SuperAdmin toggles for Admin user-management rights */}
+          {isSuperAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Droits Admin • Gestion des utilisateurs</CardTitle>
+                <CardDescription>
+                  Activez précisément ce que le rôle Admin peut faire : accès, ajout, modification, suppression, impersonation et reset mot de passe.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {permissionsLoading ? (
+                  <div className="flex items-center justify-center py-4 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Chargement des permissions...
+                  </div>
+                ) : (
+                  adminUserPermissions.map((permission) => (
+                    <div
+                      key={permission.id}
+                      className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3"
+                    >
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">{permission.label}</Label>
+                        {permission.description && (
+                          <p className="text-xs text-muted-foreground">{permission.description}</p>
+                        )}
+                      </div>
+                      <Switch
+                        checked={permission.is_enabled}
+                        onCheckedChange={() => toggleAdminUserPermission(permission.id, permission.is_enabled)}
+                      />
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Users Table */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
