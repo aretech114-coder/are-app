@@ -464,8 +464,8 @@ export default function AdminPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              {/* Impersonate button */}
-                              {canImpersonate && !isSelf && (
+                              {/* Impersonate button - not on self, admin can't impersonate superadmin */}
+                              {canImpersonate && !isSelf && !(isAdmin && isTargetSuperAdmin) && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -476,10 +476,12 @@ export default function AdminPage() {
                                   <Eye className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               )}
-                              {/* Edit button */}
-                              <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8">
-                                <Pencil className="h-4 w-4" />
-                              </Button>
+                              {/* Edit button - admin can't edit superadmin */}
+                              {!(isAdmin && isTargetSuperAdmin) && (
+                                <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              )}
                               {/* Delete button - superadmin only, not self, not other superadmins */}
                               {isSuperAdmin && !isSelf && !isTargetSuperAdmin && (
                                 <Button
