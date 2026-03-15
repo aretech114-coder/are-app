@@ -187,9 +187,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const getActions = () => {
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
 
-    if (currentStep === 1) {
-      actions.push({ key: "complete", label: "Réception terminée", icon: Send, variant: "default" });
-    } else if (currentStep === 2) {
+    if (currentStep === 2) {
       actions.push({ key: "approve", label: "Annoter & Transmettre au DirCab", icon: ArrowRight, variant: "default" });
     } else if (currentStep === 3) {
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
