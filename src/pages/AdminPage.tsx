@@ -254,10 +254,12 @@ export default function AdminPage() {
             <UserPlus className="h-4 w-4" />
             Utilisateurs
           </TabsTrigger>
+          {isSuperAdmin && (
           <TabsTrigger value="roles" className="flex items-center gap-2">
             <Tags className="h-4 w-4" />
             Rôles
           </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ========== USERS TAB ========== */}
