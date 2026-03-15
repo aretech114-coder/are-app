@@ -174,16 +174,44 @@ export default function MailEntry() {
         attachmentUrl = urlData?.signedUrl || null;
       }
 
+      // Determine initial workflow step based on addressing
+      const roleMap: Record<string, string> = {
+        "MINISTRE": "ministre",
+        "DIRECTEUR DE CABINET": "dircab",
+        "DIRECTEUR DE CABINET ADJOINT": "dircaba",
+        "CONSEILLER JURIDIQUE": "conseiller_juridique",
+      };
+      const targetRole = roleMap[form.addressed_to];
+      const isDirectToMinistre = form.addressed_to === "MINISTRE";
+      const initialStep = isDirectToMinistre ? 2 
+        : (form.addressed_to === "DIRECTEUR DE CABINET" || form.addressed_to === "DIRECTEUR DE CABINET ADJOINT") ? 3 
+        : 4;
+
+      // SLA for the initial step
       const { data: slaData } = await supabase
         .from("sla_config")
         .select("default_hours")
-        .eq("step_number", 1)
+        .eq("step_number", initialStep)
         .single();
       const deadlineHours = slaData?.default_hours || 24;
       const deadline = new Date();
       deadline.setHours(deadline.getHours() + deadlineHours);
 
-      const { error } = await supabase.from("mails").insert({
+      // Find target user for routing
+      let targetUserId: string | null = null;
+      let routed = false;
+      if (targetRole) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", targetRole as any)
+          .limit(1)
+          .single();
+        targetUserId = roleData?.user_id || null;
+      }
+
+      // Insert mail directly at the correct workflow step
+      const { data: insertedMail, error } = await supabase.from("mails").insert({
         reference_number: ref,
         qr_code_data: qrCodeData,
         sender_name: form.sender_name,
@@ -193,7 +221,8 @@ export default function MailEntry() {
         priority: form.priority as any,
         mail_type: form.mail_type || null,
         registered_by: user.id,
-        current_step: 1,
+        current_step: initialStep,
+        status: "in_progress" as any,
         deadline_at: deadline.toISOString(),
         workflow_started_at: new Date().toISOString(),
         attachment_url: attachmentUrl,
@@ -206,79 +235,47 @@ export default function MailEntry() {
         deposit_time: form.deposit_time || null,
         addressed_to: form.addressed_to || null,
         comments: form.comments || null,
-      });
+        assigned_agent_id: targetUserId,
+      }).select("id").single();
 
       if (error) throw error;
+      if (!insertedMail) throw new Error("Courrier inséré mais ID non récupéré");
 
-      // Auto-routing: assign to the addressed role user
-      let routed = false;
-      const roleMap: Record<string, string> = {
-        "MINISTRE": "ministre",
-        "DIRECTEUR DE CABINET": "dircab",
-        "DIRECTEUR DE CABINET ADJOINT": "dircaba",
-        "CONSEILLER JURIDIQUE": "conseiller_juridique",
-      };
-      const targetRole = roleMap[form.addressed_to];
-      if (targetRole) {
-        const { data: roleData, error: roleErr } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", targetRole as any)
-          .limit(1)
-          .single();
+      // Create mail_assignment for the target user at the initial step
+      if (targetUserId) {
+        const { error: assignErr } = await supabase.from("mail_assignments").insert({
+          mail_id: insertedMail.id,
+          assigned_by: user.id,
+          assigned_to: targetUserId,
+          step_number: initialStep,
+          instructions: form.comments || null,
+          status: "pending",
+        });
+        if (assignErr) console.error("Erreur assignation:", assignErr.message);
 
-        if (roleErr) {
-          console.error("Erreur recherche rôle:", roleErr.message);
-        }
+        // Notification
+        const { error: notifErr } = await supabase.from("notifications").insert({
+          user_id: targetUserId,
+          title: "Nouveau courrier assigné",
+          message: `Un courrier "${form.subject}" (Réf: ${ref}) vous a été adressé pour traitement.`,
+          mail_id: insertedMail.id,
+        });
+        if (notifErr) console.error("Erreur notification:", notifErr.message);
 
-        if (roleData?.user_id) {
-          const { data: insertedMail, error: fetchErr } = await supabase
-            .from("mails")
-            .select("id")
-            .eq("reference_number", ref)
-            .single();
+        // Workflow transition: reception → initial step
+        const { error: transErr } = await supabase.from("workflow_transitions").insert({
+          mail_id: insertedMail.id,
+          from_step: 1,
+          to_step: initialStep,
+          action: "approve",
+          performed_by: user.id,
+          notes: `Routé automatiquement vers ${form.addressed_to}${ministreAbsent ? " (Ministre absent)" : ""}`,
+        });
+        if (transErr) console.error("Erreur transition:", transErr.message);
 
-          if (fetchErr) {
-            console.error("Erreur récupération courrier inséré:", fetchErr.message);
-          }
-
-          if (insertedMail) {
-            const isDirectToMinistre = form.addressed_to === "MINISTRE";
-            const initialStep = isDirectToMinistre ? 2 : (form.addressed_to === "DIRECTEUR DE CABINET" || form.addressed_to === "DIRECTEUR DE CABINET ADJOINT") ? 3 : 4;
-
-            const { error: updateErr } = await supabase
-              .from("mails")
-              .update({ assigned_agent_id: roleData.user_id, status: "in_progress" as any, current_step: initialStep })
-              .eq("id", insertedMail.id);
-
-            if (updateErr) {
-              console.error("Erreur update mail routing:", updateErr.message);
-              toast.warning("Courrier enregistré mais le routage a échoué: " + updateErr.message);
-            } else {
-              routed = true;
-
-              const { error: notifErr } = await supabase.from("notifications").insert({
-                user_id: roleData.user_id,
-                title: "Nouveau courrier assigné",
-                message: `Un courrier "${form.subject}" (Réf: ${ref}) vous a été adressé pour traitement.`,
-                mail_id: insertedMail.id,
-              });
-              if (notifErr) console.error("Erreur notification:", notifErr.message);
-
-              const { error: transErr } = await supabase.from("workflow_transitions").insert({
-                mail_id: insertedMail.id,
-                from_step: 1,
-                to_step: initialStep,
-                action: "approve",
-                performed_by: user.id,
-                notes: `Routé automatiquement vers ${form.addressed_to}${ministreAbsent ? " (Ministre absent)" : ""}`,
-              });
-              if (transErr) console.error("Erreur transition:", transErr.message);
-            }
-          }
-        } else {
-          console.warn("Aucun utilisateur trouvé avec le rôle:", targetRole);
-        }
+        routed = true;
+      } else if (targetRole) {
+        console.warn("Aucun utilisateur trouvé avec le rôle:", targetRole);
       }
 
       setQrData({ ref, data: qrCodeData });

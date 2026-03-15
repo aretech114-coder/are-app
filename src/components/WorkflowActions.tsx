@@ -69,15 +69,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const stepInfo = getStepInfo(currentStep);
 
   // Map roles to their allowed steps
+  // Reception is NOT a workflow step — only submission
   const roleStepMap: Record<string, number[]> = {
-    secretariat: [1, 8, 9],
+    secretariat: [8, 9],
     ministre: [2, 6],
     dircab: [3, 5],
     dircaba: [3],
     conseiller_juridique: [4, 7],
     conseiller: [4, 7],
-    admin: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    superadmin: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    admin: [2, 3, 4, 5, 6, 7, 8, 9],
+    superadmin: [2, 3, 4, 5, 6, 7, 8, 9],
   };
 
   const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
@@ -88,12 +89,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Check if current user already completed their step 4 or step 7 (acknowledgement)
   useEffect(() => {
     if ((currentStep === 4 || currentStep === 7) && user) {
+      const checkStep = currentStep; // Check assignments at current step
       supabase
         .from("mail_assignments")
         .select("status")
         .eq("mail_id", mailId)
         .eq("assigned_to", user.id)
-        .eq("step_number", 4)
+        .eq("step_number", checkStep)
         .single()
         .then(({ data }) => {
           if (currentStep === 4) {
@@ -186,9 +188,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const getActions = () => {
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
 
-    if (currentStep === 1) {
-      actions.push({ key: "complete", label: "Réception terminée", icon: Send, variant: "default" });
-    } else if (currentStep === 2) {
+    if (currentStep === 2) {
       actions.push({ key: "approve", label: "Annoter & Transmettre au DirCab", icon: ArrowRight, variant: "default" });
     } else if (currentStep === 3) {
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
@@ -340,12 +340,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       // STEP 7 ACKNOWLEDGEMENT LOGIC:
       // Conseillers acknowledge they've seen the minister's validation
       if (currentStep === 7 && action === "acknowledge") {
-        // Mark assignment as acknowledged
+        // Mark step 7 assignment as acknowledged
         await supabase.from("mail_assignments")
           .update({ status: "acknowledged" })
           .eq("mail_id", mailId)
           .eq("assigned_to", user.id)
-          .eq("step_number", 4);
+          .eq("step_number", 7);
 
         // Record transition
         await supabase.from("workflow_transitions").insert({
@@ -357,12 +357,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           notes: noteParts || "Consultation de la validation confirmée.",
         });
 
-        // Check if ALL conseillers have acknowledged
+        // Check if ALL conseillers have acknowledged (check step 7 assignments)
         const { data: allAssignments } = await supabase
           .from("mail_assignments")
           .select("id, status")
           .eq("mail_id", mailId)
-          .eq("step_number", 4);
+          .eq("step_number", 7);
 
         const allAcknowledged = allAssignments && allAssignments.length > 0 &&
           allAssignments.every(a => a.status === "acknowledged");
@@ -425,25 +425,23 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           } as any).eq("id", mailId);
         }
 
-        // Create assignments if people were selected
-        if (selectedAssignees.length > 0) {
-          const targetStep = currentStep === 2 ? 4 : currentStep === 3 ? 4 : currentStep + 1;
+        // Step 2: Create "proposed" assignments for conseillers pre-selected by Ministre
+        // Step 3: Assignments are created in the auto-route section below
+        if (selectedAssignees.length > 0 && currentStep === 2) {
           for (const assigneeId of selectedAssignees) {
             await supabase.from("mail_assignments").insert({
               mail_id: mailId,
               assigned_by: user.id,
               assigned_to: assigneeId,
-              step_number: targetStep,
+              step_number: 4,
               instructions: annotation || null,
-              status: currentStep === 2 ? "proposed" : "pending",
+              status: "proposed",
             });
 
             await supabase.from("notifications").insert({
               user_id: assigneeId,
-              title: currentStep === 2
-                ? "Pré-assignation par le Ministre"
-                : "Dossier assigné pour traitement",
-              message: `Le courrier vous a été ${currentStep === 2 ? "pré-assigné" : "assigné"} pour traitement.${annotation ? ` Annotation: ${annotation}` : ""}`,
+              title: "Pré-assignation par le Ministre",
+              message: `Le courrier vous a été pré-assigné pour traitement.${annotation ? ` Annotation: ${annotation}` : ""}`,
               mail_id: mailId,
             });
           }
@@ -455,15 +453,25 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           const { data: mailData } = await supabase.from("mails").select("mail_type").eq("id", mailId).single();
           
           if (mailData?.mail_type === "note_technique") {
-            // Notify assigned conseillers for consultation
-            const { data: assignments } = await supabase
+            // Create step 7 assignments for all conseillers who had step 4 assignments
+            const { data: step4Assignments } = await supabase
               .from("mail_assignments")
               .select("assigned_to")
               .eq("mail_id", mailId)
               .eq("step_number", 4);
 
-            if (assignments) {
-              for (const a of assignments) {
+            if (step4Assignments) {
+              for (const a of step4Assignments) {
+                // Create step 7 assignment
+                await supabase.from("mail_assignments").insert({
+                  mail_id: mailId,
+                  assigned_by: user.id,
+                  assigned_to: a.assigned_to,
+                  step_number: 7,
+                  status: "pending",
+                  instructions: "Consultation de la validation du Ministre",
+                });
+
                 await supabase.from("notifications").insert({
                   user_id: a.assigned_to,
                   title: "Note technique validée par le Ministre",
@@ -474,7 +482,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             }
           } else {
             // For accusé de réception, skip step 7 and go to step 8
-            // Override the step to 8
             await supabase.from("mails").update({ current_step: 8 }).eq("id", mailId);
             await supabase.from("workflow_transitions").insert({
               mail_id: mailId,
@@ -487,7 +494,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           }
         }
 
-        // Auto-route to next role
+        // Auto-route to next role and create mail_assignment for visibility
         const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
         if (nextStep) {
           // If moving to step 4 and conseillers were selected, assign them
@@ -498,6 +505,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               .eq("id", mailId);
 
             for (const assigneeId of selectedAssignees) {
+              // Create step 4 assignment for each conseiller
+              await supabase.from("mail_assignments").insert({
+                mail_id: mailId,
+                assigned_by: user.id,
+                assigned_to: assigneeId,
+                step_number: 4,
+                status: "pending",
+                instructions: annotation || null,
+              });
+
               await supabase.from("notifications").insert({
                 user_id: assigneeId,
                 title: `Courrier en attente — ${nextStep.name}`,
@@ -526,6 +543,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 .from("mails")
                 .update({ assigned_agent_id: nextRoleUser.user_id })
                 .eq("id", mailId);
+
+              // Create mail_assignment at the target step for visibility
+              await supabase.from("mail_assignments").insert({
+                mail_id: mailId,
+                assigned_by: user.id,
+                assigned_to: nextRoleUser.user_id,
+                step_number: result.newStep,
+                status: "pending",
+              });
 
               await supabase.from("notifications").insert({
                 user_id: nextRoleUser.user_id,
