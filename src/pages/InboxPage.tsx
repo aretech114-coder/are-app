@@ -34,14 +34,17 @@ export default function InboxPage() {
 
   const fetchMails = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("mails")
       .select("*")
       .in("status", ["pending", "in_progress"])
       .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Erreur fetch mails:", error.message);
+      toast.error("Erreur chargement courriers: " + error.message);
+    }
     setMails(data || []);
     setLoading(false);
-    // Refresh selected if open
     if (selected) {
       const updated = data?.find(m => m.id === selected.id);
       setSelected(updated || null);
