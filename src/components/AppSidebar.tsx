@@ -108,7 +108,7 @@ export function AppSidebar() {
         )}
 
         {/* Admin section */}
-        {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
+        {(canAccessAdminUsers || canAccessWorkflow) && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
               Administration
