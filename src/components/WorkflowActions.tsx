@@ -496,7 +496,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           }
         }
 
-        // Auto-route to next role
+        // Auto-route to next role and create mail_assignment for visibility
         const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
         if (nextStep) {
           // If moving to step 4 and conseillers were selected, assign them
@@ -507,6 +507,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               .eq("id", mailId);
 
             for (const assigneeId of selectedAssignees) {
+              // Create step 4 assignment for each conseiller
+              await supabase.from("mail_assignments").insert({
+                mail_id: mailId,
+                assigned_by: user.id,
+                assigned_to: assigneeId,
+                step_number: 4,
+                status: "pending",
+                instructions: annotation || null,
+              });
+
               await supabase.from("notifications").insert({
                 user_id: assigneeId,
                 title: `Courrier en attente — ${nextStep.name}`,
@@ -536,6 +546,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 .update({ assigned_agent_id: nextRoleUser.user_id })
                 .eq("id", mailId);
 
+              // Create mail_assignment at the target step for visibility
+              await supabase.from("mail_assignments").insert({
+                mail_id: mailId,
+                assigned_by: user.id,
+                assigned_to: nextRoleUser.user_id,
+                step_number: result.newStep,
+                status: "pending",
+              });
+
               await supabase.from("notifications").insert({
                 user_id: nextRoleUser.user_id,
                 title: `Courrier en attente — ${nextStep.name}`,
@@ -543,6 +562,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 mail_id: mailId,
               });
             }
+          }
+        }
           }
         }
 
