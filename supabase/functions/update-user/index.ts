@@ -61,6 +61,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Prevent admin from modifying superadmin users
+    if (roleData?.role === "admin") {
+      const { data: targetRole } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user_id)
+        .single();
+
+      if (targetRole?.role === "superadmin") {
+        return new Response(JSON.stringify({ error: "Un administrateur ne peut pas modifier un Super Admin" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Prevent escalation to superadmin
     if (role === "superadmin") {
       return new Response(JSON.stringify({ error: "Impossible d'attribuer le rôle superadmin" }), {
