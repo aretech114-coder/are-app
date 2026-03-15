@@ -65,6 +65,7 @@ export default function AdminPage() {
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchRoles = async () => {
     setRolesLoading(true);
