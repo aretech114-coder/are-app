@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate password strength if provided
-    if (password && password.length < 6) {
+    if (typeof password === "string" && password.length > 0 && password.length < 6) {
       return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins 6 caractères" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
