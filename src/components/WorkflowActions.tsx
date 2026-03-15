@@ -89,12 +89,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Check if current user already completed their step 4 or step 7 (acknowledgement)
   useEffect(() => {
     if ((currentStep === 4 || currentStep === 7) && user) {
+      const checkStep = currentStep; // Check assignments at current step
       supabase
         .from("mail_assignments")
         .select("status")
         .eq("mail_id", mailId)
         .eq("assigned_to", user.id)
-        .eq("step_number", 4)
+        .eq("step_number", checkStep)
         .single()
         .then(({ data }) => {
           if (currentStep === 4) {
