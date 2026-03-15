@@ -173,10 +173,57 @@ export default function AdminPage() {
     }
   };
 
+  const fetchAdminUserPermissions = async () => {
+    if (!isSuperAdmin) return;
+
+    setPermissionsLoading(true);
+    const { data, error } = await supabase
+      .from("admin_permissions")
+      .select("id, permission_key, label, description, is_enabled")
+      .in("permission_key", [...ADMIN_USER_PERMISSION_KEYS]);
+
+    if (error) {
+      toast.error("Erreur chargement permissions admin: " + error.message);
+      setPermissionsLoading(false);
+      return;
+    }
+
+    const order = new Map(ADMIN_USER_PERMISSION_KEYS.map((key, index) => [key, index]));
+    const sorted = (data || []).sort(
+      (a: any, b: any) => (order.get(a.permission_key as any) ?? 999) - (order.get(b.permission_key as any) ?? 999)
+    ) as AdminUserPermission[];
+
+    setAdminUserPermissions(sorted);
+    setPermissionsLoading(false);
+  };
+
+  const toggleAdminUserPermission = async (permissionId: string, currentValue: boolean) => {
+    const { error } = await supabase
+      .from("admin_permissions")
+      .update({ is_enabled: !currentValue })
+      .eq("id", permissionId);
+
+    if (error) {
+      toast.error("Impossible de mettre à jour la permission: " + error.message);
+      return;
+    }
+
+    setAdminUserPermissions((prev) =>
+      prev.map((permission) =>
+        permission.id === permissionId
+          ? { ...permission, is_enabled: !currentValue }
+          : permission
+      )
+    );
+
+    toast.success("Permission admin mise à jour");
+  };
+
   useEffect(() => {
     fetchRoles();
     fetchUsers();
-  }, []);
+    if (isSuperAdmin) fetchAdminUserPermissions();
+  }, [isSuperAdmin]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
