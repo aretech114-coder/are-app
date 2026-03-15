@@ -445,6 +445,11 @@ export default function AdminPage() {
   };
 
   const handleImpersonate = (u: any) => {
+    if (!canImpersonate) {
+      toast.error("Vous n'avez pas la permission d'impersonation");
+      return;
+    }
+
     const userRole = u.user_roles?.[0]?.role || "agent";
     startImpersonation({
       id: u.id,
