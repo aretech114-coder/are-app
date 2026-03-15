@@ -38,6 +38,8 @@ const roleBadgeVariant = (role: string) => {
 };
 
 export default function AdminPage() {
+  const { role: currentUserRole } = useAuth();
+  const isSuperAdmin = currentUserRole === "superadmin";
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
