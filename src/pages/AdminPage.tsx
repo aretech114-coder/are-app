@@ -796,19 +796,37 @@ export default function AdminPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="editFullName">Nom complet</Label>
-              <Input id="editFullName" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} disabled={saving} />
+              <Input
+                id="editFullName"
+                value={editFullName}
+                onChange={(e) => setEditFullName(e.target.value)}
+                disabled={saving || !canEditUsers}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="editEmail">Email</Label>
-              <Input id="editEmail" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} disabled={saving} />
+              <Input
+                id="editEmail"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                disabled={saving || !canEditUsers}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="editPassword">Nouveau mot de passe</Label>
-              <Input id="editPassword" type="password" placeholder="Laisser vide pour ne pas changer" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} disabled={saving} />
+              <Input
+                id="editPassword"
+                type="password"
+                placeholder={canResetPasswords ? "Laisser vide pour ne pas changer" : "Permission reset requise"}
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                disabled={saving || !canResetPasswords}
+              />
             </div>
             <div className="space-y-2">
               <Label>Rôle</Label>
-              <Select value={editRole} onValueChange={setEditRole} disabled={saving}>
+              <Select value={editRole} onValueChange={setEditRole} disabled={saving || !canEditUsers}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {allRoles.filter(r => r.value !== "superadmin").map((r) => (
