@@ -339,12 +339,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       // STEP 7 ACKNOWLEDGEMENT LOGIC:
       // Conseillers acknowledge they've seen the minister's validation
       if (currentStep === 7 && action === "acknowledge") {
-        // Mark assignment as acknowledged
+        // Mark step 7 assignment as acknowledged
         await supabase.from("mail_assignments")
           .update({ status: "acknowledged" })
           .eq("mail_id", mailId)
           .eq("assigned_to", user.id)
-          .eq("step_number", 4);
+          .eq("step_number", 7);
 
         // Record transition
         await supabase.from("workflow_transitions").insert({
@@ -356,12 +356,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           notes: noteParts || "Consultation de la validation confirmée.",
         });
 
-        // Check if ALL conseillers have acknowledged
+        // Check if ALL conseillers have acknowledged (check step 7 assignments)
         const { data: allAssignments } = await supabase
           .from("mail_assignments")
           .select("id, status")
           .eq("mail_id", mailId)
-          .eq("step_number", 4);
+          .eq("step_number", 7);
 
         const allAcknowledged = allAssignments && allAssignments.length > 0 &&
           allAssignments.every(a => a.status === "acknowledged");
