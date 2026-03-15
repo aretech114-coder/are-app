@@ -130,7 +130,7 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
-                {(isSuperAdmin || (isAdmin && hasPermission("manage_workflow"))) && (
+                {canAccessWorkflow && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
