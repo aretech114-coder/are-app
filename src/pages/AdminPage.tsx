@@ -58,11 +58,18 @@ interface AdminUserPermission {
 }
 
 export default function AdminPage() {
-  const { role: currentUserRole, user } = useAuth();
+  const { role: currentUserRole, user, hasPermission } = useAuth();
   const { startImpersonation } = useImpersonation();
   const isSuperAdmin = currentUserRole === "superadmin";
   const isAdmin = currentUserRole === "admin";
-  const canImpersonate = isSuperAdmin || isAdmin;
+
+  const canAccessUserManagement = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
+  const canCreateUsers = isSuperAdmin || (isAdmin && hasPermission("create_users"));
+  const canEditUsers = isSuperAdmin || (isAdmin && hasPermission("edit_users"));
+  const canDeleteUsers = isSuperAdmin || (isAdmin && hasPermission("delete_users"));
+  const canResetPasswords = isSuperAdmin || (isAdmin && hasPermission("reset_passwords"));
+  const canImpersonate = isSuperAdmin || (isAdmin && hasPermission("impersonate_users"));
+  const canOpenEditDialog = canEditUsers || canResetPasswords;
 
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
