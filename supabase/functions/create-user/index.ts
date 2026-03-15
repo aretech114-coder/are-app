@@ -62,7 +62,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Validate password strength server-side
     if (password.length < 6) {
       return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins 6 caractères" }), {
         status: 400,
@@ -70,7 +69,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Prevent creating superadmin accounts
     if (role === "superadmin") {
       return new Response(JSON.stringify({ error: "Impossible de créer un compte superadmin" }), {
         status: 403,
@@ -94,16 +92,40 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update role (trigger already created 'agent' entry)
-    if (role !== "agent") {
+    const userId = newUser.user.id;
+
+    // Wait briefly for the trigger to complete, then ensure profile and role exist
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Upsert profile to ensure it exists (trigger may have already created it)
+    await adminClient
+      .from("profiles")
+      .upsert({
+        id: userId,
+        email,
+        full_name,
+      }, { onConflict: "id" });
+
+    // Upsert role to ensure correct role is set
+    const { data: existingRole } = await adminClient
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", userId)
+      .single();
+
+    if (existingRole) {
       await adminClient
         .from("user_roles")
         .update({ role })
-        .eq("user_id", newUser.user.id);
+        .eq("user_id", userId);
+    } else {
+      await adminClient
+        .from("user_roles")
+        .insert({ user_id: userId, role });
     }
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUser.user.id }),
+      JSON.stringify({ success: true, user_id: userId }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
