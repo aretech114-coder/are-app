@@ -37,8 +37,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { role, hasPermission } = useAuth();
-  if (role !== "admin" && role !== "superadmin") return <Navigate to="/" replace />;
-  return <>{children}</>;
+
+  if (role === "superadmin") return <>{children}</>;
+  if (role === "admin" && hasPermission("manage_users")) return <>{children}</>;
+
+  return <Navigate to="/" replace />;
 }
 
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
