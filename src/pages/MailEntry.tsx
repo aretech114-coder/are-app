@@ -198,10 +198,11 @@ export default function MailEntry() {
       const deadline = new Date();
       deadline.setHours(deadline.getHours() + deadlineHours);
 
-      // Find target user for routing
-      let targetUserId: string | null = null;
+      // Find target user for routing (step-config first, role fallback)
+      let targetUserId: string | null = await resolveWorkflowStepAssignee(initialStep, null);
       let routed = false;
-      if (targetRole) {
+
+      if (!targetUserId && targetRole) {
         const { data: roleData } = await supabase
           .from("user_roles")
           .select("user_id")
