@@ -89,7 +89,7 @@ function AppRoutes() {
       <Route path="/analytics" element={<ProtectedRoute><ReceptionRoute><AnalyticsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminPage /></AdminRoute></ProtectedRoute>} />
-      <Route path="/workflow" element={<ProtectedRoute><AdminRoute><WorkflowPage /></AdminRoute></ProtectedRoute>} />
+      <Route path="/workflow" element={<ProtectedRoute><WorkflowRoute><WorkflowPage /></WorkflowRoute></ProtectedRoute>} />
       <Route path="/missions" element={<ProtectedRoute><ReceptionRoute><MissionsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/reunions" element={<ProtectedRoute><ReceptionRoute><ReunionsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/suivi" element={<ProtectedRoute><SuiviPage /></ProtectedRoute>} />
