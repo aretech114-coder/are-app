@@ -523,6 +523,57 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_step_responsibles: {
+        Row: {
+          assignment_mode: string
+          created_at: string
+          created_by: string | null
+          default_user_id: string | null
+          fallback_step_number: number | null
+          id: string
+          is_active: boolean
+          step_number: number
+          updated_at: string
+        }
+        Insert: {
+          assignment_mode?: string
+          created_at?: string
+          created_by?: string | null
+          default_user_id?: string | null
+          fallback_step_number?: number | null
+          id?: string
+          is_active?: boolean
+          step_number: number
+          updated_at?: string
+        }
+        Update: {
+          assignment_mode?: string
+          created_at?: string
+          created_by?: string | null
+          default_user_id?: string | null
+          fallback_step_number?: number | null
+          id?: string
+          is_active?: boolean
+          step_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_step_responsibles_created_by_fk"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_step_responsibles_default_user_fk"
+            columns: ["default_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_steps: {
         Row: {
           conditions: Json | null
@@ -603,6 +654,10 @@ export type Database = {
     }
     Functions: {
       add_app_role: { Args: { new_role: string }; Returns: undefined }
+      can_transition_update_mail: {
+        Args: { _mail_id: string; _step: number; _user_id: string }
+        Returns: boolean
+      }
       get_enum_values: {
         Args: never
         Returns: {
@@ -623,6 +678,10 @@ export type Database = {
       is_mail_registered_by: {
         Args: { _mail_id: string; _user_id: string }
         Returns: boolean
+      }
+      resolve_step_assignee: {
+        Args: { _mail_id?: string; _step_number: number }
+        Returns: string
       }
     }
     Enums: {

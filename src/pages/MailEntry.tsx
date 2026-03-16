@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -197,10 +198,11 @@ export default function MailEntry() {
       const deadline = new Date();
       deadline.setHours(deadline.getHours() + deadlineHours);
 
-      // Find target user for routing
-      let targetUserId: string | null = null;
+      // Find target user for routing (step-config first, role fallback)
+      let targetUserId: string | null = await resolveWorkflowStepAssignee(initialStep, null);
       let routed = false;
-      if (targetRole) {
+
+      if (!targetUserId && targetRole) {
         const { data: roleData } = await supabase
           .from("user_roles")
           .select("user_id")
