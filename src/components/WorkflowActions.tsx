@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { advanceWorkflow, getStepInfo, WORKFLOW_STEPS } from "@/lib/workflow-engine";
+import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
