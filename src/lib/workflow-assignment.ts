@@ -66,7 +66,7 @@ export async function fetchWorkflowStepResponsibles(): Promise<WorkflowStepRespo
     .order("step_number", { ascending: true });
 
   if (error) throw error;
-  return (data || []) as WorkflowStepResponsible[];
+  return ((data || []) as unknown) as WorkflowStepResponsible[];
 }
 
 export async function upsertWorkflowStepResponsible(config: {
