@@ -44,6 +44,15 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <Navigate to="/" replace />;
 }
 
+function WorkflowRoute({ children }: { children: React.ReactNode }) {
+  const { role, hasPermission } = useAuth();
+
+  if (role === "superadmin") return <>{children}</>;
+  if (role === "admin" && hasPermission("manage_workflow")) return <>{children}</>;
+
+  return <Navigate to="/" replace />;
+}
+
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { role } = useAuth();
   if (role !== "superadmin") return <Navigate to="/" replace />;
