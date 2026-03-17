@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Workflow, Clock, Settings2, UserCog } from "lucide-react";
+import { Workflow, Clock, Settings2, UserCog, Mail } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WORKFLOW_STEPS, getStepColor } from "@/lib/workflow-engine";
 import {
@@ -152,6 +153,7 @@ export default function WorkflowPage() {
             fallback_step_number: stepNumber === 6 ? 2 : null,
             created_by: user?.id ?? null,
             is_active: true,
+            notify_enabled: true,
           },
         ];
       });
@@ -161,6 +163,27 @@ export default function WorkflowPage() {
       toast.error(error.message || "Erreur de sauvegarde");
     } finally {
       setSavingStep(null);
+    }
+  };
+
+  const handleNotifyToggle = async (stepNumber: number, enabled: boolean) => {
+    if (!canManageResponsibles) return;
+    try {
+      const { error } = await supabase
+        .from("workflow_step_responsibles" as any)
+        .update({ notify_enabled: enabled })
+        .eq("step_number", stepNumber);
+
+      if (error) throw error;
+
+      setResponsibles((prev) =>
+        prev.map((item) =>
+          item.step_number === stepNumber ? { ...item, notify_enabled: enabled } : item,
+        ),
+      );
+      toast.success(`Notifications e-mail ${enabled ? "activées" : "désactivées"} pour l'étape ${stepNumber}`);
+    } catch (error: any) {
+      toast.error(error.message || "Erreur de sauvegarde");
     }
   };
 
@@ -218,6 +241,15 @@ export default function WorkflowPage() {
                     <p className="text-sm font-medium">{step.name}</p>
                     <p className="text-xs text-muted-foreground">{step.description}</p>
                   </div>
+                  {canManageResponsibles && (
+                    <div className="flex items-center gap-2 shrink-0" title={config?.notify_enabled !== false ? "Notifications e-mail activées" : "Notifications e-mail désactivées"}>
+                      <Mail className={`h-4 w-4 ${config?.notify_enabled !== false ? "text-primary" : "text-muted-foreground"}`} />
+                      <Switch
+                        checked={config?.notify_enabled !== false}
+                        onCheckedChange={(checked) => handleNotifyToggle(step.step, checked)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {isManagedDefaultStep ? (

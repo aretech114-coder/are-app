@@ -10,6 +10,7 @@ export interface WorkflowStepResponsible {
   fallback_step_number: number | null;
   is_active: boolean;
   created_by: string | null;
+  notify_enabled: boolean;
 }
 
 export interface AssignableUser {
