@@ -152,6 +152,7 @@ export default function WorkflowPage() {
             fallback_step_number: stepNumber === 6 ? 2 : null,
             created_by: user?.id ?? null,
             is_active: true,
+            notify_enabled: true,
           },
         ];
       });
