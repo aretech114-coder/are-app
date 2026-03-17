@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Workflow, Clock, Settings2, UserCog } from "lucide-react";
+import { Workflow, Clock, Settings2, UserCog, Mail } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WORKFLOW_STEPS, getStepColor } from "@/lib/workflow-engine";
 import {
