@@ -298,30 +298,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           allAssignments.every(a => a.status === "completed");
 
         if (allCompleted) {
-          // All done — advance workflow to step 5
+          // All done — advance workflow to step 5 (auto-assignment handled by advanceWorkflow)
           const result = await advanceWorkflow(mailId, currentStep, "complete", user.id,
             `✅ Tous les conseillers assignés ont terminé leur traitement.`);
           if (result.success) {
-            // Auto-route to DirCab for verification
-            const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
-            if (nextStep) {
-              const { data: nextRoleUser } = await supabase
-                .from("user_roles")
-                .select("user_id")
-                .eq("role", nextStep.role as any)
-                .limit(1)
-                .single();
-
-              if (nextRoleUser) {
-                await supabase.from("mails").update({ assigned_agent_id: nextRoleUser.user_id }).eq("id", mailId);
-                await supabase.from("notifications").insert({
-                  user_id: nextRoleUser.user_id,
-                  title: `Courrier en attente — ${nextStep.name}`,
-                  message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
-                  mail_id: mailId,
-                });
-              }
-            }
             toast.success("Tous les conseillers ont soumis — dossier avancé à l'étape 5");
           } else {
             toast.error(result.error || "Erreur lors de l'avancement");
