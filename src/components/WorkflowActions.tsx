@@ -395,7 +395,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes);
+      // Skip auto-assign for dynamic steps (4 and 7) where conseillers are assigned manually
+      const targetIsDynamic = (currentStep === 3 && effectiveAction === "approve") || // → step 4
+                              (currentStep === 6 && effectiveAction === "approve");    // → step 7
+      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { skipAutoAssign: targetIsDynamic });
 
       if (result.success) {
         // Save treatment content to mail if at step 4
