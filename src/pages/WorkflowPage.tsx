@@ -166,6 +166,27 @@ export default function WorkflowPage() {
     }
   };
 
+  const handleNotifyToggle = async (stepNumber: number, enabled: boolean) => {
+    if (!canManageResponsibles) return;
+    try {
+      const { error } = await supabase
+        .from("workflow_step_responsibles" as any)
+        .update({ notify_enabled: enabled })
+        .eq("step_number", stepNumber);
+
+      if (error) throw error;
+
+      setResponsibles((prev) =>
+        prev.map((item) =>
+          item.step_number === stepNumber ? { ...item, notify_enabled: enabled } : item,
+        ),
+      );
+      toast.success(`Notifications e-mail ${enabled ? "activées" : "désactivées"} pour l'étape ${stepNumber}`);
+    } catch (error: any) {
+      toast.error(error.message || "Erreur de sauvegarde");
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center py-12 text-muted-foreground">Chargement...</div>;
   }
