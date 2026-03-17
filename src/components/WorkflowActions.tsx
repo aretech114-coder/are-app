@@ -8,8 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { advanceWorkflow, getStepInfo, WORKFLOW_STEPS } from "@/lib/workflow-engine";
-import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
+import { advanceWorkflow, getStepInfo } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -298,30 +297,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           allAssignments.every(a => a.status === "completed");
 
         if (allCompleted) {
-          // All done — advance workflow to step 5
+          // All done — advance workflow to step 5 (auto-assignment handled by advanceWorkflow)
           const result = await advanceWorkflow(mailId, currentStep, "complete", user.id,
             `✅ Tous les conseillers assignés ont terminé leur traitement.`);
           if (result.success) {
-            // Auto-route to DirCab for verification
-            const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
-            if (nextStep) {
-              const { data: nextRoleUser } = await supabase
-                .from("user_roles")
-                .select("user_id")
-                .eq("role", nextStep.role as any)
-                .limit(1)
-                .single();
-
-              if (nextRoleUser) {
-                await supabase.from("mails").update({ assigned_agent_id: nextRoleUser.user_id }).eq("id", mailId);
-                await supabase.from("notifications").insert({
-                  user_id: nextRoleUser.user_id,
-                  title: `Courrier en attente — ${nextStep.name}`,
-                  message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
-                  mail_id: mailId,
-                });
-              }
-            }
             toast.success("Tous les conseillers ont soumis — dossier avancé à l'étape 5");
           } else {
             toast.error(result.error || "Erreur lors de l'avancement");
@@ -415,7 +394,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes);
+      // Skip auto-assign for dynamic steps (4 and 7) where conseillers are assigned manually
+      const targetIsDynamic = (currentStep === 3 && effectiveAction === "approve") || // → step 4
+                              (currentStep === 6 && effectiveAction === "approve");    // → step 7
+      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { skipAutoAssign: targetIsDynamic });
 
       if (result.success) {
         // Save treatment content to mail if at step 4
@@ -495,72 +477,31 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           }
         }
 
-        // Auto-route to next role and create mail_assignment for visibility
-        const nextStep = WORKFLOW_STEPS.find(s => s.step === result.newStep);
-        if (nextStep) {
-          // If moving to step 4 and conseillers were selected, assign them
-          if (result.newStep === 4 && selectedAssignees.length > 0) {
-            await supabase
-              .from("mails")
-              .update({ assigned_agent_id: selectedAssignees[0] })
-              .eq("id", mailId);
+        // Auto-route: assignment is now handled by advanceWorkflow via resolveWorkflowStepAssignee
+        // Only handle dynamic step 4 manually (conseillers selected by user)
+        if (result.newStep === 4 && selectedAssignees.length > 0) {
+          await supabase
+            .from("mails")
+            .update({ assigned_agent_id: selectedAssignees[0] })
+            .eq("id", mailId);
 
-            for (const assigneeId of selectedAssignees) {
-              // Create step 4 assignment for each conseiller
-              await supabase.from("mail_assignments").insert({
-                mail_id: mailId,
-                assigned_by: user.id,
-                assigned_to: assigneeId,
-                step_number: 4,
-                status: "pending",
-                instructions: annotation || null,
-              });
+          for (const assigneeId of selectedAssignees) {
+            await supabase.from("mail_assignments").insert({
+              mail_id: mailId,
+              assigned_by: user.id,
+              assigned_to: assigneeId,
+              step_number: 4,
+              status: "pending",
+              instructions: annotation || null,
+            });
 
-              await supabase.from("notifications").insert({
-                user_id: assigneeId,
-                title: `Courrier en attente — ${nextStep.name}`,
-                message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
-                mail_id: mailId,
-              });
-            }
-          } else {
-            const rolesToCheck = nextStep.role === "conseiller_juridique"
-              ? ["conseiller_juridique", "conseiller"]
-              : [nextStep.role];
-
-            let nextRoleUser = null;
-            for (const r of rolesToCheck) {
-              const { data } = await supabase
-                .from("user_roles")
-                .select("user_id")
-                .eq("role", r as any)
-                .limit(1)
-                .single();
-              if (data) { nextRoleUser = data; break; }
-            }
-
-            if (nextRoleUser) {
-              await supabase
-                .from("mails")
-                .update({ assigned_agent_id: nextRoleUser.user_id })
-                .eq("id", mailId);
-
-              // Create mail_assignment at the target step for visibility
-              await supabase.from("mail_assignments").insert({
-                mail_id: mailId,
-                assigned_by: user.id,
-                assigned_to: nextRoleUser.user_id,
-                step_number: result.newStep,
-                status: "pending",
-              });
-
-              await supabase.from("notifications").insert({
-                user_id: nextRoleUser.user_id,
-                title: `Courrier en attente — ${nextStep.name}`,
-                message: `Un courrier requiert votre attention à l'étape "${nextStep.name}".`,
-                mail_id: mailId,
-              });
-            }
+            const stepInfo = getStepInfo(4);
+            await supabase.from("notifications").insert({
+              user_id: assigneeId,
+              title: `Courrier en attente — ${stepInfo?.name || "Traitement"}`,
+              message: `Un courrier requiert votre attention à l'étape "${stepInfo?.name || "Traitement"}".`,
+              mail_id: mailId,
+            });
           }
         }
 
