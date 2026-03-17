@@ -161,7 +161,7 @@ export async function advanceWorkflow(
       status: "pending",
     });
 
-    // Send notification
+    // Send in-app notification
     const stepInfo = getStepInfo(newStep);
     if (stepInfo) {
       await supabase.from("notifications").insert({
@@ -170,6 +170,35 @@ export async function advanceWorkflow(
         message: `Un courrier requiert votre attention à l'étape "${stepInfo.name}".`,
         mail_id: mailId,
       });
+
+      // Send email notification if enabled for this step
+      try {
+        const emailEnabled = await isStepNotificationEnabled(newStep);
+        if (emailEnabled) {
+          // Fetch recipient profile and mail info for the email
+          const [{ data: recipientProfile }, { data: mailData }] = await Promise.all([
+            supabase.from("profiles").select("full_name, email").eq("id", resolvedAssignee).single(),
+            supabase.from("mails").select("subject, reference_number").eq("id", mailId).single(),
+          ]);
+
+          if (recipientProfile?.email && mailData) {
+            const isRejection = action === "reject";
+            await sendWorkflowNotificationEmail({
+              recipientEmail: recipientProfile.email,
+              recipientName: recipientProfile.full_name || "Utilisateur",
+              subject: `${isRejection ? "🔙 Dossier renvoyé" : "📬 Courrier en attente"} — ${stepInfo.name}`,
+              mailId,
+              stepNumber: newStep,
+              stepName: stepInfo.name,
+              mailSubject: mailData.subject,
+              referenceNumber: mailData.reference_number,
+              notificationType: isRejection ? "rejection" : "transition",
+            });
+          }
+        }
+      } catch (emailErr) {
+        console.error("Email notification error (non-blocking):", emailErr);
+      }
     }
   }
 
