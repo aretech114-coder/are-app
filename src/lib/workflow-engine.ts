@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
+import { sendWorkflowNotificationEmail, isStepNotificationEnabled } from "@/lib/workflow-notifications";
 
 export const WORKFLOW_STEPS = [
   { step: 1, name: "Réception", role: "secretariat", description: "Scan, attribution ID, saisie métadonnées" },
