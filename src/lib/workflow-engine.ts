@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 
 export const WORKFLOW_STEPS = [
   { step: 1, name: "Réception", role: "secretariat", description: "Scan, attribution ID, saisie métadonnées" },
@@ -38,13 +39,26 @@ export function getStepColor(stepNumber: number): string {
   return colors[stepNumber] || "bg-muted text-muted-foreground";
 }
 
+interface AdvanceOptions {
+  /** Skip auto-assignment for dynamic steps (4, 7) where conseillers are assigned manually */
+  skipAutoAssign?: boolean;
+}
+
+interface AdvanceResult {
+  success: boolean;
+  newStep: number;
+  assignedTo?: string | null;
+  error?: string;
+}
+
 export async function advanceWorkflow(
   mailId: string,
   currentStep: number,
   action: string,
   performedBy: string,
-  notes?: string
-): Promise<{ success: boolean; newStep: number; error?: string }> {
+  notes?: string,
+  options?: AdvanceOptions
+): Promise<AdvanceResult> {
   let newStep = currentStep;
   let newStatus: string = "in_progress";
 
@@ -53,7 +67,6 @@ export async function advanceWorkflow(
       newStep = currentStep + 1;
       break;
     case "reject":
-      // Step 5 or 6 rejection goes back to step 4
       if (currentStep === 5 || currentStep === 6) newStep = 4;
       else newStep = currentStep - 1;
       break;
@@ -65,7 +78,6 @@ export async function advanceWorkflow(
       newStatus = "archived";
       break;
     case "acknowledge":
-      // Step 7: conseillers acknowledge the validation
       newStep = currentStep + 1;
       break;
     default:
@@ -77,7 +89,6 @@ export async function advanceWorkflow(
     newStatus = "archived";
   }
 
-  // Only mark as archived when explicitly archiving at step 9
   if (action === "archive" && newStep === 9) {
     newStatus = "archived";
   }
@@ -105,12 +116,28 @@ export async function advanceWorkflow(
   const deadline = new Date();
   deadline.setHours(deadline.getHours() + deadlineHours);
 
+  // --- Auto-assignment via resolveWorkflowStepAssignee ---
+  let resolvedAssignee: string | null = null;
+  const skipAssign = options?.skipAutoAssign === true;
+
+  if (!skipAssign) {
+    try {
+      resolvedAssignee = await resolveWorkflowStepAssignee(newStep, mailId);
+    } catch {
+      // Non-blocking: fallback to null
+    }
+  }
+
   // Update mail
   const updateData: Record<string, any> = {
     current_step: newStep,
     status: newStatus as any,
     deadline_at: deadline.toISOString(),
   };
+
+  if (resolvedAssignee) {
+    updateData.assigned_agent_id = resolvedAssignee;
+  }
 
   if (newStep === 9) {
     updateData.workflow_completed_at = new Date().toISOString();
@@ -123,7 +150,29 @@ export async function advanceWorkflow(
 
   if (mailError) return { success: false, newStep: currentStep, error: mailError.message };
 
-  return { success: true, newStep };
+  // Create mail_assignment for the resolved assignee (RLS visibility)
+  if (resolvedAssignee && !skipAssign) {
+    await supabase.from("mail_assignments").insert({
+      mail_id: mailId,
+      assigned_by: performedBy,
+      assigned_to: resolvedAssignee,
+      step_number: newStep,
+      status: "pending",
+    });
+
+    // Send notification
+    const stepInfo = getStepInfo(newStep);
+    if (stepInfo) {
+      await supabase.from("notifications").insert({
+        user_id: resolvedAssignee,
+        title: `Courrier en attente — ${stepInfo.name}`,
+        message: `Un courrier requiert votre attention à l'étape "${stepInfo.name}".`,
+        mail_id: mailId,
+      });
+    }
+  }
+
+  return { success: true, newStep, assignedTo: resolvedAssignee };
 }
 
 export function getRoleLabel(role: string): string {
