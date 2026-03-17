@@ -532,6 +532,8 @@ export type Database = {
           fallback_step_number: number | null
           id: string
           is_active: boolean
+          notification_subject_template: string | null
+          notify_enabled: boolean
           step_number: number
           updated_at: string
         }
@@ -543,6 +545,8 @@ export type Database = {
           fallback_step_number?: number | null
           id?: string
           is_active?: boolean
+          notification_subject_template?: string | null
+          notify_enabled?: boolean
           step_number: number
           updated_at?: string
         }
@@ -554,6 +558,8 @@ export type Database = {
           fallback_step_number?: number | null
           id?: string
           is_active?: boolean
+          notification_subject_template?: string | null
+          notify_enabled?: boolean
           step_number?: number
           updated_at?: string
         }
