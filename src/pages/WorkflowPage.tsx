@@ -241,6 +241,15 @@ export default function WorkflowPage() {
                     <p className="text-sm font-medium">{step.name}</p>
                     <p className="text-xs text-muted-foreground">{step.description}</p>
                   </div>
+                  {canManageResponsibles && (
+                    <div className="flex items-center gap-2 shrink-0" title={config?.notify_enabled !== false ? "Notifications e-mail activées" : "Notifications e-mail désactivées"}>
+                      <Mail className={`h-4 w-4 ${config?.notify_enabled !== false ? "text-primary" : "text-muted-foreground"}`} />
+                      <Switch
+                        checked={config?.notify_enabled !== false}
+                        onCheckedChange={(checked) => handleNotifyToggle(step.step, checked)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {isManagedDefaultStep ? (
