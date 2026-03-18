@@ -12,6 +12,7 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
+import { MailDetailFields } from "@/components/MailDetailFields";
 import { Search, Eye, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
