@@ -330,7 +330,7 @@ export default function SuiviPage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Aucun dossier trouvé</TableCell></TableRow>
               ) : (
