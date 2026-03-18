@@ -379,6 +379,9 @@ export default function SuiviPage() {
                           <span className="text-[10px] text-muted-foreground">OK</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <AttachmentIndicator hasAttachment={!!mail.attachment_url} />
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(mail.created_at), "dd/MM/yy")}
                       </TableCell>
