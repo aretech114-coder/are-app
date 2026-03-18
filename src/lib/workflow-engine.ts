@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { sendWorkflowNotificationEmail, isStepNotificationEnabled } from "@/lib/workflow-notifications";
 
 export const WORKFLOW_STEPS = [
@@ -40,18 +39,27 @@ export function getStepColor(stepNumber: number): string {
   return colors[stepNumber] || "bg-muted text-muted-foreground";
 }
 
-interface AdvanceOptions {
-  /** Skip auto-assignment for dynamic steps (4, 7) where conseillers are assigned manually */
+export interface AdvanceOptions {
+  /** Skip auto-assignment for dynamic steps */
   skipAutoAssign?: boolean;
+  /** Explicit assignee IDs for dynamic steps (4, 7) */
+  assigneeIds?: string[];
 }
 
 interface AdvanceResult {
   success: boolean;
   newStep: number;
   assignedTo?: string | null;
+  ministreAbsent?: boolean;
   error?: string;
 }
 
+/**
+ * Advance the workflow by calling the SECURITY DEFINER RPC.
+ * All transitions happen atomically in the database, eliminating RLS issues.
+ * The RPC handles: step calculation, step 3 bypass (ministre absent),
+ * step 7 skip (non note_technique), assignments, and notifications.
+ */
 export async function advanceWorkflow(
   mailId: string,
   currentStep: number,
@@ -60,149 +68,81 @@ export async function advanceWorkflow(
   notes?: string,
   options?: AdvanceOptions
 ): Promise<AdvanceResult> {
-  let newStep = currentStep;
-  let newStatus: string = "in_progress";
+  const { data, error } = await supabase.rpc(
+    'advance_workflow_step' as any,
+    {
+      _mail_id: mailId,
+      _action: action,
+      _performed_by: performedBy,
+      _notes: notes || null,
+      _skip_auto_assign: options?.skipAutoAssign || false,
+      _assignee_ids: options?.assigneeIds || null,
+    } as any
+  );
 
-  switch (action) {
-    case "approve":
-      newStep = currentStep + 1;
-      break;
-    case "reject":
-      if (currentStep === 5 || currentStep === 6) newStep = 4;
-      else newStep = currentStep - 1;
-      break;
-    case "complete":
-      newStep = currentStep + 1;
-      break;
-    case "archive":
-      newStep = 9;
-      newStatus = "archived";
-      break;
-    case "acknowledge":
-      newStep = currentStep + 1;
-      break;
-    default:
-      newStep = currentStep + 1;
+  if (error) {
+    return { success: false, newStep: currentStep, error: error.message };
   }
 
-  if (newStep > 9) {
-    newStep = 9;
-    newStatus = "archived";
+  const result = data as any;
+  if (!result?.success) {
+    return { success: false, newStep: currentStep, error: result?.error || 'Erreur inconnue' };
   }
 
-  if (action === "archive" && newStep === 9) {
-    newStatus = "archived";
+  const newStep = result.new_step as number;
+  const assignedTo = result.assigned_to as string | null;
+
+  // Send email notification (non-blocking, stays client-side)
+  if (assignedTo) {
+    sendStepEmailNotification(newStep, assignedTo, mailId, action).catch(console.error);
   }
 
-  // Record the transition
-  const { error: transError } = await supabase.from("workflow_transitions").insert({
-    mail_id: mailId,
-    from_step: currentStep,
-    to_step: newStep,
-    action,
-    performed_by: performedBy,
-    notes: notes || null,
-  });
-
-  if (transError) return { success: false, newStep: currentStep, error: transError.message };
-
-  // Fetch SLA for new step
-  const { data: slaData } = await supabase
-    .from("sla_config")
-    .select("default_hours")
-    .eq("step_number", newStep)
-    .single();
-
-  const deadlineHours = slaData?.default_hours || 48;
-  const deadline = new Date();
-  deadline.setHours(deadline.getHours() + deadlineHours);
-
-  // --- Auto-assignment via resolveWorkflowStepAssignee ---
-  let resolvedAssignee: string | null = null;
-  const skipAssign = options?.skipAutoAssign === true;
-
-  if (!skipAssign) {
-    try {
-      resolvedAssignee = await resolveWorkflowStepAssignee(newStep, mailId);
-    } catch {
-      // Non-blocking: fallback to null
-    }
-  }
-
-  // Update mail
-  const updateData: Record<string, any> = {
-    current_step: newStep,
-    status: newStatus as any,
-    deadline_at: deadline.toISOString(),
+  return {
+    success: true,
+    newStep,
+    assignedTo,
+    ministreAbsent: result.ministre_absent,
   };
+}
 
-  if (resolvedAssignee) {
-    updateData.assigned_agent_id = resolvedAssignee;
-  }
+/**
+ * Send email notification for a workflow step transition (non-blocking).
+ */
+async function sendStepEmailNotification(
+  newStep: number,
+  assignedTo: string,
+  mailId: string,
+  action: string
+) {
+  try {
+    const emailEnabled = await isStepNotificationEnabled(newStep);
+    if (!emailEnabled) return;
 
-  if (newStep === 9) {
-    updateData.workflow_completed_at = new Date().toISOString();
-  }
-
-  const { error: mailError } = await supabase
-    .from("mails")
-    .update(updateData)
-    .eq("id", mailId);
-
-  if (mailError) return { success: false, newStep: currentStep, error: mailError.message };
-
-  // Create mail_assignment for the resolved assignee (RLS visibility)
-  if (resolvedAssignee && !skipAssign) {
-    await supabase.from("mail_assignments").insert({
-      mail_id: mailId,
-      assigned_by: performedBy,
-      assigned_to: resolvedAssignee,
-      step_number: newStep,
-      status: "pending",
-    });
-
-    // Send in-app notification
     const stepInfo = getStepInfo(newStep);
-    if (stepInfo) {
-      await supabase.from("notifications").insert({
-        user_id: resolvedAssignee,
-        title: `Courrier en attente — ${stepInfo.name}`,
-        message: `Un courrier requiert votre attention à l'étape "${stepInfo.name}".`,
-        mail_id: mailId,
-      });
+    if (!stepInfo) return;
 
-      // Send email notification if enabled for this step
-      try {
-        const emailEnabled = await isStepNotificationEnabled(newStep);
-        if (emailEnabled) {
-          // Fetch recipient profile and mail info for the email
-          const [{ data: recipientProfile }, { data: mailData }] = await Promise.all([
-            supabase.from("profiles").select("full_name, email").eq("id", resolvedAssignee).single(),
-            supabase.from("mails").select("subject, reference_number").eq("id", mailId).single(),
-          ]);
+    const [{ data: recipientProfile }, { data: mailData }] = await Promise.all([
+      supabase.from("profiles").select("full_name, email").eq("id", assignedTo).single(),
+      supabase.from("mails").select("subject, reference_number").eq("id", mailId).single(),
+    ]);
 
-          if (recipientProfile?.email && mailData) {
-            const isRejection = action === "reject";
-            await sendWorkflowNotificationEmail({
-              recipientEmail: recipientProfile.email,
-              recipientName: recipientProfile.full_name || "Utilisateur",
-              subject: `${isRejection ? "🔙 Dossier renvoyé" : "📬 Courrier en attente"} — ${stepInfo.name}`,
-              mailId,
-              stepNumber: newStep,
-              stepName: stepInfo.name,
-              mailSubject: mailData.subject,
-              referenceNumber: mailData.reference_number,
-              notificationType: isRejection ? "rejection" : "transition",
-            });
-          }
-        }
-      } catch (emailErr) {
-        console.error("Email notification error (non-blocking):", emailErr);
-      }
-    }
+    if (!recipientProfile?.email || !mailData) return;
+
+    const isRejection = action === "reject";
+    await sendWorkflowNotificationEmail({
+      recipientEmail: recipientProfile.email,
+      recipientName: recipientProfile.full_name || "Utilisateur",
+      subject: `${isRejection ? "🔙 Dossier renvoyé" : "📬 Courrier en attente"} — ${stepInfo.name}`,
+      mailId,
+      stepNumber: newStep,
+      stepName: stepInfo.name,
+      mailSubject: mailData.subject,
+      referenceNumber: mailData.reference_number,
+      notificationType: isRejection ? "rejection" : "transition",
+    });
+  } catch (err) {
+    console.error("Email notification error (non-blocking):", err);
   }
-
-  return { success: true, newStep, assignedTo: resolvedAssignee };
 }
 
 export function getRoleLabel(role: string): string {

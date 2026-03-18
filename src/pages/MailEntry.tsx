@@ -175,44 +175,45 @@ export default function MailEntry() {
         attachmentUrl = urlData?.signedUrl || null;
       }
 
-      // Determine initial workflow step based on addressing
-      const roleMap: Record<string, string> = {
-        "MINISTRE": "ministre",
-        "DIRECTEUR DE CABINET": "dircab",
-        "DIRECTEUR DE CABINET ADJOINT": "dircaba",
-        "CONSEILLER JURIDIQUE": "conseiller_juridique",
-      };
-      const targetRole = roleMap[form.addressed_to];
-      const isDirectToMinistre = form.addressed_to === "MINISTRE";
-      const initialStep = isDirectToMinistre ? 2 
-        : (form.addressed_to === "DIRECTEUR DE CABINET" || form.addressed_to === "DIRECTEUR DE CABINET ADJOINT") ? 3 
-        : 4;
+      // Always start at step 2 (Routage Hiérarchique)
+      const initialStep = 2;
 
-      // SLA for the initial step
+      // SLA for step 2
       const { data: slaData } = await supabase
         .from("sla_config")
         .select("default_hours")
-        .eq("step_number", initialStep)
+        .eq("step_number", 2)
         .single();
       const deadlineHours = slaData?.default_hours || 24;
       const deadline = new Date();
       deadline.setHours(deadline.getHours() + deadlineHours);
 
-      // Find target user for routing (step-config first, role fallback)
-      let targetUserId: string | null = await resolveWorkflowStepAssignee(initialStep, null);
-      let routed = false;
+      // Resolve target user for step 2 based on ministre absent toggle
+      const roleMap: Record<string, string> = {
+        "DIRECTEUR DE CABINET": "dircab",
+        "DIRECTEUR DE CABINET ADJOINT": "dircaba",
+        "CONSEILLER JURIDIQUE": "conseiller_juridique",
+      };
+      let targetUserId: string | null = null;
 
-      if (!targetUserId && targetRole) {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", targetRole as any)
-          .limit(1)
-          .single();
-        targetUserId = roleData?.user_id || null;
+      if (ministreAbsent) {
+        // Ministre absent: find user matching addressed_to role
+        const targetRole = roleMap[form.addressed_to];
+        if (targetRole) {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", targetRole as any)
+            .limit(1)
+            .single();
+          targetUserId = roleData?.user_id || null;
+        }
+      } else {
+        // Normal flow: use configured user for step 2
+        targetUserId = await resolveWorkflowStepAssignee(2, null);
       }
 
-      // Insert mail directly at the correct workflow step
+      // Insert mail at step 2
       const { data: insertedMail, error } = await supabase.from("mails").insert({
         reference_number: ref,
         qr_code_data: qrCodeData,
@@ -238,12 +239,14 @@ export default function MailEntry() {
         addressed_to: form.addressed_to || null,
         comments: form.comments || null,
         assigned_agent_id: targetUserId,
-      }).select("id").single();
+        ministre_absent: ministreAbsent,
+      } as any).select("id").single();
 
       if (error) throw error;
       if (!insertedMail) throw new Error("Courrier inséré mais ID non récupéré");
 
-      // Create mail_assignment for the target user at the initial step
+      // Create mail_assignment for step 2 assignee
+      let routed = false;
       if (targetUserId) {
         const { error: assignErr } = await supabase.from("mail_assignments").insert({
           mail_id: insertedMail.id,
@@ -256,28 +259,24 @@ export default function MailEntry() {
         if (assignErr) console.error("Erreur assignation:", assignErr.message);
 
         // Notification
-        const { error: notifErr } = await supabase.from("notifications").insert({
+        await supabase.from("notifications").insert({
           user_id: targetUserId,
           title: "Nouveau courrier assigné",
           message: `Un courrier "${form.subject}" (Réf: ${ref}) vous a été adressé pour traitement.`,
           mail_id: insertedMail.id,
         });
-        if (notifErr) console.error("Erreur notification:", notifErr.message);
 
-        // Workflow transition: reception → initial step
-        const { error: transErr } = await supabase.from("workflow_transitions").insert({
+        // Workflow transition: reception → step 2
+        await supabase.from("workflow_transitions").insert({
           mail_id: insertedMail.id,
           from_step: 1,
           to_step: initialStep,
           action: "approve",
           performed_by: user.id,
-          notes: `Routé automatiquement vers ${form.addressed_to}${ministreAbsent ? " (Ministre absent)" : ""}`,
+          notes: `Routé vers ${form.addressed_to || "étape 2"}${ministreAbsent ? " (Ministre absent)" : ""}`,
         });
-        if (transErr) console.error("Erreur transition:", transErr.message);
 
         routed = true;
-      } else if (targetRole) {
-        console.warn("Aucun utilisateur trouvé avec le rôle:", targetRole);
       }
 
       setQrData({ ref, data: qrCodeData });
