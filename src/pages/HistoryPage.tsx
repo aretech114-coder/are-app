@@ -12,7 +12,8 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
-import { Search, Eye, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { MailDetailFields } from "@/components/MailDetailFields";
+import { Search, Eye, CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -287,56 +288,7 @@ export default function HistoryPage() {
               </div>
 
               {/* Mail details categorized by step */}
-              <div className="space-y-3">
-                {/* Étape 1: Réception */}
-                <FieldCategory title="Réception (Étape 1)" color="blue">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <DetailItem label="Référence" value={selectedEntry.mail.reference_number} />
-                    <DetailItem label="Objet" value={selectedEntry.mail.subject} />
-                    <DetailItem label="Expéditeur" value={selectedEntry.mail.sender_name} />
-                    {selectedEntry.mail.sender_organization && (
-                      <DetailItem label="Organisation" value={selectedEntry.mail.sender_organization} />
-                    )}
-                    <DetailItem label="Type de courrier" value={selectedEntry.mail.mail_type || "—"} />
-                    <DetailItem label="Priorité" value={selectedEntry.mail.priority} />
-                    {selectedEntry.mail.reception_date && (
-                      <DetailItem label="Date de réception" value={format(new Date(selectedEntry.mail.reception_date), "dd MMMM yyyy", { locale: fr })} />
-                    )}
-                    {selectedEntry.mail.deposit_time && (
-                      <DetailItem label="Heure de dépôt" value={selectedEntry.mail.deposit_time} />
-                    )}
-                    {selectedEntry.mail.sender_phone && <DetailItem label="Téléphone" value={selectedEntry.mail.sender_phone} />}
-                    {selectedEntry.mail.sender_email && <DetailItem label="Email" value={selectedEntry.mail.sender_email} />}
-                    {selectedEntry.mail.sender_address && (
-                      <DetailItem label="Adresse" value={`${selectedEntry.mail.sender_address}${selectedEntry.mail.sender_city ? `, ${selectedEntry.mail.sender_city}` : ""}${selectedEntry.mail.sender_country ? ` — ${selectedEntry.mail.sender_country}` : ""}`} />
-                    )}
-                  </div>
-                </FieldCategory>
-
-                {/* Étape 2: Routage */}
-                <FieldCategory title="Routage Hiérarchique (Étape 2)" color="purple">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <DetailItem label="Destinataire" value={selectedEntry.mail.addressed_to || "—"} />
-                    <DetailItem label="Statut courrier" value={mailStatusLabels[selectedEntry.mail.status] || selectedEntry.mail.status} />
-                  </div>
-                  {selectedEntry.mail.comments && (
-                    <div className="mt-2">
-                      <p className="text-xs text-muted-foreground">Commentaire</p>
-                      <p className="text-sm whitespace-pre-wrap bg-background/50 rounded p-2 mt-1">{selectedEntry.mail.comments}</p>
-                    </div>
-                  )}
-                </FieldCategory>
-
-                {/* Étape courante */}
-                {isOverdue(selectedEntry) && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="text-sm text-destructive font-medium">
-                      Ce courrier est en retard (échéance: {selectedEntry.mail.deadline_at && format(new Date(selectedEntry.mail.deadline_at), "dd MMM yyyy HH:mm", { locale: fr })})
-                    </span>
-                  </div>
-                )}
-              </div>
+              <MailDetailFields mail={selectedEntry.mail} />
 
               {/* Treatments */}
               <TreatmentsList mailId={selectedEntry.mail.id} />
@@ -357,27 +309,3 @@ export default function HistoryPage() {
   );
 }
 
-function FieldCategory({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
-  const colorMap: Record<string, string> = {
-    blue: "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20",
-    purple: "border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20",
-    amber: "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20",
-    emerald: "border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20",
-  };
-
-  return (
-    <div className={`p-3 rounded-lg border ${colorMap[color] || "bg-muted/30"}`}>
-      <h4 className="text-xs font-semibold text-muted-foreground mb-2">{title}</h4>
-      {children}
-    </div>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium capitalize">{value}</p>
-    </div>
-  );
-}

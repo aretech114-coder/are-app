@@ -15,6 +15,7 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
+import { MailDetailFields } from "@/components/MailDetailFields";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -181,36 +182,8 @@ export default function InboxPage() {
               </div>
 
               <div className="flex-1 p-5 overflow-auto space-y-4">
-                {/* Metadata grid */}
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <DetailItem label="Type de courrier" value={selected.mail_type || "—"} />
-                  <DetailItem label="Priorité" value={selected.priority} />
-                  <DetailItem label="Destinataire" value={selected.addressed_to || "—"} />
-                  <DetailItem label="Statut" value={selected.status} />
-                  {selected.reception_date && (
-                    <DetailItem label="Date de réception" value={format(new Date(selected.reception_date), "dd MMMM yyyy", { locale: fr })} />
-                  )}
-                  {selected.deposit_time && (
-                    <DetailItem label="Heure de dépôt" value={selected.deposit_time} />
-                  )}
-                  {selected.sender_phone && (
-                    <DetailItem label="Téléphone" value={selected.sender_phone} />
-                  )}
-                  {selected.sender_email && (
-                    <DetailItem label="Email" value={selected.sender_email} />
-                  )}
-                  {selected.sender_address && (
-                    <DetailItem label="Adresse" value={`${selected.sender_address}${selected.sender_city ? `, ${selected.sender_city}` : ""}${selected.sender_country ? ` — ${selected.sender_country}` : ""}`} />
-                  )}
-                </div>
-
-                {/* Description / Comments */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold">Description / Commentaire</h4>
-                  <p className="text-sm leading-relaxed bg-muted/30 rounded-lg p-3 whitespace-pre-wrap">
-                    {selected.description || selected.comments || "Aucune description disponible."}
-                  </p>
-                </div>
+                {/* Categorized fields by step */}
+                <MailDetailFields mail={selected} />
 
                 {/* Attachment preview button */}
                 {selected.attachment_url && (
@@ -394,11 +367,3 @@ export default function InboxPage() {
   );
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium capitalize">{value}</p>
-    </div>
-  );
-}
