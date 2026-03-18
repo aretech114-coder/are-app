@@ -147,7 +147,9 @@ export type Database = {
           created_at: string | null
           id: string
           instructions: string | null
+          last_reminder_at: string | null
           mail_id: string
+          reminder_count: number
           status: string
           step_number: number
         }
@@ -158,7 +160,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           instructions?: string | null
+          last_reminder_at?: string | null
           mail_id: string
+          reminder_count?: number
           status?: string
           step_number: number
         }
@@ -169,7 +173,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           instructions?: string | null
+          last_reminder_at?: string | null
           mail_id?: string
+          reminder_count?: number
           status?: string
           step_number?: number
         }
