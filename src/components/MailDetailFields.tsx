@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Paperclip } from "lucide-react";
+import { AttachmentViewer } from "@/components/AttachmentViewer";
 
 interface MailDetailFieldsProps {
   mail: any;
@@ -149,6 +150,17 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
             Échéance: {format(new Date(mail.deadline_at), "dd MMMM yyyy à HH:mm", { locale: fr })}
             {isOverdue && " — EN RETARD"}
           </span>
+        </div>
+      )}
+
+      {/* Pièces jointes */}
+      {mail.attachment_url && (
+        <div className="p-3 rounded-lg border border-border bg-muted/20">
+          <div className="flex items-center gap-2 mb-2">
+            <Paperclip className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pièces jointes</h4>
+          </div>
+          <AttachmentViewer url={mail.attachment_url} />
         </div>
       )}
 

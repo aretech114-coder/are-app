@@ -17,7 +17,8 @@ import { TreatmentsList } from "@/components/TreatmentsList";
 import { MailDetailFields } from "@/components/MailDetailFields";
 import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
 import { getStepLabel, getStepColor, WORKFLOW_STEPS } from "@/lib/workflow-engine";
-import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
+import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip } from "lucide-react";
+import { AttachmentIndicator } from "@/components/AttachmentViewer";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -322,15 +323,16 @@ export default function SuiviPage() {
                 <TableHead>Assigné à</TableHead>
                 <TableHead>Échéance</TableHead>
                 <TableHead>SLA</TableHead>
+                <TableHead className="w-8"><Paperclip className="h-3.5 w-3.5" /></TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Aucun dossier trouvé</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Aucun dossier trouvé</TableCell></TableRow>
               ) : (
                 filtered.map(mail => {
                   const overdueH = getOverdueHours(mail);
@@ -376,6 +378,9 @@ export default function SuiviPage() {
                         ) : (
                           <span className="text-[10px] text-muted-foreground">OK</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <AttachmentIndicator hasAttachment={!!mail.attachment_url} />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(mail.created_at), "dd/MM/yy")}

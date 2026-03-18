@@ -13,7 +13,8 @@ import { TreatmentsList } from "@/components/TreatmentsList";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
 import { MailDetailFields } from "@/components/MailDetailFields";
-import { Search, Eye, CheckCircle, Clock } from "lucide-react";
+import { Search, Eye, CheckCircle, Clock, Paperclip } from "lucide-react";
+import { AttachmentIndicator } from "@/components/AttachmentViewer";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -173,6 +174,7 @@ export default function HistoryPage() {
               <TableHead>Mon statut</TableHead>
               <TableHead>Étape actuelle</TableHead>
               <TableHead>Statut courrier</TableHead>
+              <TableHead className="w-8"><Paperclip className="h-3.5 w-3.5" /></TableHead>
               <TableHead>Date</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -226,6 +228,9 @@ export default function HistoryPage() {
                     <Badge variant="outline" className={`text-[10px] ${mailStatusColors[entry.mail?.status || ""] || ""}`}>
                       {mailStatusLabels[entry.mail?.status || ""] || entry.mail?.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <AttachmentIndicator hasAttachment={!!entry.mail?.attachment_url} />
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {format(new Date(entry.created_at), "dd/MM/yyyy HH:mm", { locale: fr })}
