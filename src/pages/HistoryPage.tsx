@@ -13,7 +13,8 @@ import { TreatmentsList } from "@/components/TreatmentsList";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
 import { MailDetailFields } from "@/components/MailDetailFields";
-import { Search, Eye, CheckCircle, Clock } from "lucide-react";
+import { Search, Eye, CheckCircle, Clock, Paperclip } from "lucide-react";
+import { AttachmentIndicator } from "@/components/AttachmentViewer";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
