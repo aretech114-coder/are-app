@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Paperclip } from "lucide-react";
+import { AttachmentViewer } from "@/components/AttachmentViewer";
 
 interface MailDetailFieldsProps {
   mail: any;
