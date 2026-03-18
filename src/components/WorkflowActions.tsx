@@ -121,11 +121,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
-    if (showDialog && (currentStep === 2 || currentStep === 3 || currentStep === 6)) {
+    if (showDialog && (currentStep === 2 || currentStep === 3 || currentStep === 5 || currentStep === 6)) {
       fetchAssignableUsers();
     }
     if (showDialog && currentStep === 3) {
       fetchMinisterAnnotation();
+      fetchProposedAssignees();
+    }
+    if (showDialog && currentStep === 5) {
       fetchProposedAssignees();
     }
   }, [showDialog, currentStep]);
