@@ -15,6 +15,7 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
+import { MailDetailFields } from "@/components/MailDetailFields";
 
 export default function InboxPage() {
   const { user } = useAuth();
