@@ -309,27 +309,3 @@ export default function HistoryPage() {
   );
 }
 
-function FieldCategory({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
-  const colorMap: Record<string, string> = {
-    blue: "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20",
-    purple: "border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20",
-    amber: "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20",
-    emerald: "border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20",
-  };
-
-  return (
-    <div className={`p-3 rounded-lg border ${colorMap[color] || "bg-muted/30"}`}>
-      <h4 className="text-xs font-semibold text-muted-foreground mb-2">{title}</h4>
-      {children}
-    </div>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium capitalize">{value}</p>
-    </div>
-  );
-}
