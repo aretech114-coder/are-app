@@ -174,6 +174,7 @@ export default function HistoryPage() {
               <TableHead>Mon statut</TableHead>
               <TableHead>Étape actuelle</TableHead>
               <TableHead>Statut courrier</TableHead>
+              <TableHead className="w-8"><Paperclip className="h-3.5 w-3.5" /></TableHead>
               <TableHead>Date</TableHead>
               <TableHead></TableHead>
             </TableRow>
