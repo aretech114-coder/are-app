@@ -142,6 +142,7 @@ export default function Dashboard() {
                   <th className="text-left py-2 pr-3">Objet</th>
                   <th className="text-left py-2 pr-3">Étape</th>
                   <th className="text-left py-2 pr-3">Retard</th>
+                  <th className="text-left py-2 pr-3">Niveau</th>
                   <th className="text-left py-2">Priorité</th>
                 </tr>
               </thead>
