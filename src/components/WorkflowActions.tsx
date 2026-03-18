@@ -121,11 +121,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
-    if (showDialog && (currentStep === 2 || currentStep === 3 || currentStep === 6)) {
+    if (showDialog && (currentStep === 2 || currentStep === 3 || currentStep === 5 || currentStep === 6)) {
       fetchAssignableUsers();
     }
     if (showDialog && currentStep === 3) {
       fetchMinisterAnnotation();
+      fetchProposedAssignees();
+    }
+    if (showDialog && currentStep === 5) {
       fetchProposedAssignees();
     }
   }, [showDialog, currentStep]);
@@ -207,7 +210,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au Ministre", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 4) {
-      actions.push({ key: "complete", label: "Soumettre pour vérification", icon: Send, variant: "default" });
+      actions.push({ key: "complete", label: "Entrez votre traitement", icon: Send, variant: "default" });
     } else if (currentStep === 5) {
       actions.push({ key: "approve", label: "Approuver → Validation Ministre", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
@@ -396,9 +399,31 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       }
 
       // Build advance options: pass assignee IDs for dynamic steps (step 3 → step 4)
-      const assigneeIds = (currentStep === 3 && effectiveAction === "approve" && selectedAssignees.length > 0)
+      // Also handle step 5 reassignment (DirCab modifies step 4 assignees before approve/reject)
+      const assigneeIds = ((currentStep === 3 || currentStep === 5) && selectedAssignees.length > 0)
         ? selectedAssignees
         : undefined;
+
+      // Step 5: If DirCab modified assignees, update step 4 assignments before advancing
+      if (currentStep === 5 && selectedAssignees.length > 0 && user) {
+        // Remove old step 4 pending assignments and add new ones
+        await supabase.from("mail_assignments")
+          .delete()
+          .eq("mail_id", mailId)
+          .eq("step_number", 4)
+          .in("status", ["pending", "proposed"]);
+        
+        for (const assigneeId of selectedAssignees) {
+          await supabase.from("mail_assignments").insert({
+            mail_id: mailId,
+            assigned_by: user.id,
+            assigned_to: assigneeId,
+            step_number: 4,
+            status: effectiveAction === "reject" ? "pending" : "completed",
+            instructions: annotation || null,
+          });
+        }
+      }
 
       const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { assigneeIds });
 
@@ -501,7 +526,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   }
 
   const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
-  const showAssignment = currentStep === 2 || currentStep === 3;
+  const showAssignment = currentStep === 2 || currentStep === 3 || currentStep === 5;
   const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 8;
   const showTreatment = currentStep === 4;
 
@@ -926,7 +951,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-2">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5" />
-                  {currentStep === 2 ? "Pré-assigner des personnes pour traitement" : "Confirmer / Modifier les assignations"}
+                  {currentStep === 2 ? "Pré-assigner des personnes pour traitement" : currentStep === 5 ? "Modifier les assignés (étape traitement)" : "Confirmer / Modifier les assignations"}
                 </Label>
                 {assignableUsers.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Chargement des utilisateurs...</p>

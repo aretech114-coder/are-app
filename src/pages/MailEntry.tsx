@@ -157,7 +157,22 @@ export default function MailEntry() {
     if (!user) return;
     setLoading(true);
 
-    const ref = form.reference_number || generateRef();
+    const ref = generateRef();
+
+    // Check for duplicate reference_number (user-entered)
+    if (form.reference_number.trim()) {
+      const { data: existing } = await supabase
+        .from("mails")
+        .select("id")
+        .eq("reference_number", form.reference_number.trim())
+        .limit(1);
+      if (existing && existing.length > 0) {
+        toast.error("Ce numéro de courrier existe déjà dans le système. Veuillez en choisir un autre.");
+        setLoading(false);
+        return;
+      }
+    }
+
     const qrCodeData = JSON.stringify({ ref, date: new Date().toISOString(), agent: user.id });
 
     try {
@@ -311,13 +326,13 @@ export default function MailEntry() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Row 1: Numéro courrier & Référence */}
+            {/* Row 1: Numéro courrier (auto) & Référence du courrier (user input) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Numéro courrier" required hint="Numéro unique attribué au courrier">
-                <Input value={generateRef()} disabled className="bg-muted" />
+              <Field label="ID unique (auto-généré)" hint="Identifiant unique généré par le système">
+                <Input value={generateRef()} disabled className="bg-muted font-mono text-xs" />
               </Field>
-              <Field label="Référence du courrier" required hint="Référence du courrier entrant">
-                <Input value={form.reference_number} onChange={(e) => update("reference_number", e.target.value)} placeholder="Référence" required />
+              <Field label="Numéro du courrier" required hint="Numéro unique attribué au courrier (pas de doublons)">
+                <Input value={form.reference_number} onChange={(e) => update("reference_number", e.target.value)} placeholder="Saisissez le numéro du courrier" required />
               </Field>
             </div>
 

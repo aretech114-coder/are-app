@@ -52,7 +52,7 @@ export default function Dashboard() {
         .limit(5);
       setRecentMails(recent || []);
 
-      // Fetch overdue mails with details
+      // Fetch overdue mails with details + reminder counts
       if (showOverduePanel) {
         const now = new Date().toISOString();
         const { data: overdue } = await supabase
@@ -62,7 +62,26 @@ export default function Dashboard() {
           .not("status", "in", '("archived","processed")')
           .order("deadline_at", { ascending: true })
           .limit(20);
-        setOverdueMails(overdue || []);
+        
+        // Fetch reminder counts for step 4 assignments
+        if (overdue && overdue.length > 0) {
+          const mailIds = overdue.map(m => m.id);
+          const { data: assignmentData } = await supabase
+            .from("mail_assignments")
+            .select("mail_id, reminder_count")
+            .in("mail_id", mailIds)
+            .eq("step_number", 4);
+          
+          const reminderMap = new Map<string, number>();
+          assignmentData?.forEach(a => {
+            const current = reminderMap.get(a.mail_id) || 0;
+            reminderMap.set(a.mail_id, Math.max(current, a.reminder_count || 0));
+          });
+          
+          setOverdueMails(overdue.map(m => ({ ...m, maxReminderCount: reminderMap.get(m.id) || 0 })));
+        } else {
+          setOverdueMails([]);
+        }
       }
     };
     fetchStats();
@@ -123,14 +142,21 @@ export default function Dashboard() {
                   <th className="text-left py-2 pr-3">Objet</th>
                   <th className="text-left py-2 pr-3">Étape</th>
                   <th className="text-left py-2 pr-3">Retard</th>
+                  <th className="text-left py-2 pr-3">Niveau</th>
                   <th className="text-left py-2">Priorité</th>
                 </tr>
               </thead>
               <tbody>
-                {overdueMails.map((mail) => (
+                {overdueMails.map((mail: any) => {
+                  const overdueHours = getOverdueHours(mail.deadline_at);
+                  const reminderCount = mail.maxReminderCount || 0;
+                  const isCritical = overdueHours > 72 && reminderCount >= 2;
+                  const isWarning = overdueHours > 72;
+
+                  return (
                   <tr
                     key={mail.id}
-                    className="border-b last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
+                    className={`border-b last:border-0 hover:bg-accent/50 cursor-pointer transition-colors ${isCritical ? "bg-destructive/10" : isWarning ? "bg-warning/5" : ""}`}
                     onClick={() => navigate("/inbox")}
                   >
                     <td className="py-2 pr-3 font-mono text-xs">{mail.reference_number}</td>
@@ -141,9 +167,18 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="py-2 pr-3">
-                      <span className="text-destructive font-medium text-xs">
-                        +{getOverdueHours(mail.deadline_at)}h
+                      <span className={`font-medium text-xs ${isCritical ? "text-destructive" : "text-warning"}`}>
+                        +{overdueHours}h
                       </span>
+                    </td>
+                    <td className="py-2 pr-3">
+                      {isCritical ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-bold">🚨 Critique</span>
+                      ) : isWarning ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/15 text-warning font-medium">⚠️ Retard</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">En retard</span>
+                      )}
                     </td>
                     <td className="py-2">
                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${
@@ -155,7 +190,8 @@ export default function Dashboard() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
