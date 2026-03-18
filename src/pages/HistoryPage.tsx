@@ -229,6 +229,9 @@ export default function HistoryPage() {
                       {mailStatusLabels[entry.mail?.status || ""] || entry.mail?.status}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <AttachmentIndicator hasAttachment={!!entry.mail?.attachment_url} />
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {format(new Date(entry.created_at), "dd/MM/yyyy HH:mm", { locale: fr })}
                   </TableCell>
