@@ -177,6 +177,18 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     }
   };
 
+  const fetchProposedAssignees = async () => {
+    const { data } = await supabase
+      .from("mail_assignments")
+      .select("assigned_to")
+      .eq("mail_id", mailId)
+      .eq("step_number", 4)
+      .in("status", ["proposed", "pending"]);
+    if (data && data.length > 0) {
+      setSelectedAssignees(data.map(a => a.assigned_to));
+    }
+  };
+
   const toggleAssignee = (userId: string) => {
     setSelectedAssignees(prev =>
       prev.includes(userId)
