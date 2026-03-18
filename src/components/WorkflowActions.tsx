@@ -380,26 +380,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // STEP 8 COMPLETE: After attaching proof of deposit, archive directly
+      // STEP 8 COMPLETE: Use RPC to advance to step 9 (archive)
       if (currentStep === 8 && action === "complete") {
-        // Record transition 8 → 9
-        await supabase.from("workflow_transitions").insert({
-          mail_id: mailId,
-          from_step: 8,
-          to_step: 9,
-          action: "complete",
-          performed_by: user.id,
-          notes: noteParts || "Preuve de dépôt ajoutée — archivage automatique.",
-        });
-
-        // Update mail directly to archived
-        await supabase.from("mails").update({
-          current_step: 9,
-          status: "archived" as any,
-          workflow_completed_at: new Date().toISOString(),
-        }).eq("id", mailId);
-
-        toast.success("Preuve de dépôt ajoutée — dossier archivé avec succès");
+        const result = await advanceWorkflow(mailId, currentStep, "complete", user.id, noteParts || "Preuve de dépôt ajoutée.");
+        if (result.success) {
+          toast.success("Preuve de dépôt ajoutée — dossier archivé avec succès");
+        } else {
+          toast.error(result.error || "Erreur lors de l'archivage");
+        }
         setShowDialog(false);
         resetForm();
         onAdvanced();
