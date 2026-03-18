@@ -323,6 +323,7 @@ export default function SuiviPage() {
                 <TableHead>Assigné à</TableHead>
                 <TableHead>Échéance</TableHead>
                 <TableHead>SLA</TableHead>
+                <TableHead className="w-8"><Paperclip className="h-3.5 w-3.5" /></TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead></TableHead>
               </TableRow>
