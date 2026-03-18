@@ -501,7 +501,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   }
 
   const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
-  const showAssignment = currentStep === 2 || currentStep === 3;
+  const showAssignment = currentStep === 2 || currentStep === 3 || currentStep === 5;
   const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 8;
   const showTreatment = currentStep === 4;
 
