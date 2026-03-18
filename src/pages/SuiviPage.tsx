@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,14 +14,38 @@ import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { TreatmentsList } from "@/components/TreatmentsList";
+import { MailDetailFields } from "@/components/MailDetailFields";
+import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
 import { getStepLabel, getStepColor, WORKFLOW_STEPS } from "@/lib/workflow-engine";
-import { Search, CalendarIcon, Filter, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3 } from "lucide-react";
+import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+
+const statusLabels: Record<string, string> = {
+  pending: "En attente",
+  in_progress: "En cours",
+  processed: "Traité",
+  archived: "Archivé",
+};
+
+const statusColors: Record<string, string> = {
+  pending: "bg-warning/10 text-warning border-warning/30",
+  in_progress: "bg-info/10 text-info border-info/30",
+  processed: "bg-success/10 text-success border-success/30",
+  archived: "bg-muted text-muted-foreground border-border",
+};
+
+const priorityLabels: Record<string, string> = {
+  low: "Faible",
+  normal: "Normal",
+  high: "Élevée",
+  urgent: "Urgent",
+};
 
 export default function SuiviPage() {
-  const { role } = useAuth();
+  const { role, hasPermission } = useAuth();
   const [mails, setMails] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +57,12 @@ export default function SuiviPage() {
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
   const [selectedMail, setSelectedMail] = useState<any>(null);
+  const [editMail, setEditMail] = useState<any>(null);
+  const [deleteMail, setDeleteMail] = useState<any>(null);
+  const [showStats, setShowStats] = useState(true);
+
+  // Permission: SuperAdmin always can, Admin only if toggle enabled
+  const canEditDelete = role === "superadmin" || (role === "admin" && hasPermission("manage_mail_entries"));
 
   useEffect(() => {
     fetchData();
@@ -50,8 +80,12 @@ export default function SuiviPage() {
   };
 
   const getProfileName = (id: string) => profiles.find(p => p.id === id)?.full_name || "—";
-
   const isOverdue = (mail: any) => mail.deadline_at && new Date(mail.deadline_at) < new Date() && mail.status !== "archived";
+
+  const getOverdueHours = (mail: any) => {
+    if (!mail.deadline_at) return 0;
+    return Math.max(0, Math.floor((Date.now() - new Date(mail.deadline_at).getTime()) / (1000 * 60 * 60)));
+  };
 
   const filtered = mails.filter(m => {
     if (search && !(
@@ -78,27 +112,25 @@ export default function SuiviPage() {
   const archived = filtered.filter(m => m.status === "archived").length;
   const overdue = filtered.filter(m => isOverdue(m)).length;
   const pending = filtered.filter(m => m.status === "pending").length;
+  const processed = filtered.filter(m => m.status === "processed").length;
+  const urgent = filtered.filter(m => m.priority === "urgent").length;
+  const avgStepAll = filtered.length > 0 ? (filtered.reduce((s, m) => s + (m.current_step || 1), 0) / filtered.length).toFixed(1) : "—";
 
-  const statusColors: Record<string, string> = {
-    pending: "bg-warning/10 text-warning border-warning/30",
-    in_progress: "bg-info/10 text-info border-info/30",
-    processed: "bg-success/10 text-success border-success/30",
-    archived: "bg-muted text-muted-foreground border-border",
-  };
+  // Chart data
+  const stepDistribution = WORKFLOW_STEPS.map(s => ({
+    name: `É${s.step}`,
+    fullName: s.name,
+    value: filtered.filter(m => (m.current_step || 1) === s.step && m.status !== "archived").length,
+  }));
 
-  const statusLabels: Record<string, string> = {
-    pending: "En attente",
-    in_progress: "En cours",
-    processed: "Traité",
-    archived: "Archivé",
-  };
+  const priorityDistribution = [
+    { name: "Faible", value: filtered.filter(m => m.priority === "low").length, color: "hsl(var(--muted-foreground))" },
+    { name: "Normal", value: filtered.filter(m => m.priority === "normal").length, color: "hsl(199,89%,48%)" },
+    { name: "Élevée", value: filtered.filter(m => m.priority === "high").length, color: "hsl(38,92%,50%)" },
+    { name: "Urgent", value: filtered.filter(m => m.priority === "urgent").length, color: "hsl(0,84%,60%)" },
+  ];
 
-  const priorityLabels: Record<string, string> = {
-    low: "Faible",
-    normal: "Normal",
-    high: "Élevée",
-    urgent: "Urgent",
-  };
+  const COLORS = ["hsl(199,89%,48%)", "hsl(270,60%,55%)", "hsl(38,92%,50%)", "hsl(152,69%,40%)", "hsl(0,84%,60%)", "hsl(190,80%,45%)", "hsl(215,28%,50%)", "hsl(25,90%,55%)", "hsl(320,60%,50%)"];
 
   const clearFilters = () => {
     setSearch("");
@@ -112,59 +144,93 @@ export default function SuiviPage() {
 
   return (
     <div className="animate-fade-in space-y-6">
-      <div>
-        <h1 className="page-header">Tableau de Suivi</h1>
-        <p className="page-description">Vue d'ensemble de tous les dossiers et leur progression</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-header">Tableau de Suivi</h1>
+          <p className="page-description">Vue d'ensemble de tous les dossiers et leur progression</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => setShowStats(!showStats)}>
+          <BarChart3 className="h-4 w-4 mr-1" />
+          {showStats ? "Masquer" : "Afficher"} stats
+        </Button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10"><BarChart3 className="h-5 w-5 text-primary" /></div>
-            <div>
-              <p className="text-2xl font-bold">{totalMails}</p>
-              <p className="text-xs text-muted-foreground">Total dossiers</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-warning/10"><Clock className="h-5 w-5 text-warning" /></div>
-            <div>
-              <p className="text-2xl font-bold">{pending}</p>
-              <p className="text-xs text-muted-foreground">En attente</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-info/10"><Filter className="h-5 w-5 text-info" /></div>
-            <div>
-              <p className="text-2xl font-bold">{inProgress}</p>
-              <p className="text-xs text-muted-foreground">En cours</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-destructive/10"><AlertTriangle className="h-5 w-5 text-destructive" /></div>
-            <div>
-              <p className="text-2xl font-bold">{overdue}</p>
-              <p className="text-xs text-muted-foreground">En retard</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-success/10"><CheckCircle className="h-5 w-5 text-success" /></div>
-            <div>
-              <p className="text-2xl font-bold">{archived}</p>
-              <p className="text-xs text-muted-foreground">Archivés</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {[
+          { label: "Total", value: totalMails, icon: BarChart3, cls: "text-primary bg-primary/10" },
+          { label: "En attente", value: pending, icon: Clock, cls: "text-warning bg-warning/10" },
+          { label: "En cours", value: inProgress, icon: TrendingUp, cls: "text-info bg-info/10" },
+          { label: "En retard", value: overdue, icon: AlertTriangle, cls: "text-destructive bg-destructive/10" },
+          { label: "Traités", value: processed, icon: CheckCircle, cls: "text-success bg-success/10" },
+          { label: "Archivés", value: archived, icon: Archive, cls: "text-muted-foreground bg-muted" },
+          { label: "Urgents", value: urgent, icon: TrendingDown, cls: "text-destructive bg-destructive/10" },
+        ].map(card => (
+          <Card key={card.label}>
+            <CardContent className="p-3 flex items-center gap-2">
+              <div className={`p-1.5 rounded-lg ${card.cls}`}>
+                <card.icon className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xl font-bold leading-none">{card.value}</p>
+                <p className="text-[10px] text-muted-foreground">{card.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {/* Charts */}
+      {showStats && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="text-sm font-semibold mb-3">Distribution par étape</h3>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={stepDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="name" className="text-[10px]" />
+                  <YAxis className="text-[10px]" />
+                  <Tooltip formatter={(value: number, name: string, props: any) => [value, props.payload.fullName]} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {stepDistribution.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="text-sm font-semibold mb-3">Répartition par priorité</h3>
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width="50%" height={180}>
+                  <PieChart>
+                    <Pie data={priorityDistribution.filter(d => d.value > 0)} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value" paddingAngle={2}>
+                      {priorityDistribution.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2">
+                  {priorityDistribution.map(d => (
+                    <div key={d.name} className="flex items-center gap-2 text-xs">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                      <span>{d.name}: <strong>{d.value}</strong></span>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t text-xs text-muted-foreground">
+                    Étape moy.: <strong>{avgStepAll}</strong>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -191,7 +257,7 @@ export default function SuiviPage() {
               <SelectContent>
                 <SelectItem value="all">Toutes étapes</SelectItem>
                 {WORKFLOW_STEPS.map(s => (
-                  <SelectItem key={s.step} value={String(s.step)}>Ét. {s.step}: {s.name}</SelectItem>
+                  <SelectItem key={s.step} value={String(s.step)}>É{s.step}: {s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -255,55 +321,85 @@ export default function SuiviPage() {
                 <TableHead>Priorité</TableHead>
                 <TableHead>Assigné à</TableHead>
                 <TableHead>Échéance</TableHead>
+                <TableHead>SLA</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Aucun dossier trouvé</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Aucun dossier trouvé</TableCell></TableRow>
               ) : (
-                filtered.map(mail => (
-                  <TableRow key={mail.id} className={isOverdue(mail) ? "bg-destructive/5" : ""}>
-                    <TableCell className="font-mono text-xs">{mail.reference_number}</TableCell>
-                    <TableCell className="max-w-[200px] truncate text-sm">{mail.subject}</TableCell>
-                    <TableCell className="text-sm">{mail.sender_name}</TableCell>
-                    <TableCell>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getStepColor(mail.current_step || 1)}`}>
-                        {getStepLabel(mail.current_step || 1)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${statusColors[mail.status] || ""}`}>
-                        {statusLabels[mail.status] || mail.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {priorityLabels[mail.priority] || mail.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs">{mail.assigned_agent_id ? getProfileName(mail.assigned_agent_id) : "—"}</TableCell>
-                    <TableCell className="text-xs">
-                      {mail.deadline_at ? (
-                        <span className={isOverdue(mail) ? "text-destructive font-medium" : ""}>
-                          {isOverdue(mail) && <AlertTriangle className="h-3 w-3 inline mr-1" />}
-                          {format(new Date(mail.deadline_at), "dd/MM HH:mm")}
+                filtered.map(mail => {
+                  const overdueH = getOverdueHours(mail);
+                  const isCritical = overdueH > 72;
+                  const isWarning = overdueH > 0 && overdueH <= 72;
+
+                  return (
+                    <TableRow key={mail.id} className={isCritical ? "bg-destructive/8" : isWarning ? "bg-warning/5" : ""}>
+                      <TableCell className="font-mono text-xs">{mail.reference_number}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-sm">{mail.subject}</TableCell>
+                      <TableCell className="text-sm">{mail.sender_name}</TableCell>
+                      <TableCell>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getStepColor(mail.current_step || 1)}`}>
+                          {getStepLabel(mail.current_step || 1)}
                         </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {format(new Date(mail.created_at), "dd/MM/yy")}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedMail(mail)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] ${statusColors[mail.status] || ""}`}>
+                          {statusLabels[mail.status] || mail.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] ${mail.priority === "urgent" ? "bg-destructive/10 text-destructive border-destructive/30" : mail.priority === "high" ? "bg-warning/10 text-warning border-warning/30" : ""}`}>
+                          {priorityLabels[mail.priority] || mail.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{mail.assigned_agent_id ? getProfileName(mail.assigned_agent_id) : "—"}</TableCell>
+                      <TableCell className="text-xs">
+                        {mail.deadline_at ? (
+                          <span className={isOverdue(mail) ? "text-destructive font-medium" : ""}>
+                            {isOverdue(mail) && <AlertTriangle className="h-3 w-3 inline mr-1" />}
+                            {format(new Date(mail.deadline_at), "dd/MM HH:mm")}
+                          </span>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {isOverdue(mail) ? (
+                          isCritical ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-bold whitespace-nowrap">🚨 Critique +{overdueH}h</span>
+                          ) : (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/15 text-warning font-medium whitespace-nowrap">⚠️ +{overdueH}h</span>
+                          )
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">OK</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {format(new Date(mail.created_at), "dd/MM/yy")}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedMail(mail)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {canEditDelete && (
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => setEditMail(mail)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => setDeleteMail(mail)} className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -322,23 +418,7 @@ export default function SuiviPage() {
           {selectedMail && (
             <div className="space-y-4">
               <WorkflowStepper currentStep={selectedMail.current_step || 1} />
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-muted-foreground">Objet:</span> <strong>{selectedMail.subject}</strong></div>
-                <div><span className="text-muted-foreground">Expéditeur:</span> {selectedMail.sender_name}</div>
-                <div><span className="text-muted-foreground">Statut:</span> <Badge variant="outline" className={statusColors[selectedMail.status]}>{statusLabels[selectedMail.status]}</Badge></div>
-                <div><span className="text-muted-foreground">Priorité:</span> {priorityLabels[selectedMail.priority]}</div>
-                <div><span className="text-muted-foreground">Type:</span> {selectedMail.mail_type || "—"}</div>
-                <div><span className="text-muted-foreground">Assigné à:</span> {selectedMail.assigned_agent_id ? getProfileName(selectedMail.assigned_agent_id) : "—"}</div>
-                {selectedMail.deadline_at && (
-                  <div className={isOverdue(selectedMail) ? "text-destructive" : ""}>
-                    <span className="text-muted-foreground">Échéance:</span> {format(new Date(selectedMail.deadline_at), "dd MMMM yyyy HH:mm", { locale: fr })}
-                    {isOverdue(selectedMail) && " ⚠️ EN RETARD"}
-                  </div>
-                )}
-              </div>
-              {selectedMail.description && (
-                <div className="p-3 rounded-lg bg-muted/30 text-sm whitespace-pre-wrap">{selectedMail.description}</div>
-              )}
+              <MailDetailFields mail={selectedMail} getProfileName={getProfileName} />
               <TreatmentsList mailId={selectedMail.id} />
               <Step4ContextPanel mailId={selectedMail.id} />
               <div className="p-3 rounded-lg border bg-muted/20">
@@ -349,6 +429,26 @@ export default function SuiviPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      {editMail && (
+        <MailEditDialog
+          mail={editMail}
+          open={!!editMail}
+          onOpenChange={(open) => !open && setEditMail(null)}
+          onSaved={() => { setEditMail(null); fetchData(); }}
+        />
+      )}
+
+      {/* Delete Dialog */}
+      {deleteMail && (
+        <MailDeleteDialog
+          mail={deleteMail}
+          open={!!deleteMail}
+          onOpenChange={(open) => !open && setDeleteMail(null)}
+          onDeleted={() => { setDeleteMail(null); setSelectedMail(null); fetchData(); }}
+        />
+      )}
     </div>
   );
 }
