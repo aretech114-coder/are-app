@@ -52,7 +52,7 @@ export default function Dashboard() {
         .limit(5);
       setRecentMails(recent || []);
 
-      // Fetch overdue mails with details
+      // Fetch overdue mails with details + reminder counts
       if (showOverduePanel) {
         const now = new Date().toISOString();
         const { data: overdue } = await supabase
@@ -62,7 +62,26 @@ export default function Dashboard() {
           .not("status", "in", '("archived","processed")')
           .order("deadline_at", { ascending: true })
           .limit(20);
-        setOverdueMails(overdue || []);
+        
+        // Fetch reminder counts for step 4 assignments
+        if (overdue && overdue.length > 0) {
+          const mailIds = overdue.map(m => m.id);
+          const { data: assignmentData } = await supabase
+            .from("mail_assignments")
+            .select("mail_id, reminder_count")
+            .in("mail_id", mailIds)
+            .eq("step_number", 4);
+          
+          const reminderMap = new Map<string, number>();
+          assignmentData?.forEach(a => {
+            const current = reminderMap.get(a.mail_id) || 0;
+            reminderMap.set(a.mail_id, Math.max(current, a.reminder_count || 0));
+          });
+          
+          setOverdueMails(overdue.map(m => ({ ...m, maxReminderCount: reminderMap.get(m.id) || 0 })));
+        } else {
+          setOverdueMails([]);
+        }
       }
     };
     fetchStats();
