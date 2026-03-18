@@ -121,11 +121,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Fetch assignable users when dialog opens for steps that need assignment
   useEffect(() => {
-    if (showDialog && (currentStep === 2 || currentStep === 6)) {
+    if (showDialog && (currentStep === 2 || currentStep === 3 || currentStep === 6)) {
       fetchAssignableUsers();
     }
     if (showDialog && currentStep === 3) {
       fetchMinisterAnnotation();
+      fetchProposedAssignees();
     }
   }, [showDialog, currentStep]);
 
@@ -173,6 +174,18 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         role: roles.find(r => r.user_id === p.id)?.role || "",
       }));
       setAssignableUsers(merged);
+    }
+  };
+
+  const fetchProposedAssignees = async () => {
+    const { data } = await supabase
+      .from("mail_assignments")
+      .select("assigned_to")
+      .eq("mail_id", mailId)
+      .eq("step_number", 4)
+      .in("status", ["proposed", "pending"]);
+    if (data && data.length > 0) {
+      setSelectedAssignees(data.map(a => a.assigned_to));
     }
   };
 
@@ -367,26 +380,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // STEP 8 COMPLETE: After attaching proof of deposit, archive directly
+      // STEP 8 COMPLETE: Use RPC to advance to step 9 (archive)
       if (currentStep === 8 && action === "complete") {
-        // Record transition 8 → 9
-        await supabase.from("workflow_transitions").insert({
-          mail_id: mailId,
-          from_step: 8,
-          to_step: 9,
-          action: "complete",
-          performed_by: user.id,
-          notes: noteParts || "Preuve de dépôt ajoutée — archivage automatique.",
-        });
-
-        // Update mail directly to archived
-        await supabase.from("mails").update({
-          current_step: 9,
-          status: "archived" as any,
-          workflow_completed_at: new Date().toISOString(),
-        }).eq("id", mailId);
-
-        toast.success("Preuve de dépôt ajoutée — dossier archivé avec succès");
+        const result = await advanceWorkflow(mailId, currentStep, "complete", user.id, noteParts || "Preuve de dépôt ajoutée.");
+        if (result.success) {
+          toast.success("Preuve de dépôt ajoutée — dossier archivé avec succès");
+        } else {
+          toast.error(result.error || "Erreur lors de l'archivage");
+        }
         setShowDialog(false);
         resetForm();
         onAdvanced();
@@ -394,22 +395,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // Skip auto-assign for dynamic steps (4 and 7) where conseillers are assigned manually
-      const targetIsDynamic = (currentStep === 3 && effectiveAction === "approve") || // → step 4
-                              (currentStep === 6 && effectiveAction === "approve");    // → step 7
-      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { skipAutoAssign: targetIsDynamic });
+      // Build advance options: pass assignee IDs for dynamic steps (step 3 → step 4)
+      const assigneeIds = (currentStep === 3 && effectiveAction === "approve" && selectedAssignees.length > 0)
+        ? selectedAssignees
+        : undefined;
+
+      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { assigneeIds });
 
       if (result.success) {
-        // Save treatment content to mail if at step 4
-        if (currentStep === 4 && treatmentContent) {
-          await supabase.from("mails").update({
-            ai_draft: treatmentContent,
-            mail_type: treatmentType || undefined,
-          } as any).eq("id", mailId);
-        }
-
         // Step 2: Create "proposed" assignments for conseillers pre-selected by Ministre
-        // Step 3: Assignments are created in the auto-route section below
         if (selectedAssignees.length > 0 && currentStep === 2) {
           for (const assigneeId of selectedAssignees) {
             await supabase.from("mail_assignments").insert({
@@ -430,80 +424,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           }
         }
 
-        // Step 6 approve: route to step 7 (consultation conseillers) if note technique
-        // Otherwise skip to step 8 (preuve de dépôt)
-        if (currentStep === 6 && action === "approve") {
-          const { data: mailData } = await supabase.from("mails").select("mail_type").eq("id", mailId).single();
-          
-          if (mailData?.mail_type === "note_technique") {
-            // Create step 7 assignments for all conseillers who had step 4 assignments
-            const { data: step4Assignments } = await supabase
-              .from("mail_assignments")
-              .select("assigned_to")
-              .eq("mail_id", mailId)
-              .eq("step_number", 4);
-
-            if (step4Assignments) {
-              for (const a of step4Assignments) {
-                // Create step 7 assignment
-                await supabase.from("mail_assignments").insert({
-                  mail_id: mailId,
-                  assigned_by: user.id,
-                  assigned_to: a.assigned_to,
-                  step_number: 7,
-                  status: "pending",
-                  instructions: "Consultation de la validation du Ministre",
-                });
-
-                await supabase.from("notifications").insert({
-                  user_id: a.assigned_to,
-                  title: "Note technique validée par le Ministre",
-                  message: "Votre note technique a été validée. Veuillez consulter et confirmer.",
-                  mail_id: mailId,
-                });
-              }
-            }
-          } else {
-            // For accusé de réception, skip step 7 and go to step 8
-            await supabase.from("mails").update({ current_step: 8 }).eq("id", mailId);
-            await supabase.from("workflow_transitions").insert({
-              mail_id: mailId,
-              from_step: 7,
-              to_step: 8,
-              action: "skip",
-              performed_by: user.id,
-              notes: "Étape 7 ignorée — type accusé de réception, passage direct à preuve de dépôt.",
-            });
-          }
-        }
-
-        // Auto-route: assignment is now handled by advanceWorkflow via resolveWorkflowStepAssignee
-        // Only handle dynamic step 4 manually (conseillers selected by user)
-        if (result.newStep === 4 && selectedAssignees.length > 0) {
-          await supabase
-            .from("mails")
-            .update({ assigned_agent_id: selectedAssignees[0] })
-            .eq("id", mailId);
-
-          for (const assigneeId of selectedAssignees) {
-            await supabase.from("mail_assignments").insert({
-              mail_id: mailId,
-              assigned_by: user.id,
-              assigned_to: assigneeId,
-              step_number: 4,
-              status: "pending",
-              instructions: annotation || null,
-            });
-
-            const stepInfo = getStepInfo(4);
-            await supabase.from("notifications").insert({
-              user_id: assigneeId,
-              title: `Courrier en attente — ${stepInfo?.name || "Traitement"}`,
-              message: `Un courrier requiert votre attention à l'étape "${stepInfo?.name || "Traitement"}".`,
-              mail_id: mailId,
-            });
-          }
-        }
+        // Step 6 approve & step 7 skip are now handled atomically by the RPC
+        // No more client-side direct updates to mails.current_step
 
         // Save calendar event if RDV was scheduled
         if (scheduleRdv && rdvDate && user) {

@@ -235,6 +235,7 @@ export type Database = {
           is_read: boolean | null
           mail_type: string | null
           mail_type_other: string | null
+          ministre_absent: boolean
           priority: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
           reception_date: string | null
@@ -269,6 +270,7 @@ export type Database = {
           is_read?: boolean | null
           mail_type?: string | null
           mail_type_other?: string | null
+          ministre_absent?: boolean
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data: string
           reception_date?: string | null
@@ -303,6 +305,7 @@ export type Database = {
           is_read?: boolean | null
           mail_type?: string | null
           mail_type_other?: string | null
+          ministre_absent?: boolean
           priority?: Database["public"]["Enums"]["mail_priority"]
           qr_code_data?: string
           reception_date?: string | null
@@ -660,6 +663,17 @@ export type Database = {
     }
     Functions: {
       add_app_role: { Args: { new_role: string }; Returns: undefined }
+      advance_workflow_step: {
+        Args: {
+          _action: string
+          _assignee_ids?: string[]
+          _mail_id: string
+          _notes?: string
+          _performed_by: string
+          _skip_auto_assign?: boolean
+        }
+        Returns: Json
+      }
       can_transition_update_mail: {
         Args: { _mail_id: string; _step: number; _user_id: string }
         Returns: boolean
