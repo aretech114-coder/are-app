@@ -157,7 +157,22 @@ export default function MailEntry() {
     if (!user) return;
     setLoading(true);
 
-    const ref = form.reference_number || generateRef();
+    const ref = generateRef();
+
+    // Check for duplicate reference_number (user-entered)
+    if (form.reference_number.trim()) {
+      const { data: existing } = await supabase
+        .from("mails")
+        .select("id")
+        .eq("reference_number", form.reference_number.trim())
+        .limit(1);
+      if (existing && existing.length > 0) {
+        toast.error("Ce numéro de courrier existe déjà dans le système. Veuillez en choisir un autre.");
+        setLoading(false);
+        return;
+      }
+    }
+
     const qrCodeData = JSON.stringify({ ref, date: new Date().toISOString(), agent: user.id });
 
     try {
