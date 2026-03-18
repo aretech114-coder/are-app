@@ -951,7 +951,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-2">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5" />
-                  {currentStep === 2 ? "Pré-assigner des personnes pour traitement" : "Confirmer / Modifier les assignations"}
+                  {currentStep === 2 ? "Pré-assigner des personnes pour traitement" : currentStep === 5 ? "Modifier les assignés (étape traitement)" : "Confirmer / Modifier les assignations"}
                 </Label>
                 {assignableUsers.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Chargement des utilisateurs...</p>
