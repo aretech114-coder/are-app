@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { target_user_id } = await req.json();
+    const { target_user_id, redirect_url } = await req.json();
 
     if (!target_user_id) {
       return new Response(
