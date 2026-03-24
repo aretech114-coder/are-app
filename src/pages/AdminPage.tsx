@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useImpersonation } from "@/hooks/useImpersonation";
+
 import { Constants } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,8 @@ interface AdminUserPermission {
 
 export default function AdminPage() {
   const { role: currentUserRole, user, hasPermission } = useAuth();
-  const { startImpersonation } = useImpersonation();
+  const [impersonateTarget, setImpersonateTarget] = useState<any>(null);
+  const [impersonating, setImpersonating] = useState(false);
   const isSuperAdmin = currentUserRole === "superadmin";
   const isAdmin = currentUserRole === "admin";
 
@@ -449,15 +450,52 @@ export default function AdminPage() {
       toast.error("Vous n'avez pas la permission d'impersonation");
       return;
     }
+    setImpersonateTarget(u);
+  };
 
-    const userRole = u.user_roles?.[0]?.role || "agent";
-    startImpersonation({
-      id: u.id,
-      full_name: u.full_name || "Sans nom",
-      email: u.email,
-      role: getRoleLabel(userRole),
-    });
-    toast.success(`Impersonation activée : ${u.full_name}`);
+  const confirmImpersonate = async () => {
+    if (!impersonateTarget) return;
+    setImpersonating(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        toast.error("Session expirée. Reconnectez-vous.");
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/impersonate-user`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ target_user_id: impersonateTarget.id }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Erreur d'impersonation");
+        return;
+      }
+
+      if (result.url) {
+        window.open(result.url, "_blank");
+        toast.success(`Onglet ouvert en tant que ${impersonateTarget.full_name}`);
+      } else {
+        toast.error("Lien d'accès non généré");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setImpersonating(false);
+      setImpersonateTarget(null);
+    }
   };
 
   const getRoleLabel = (roleValue: string) => {
@@ -865,6 +903,26 @@ export default function AdminPage() {
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Impersonate Confirmation */}
+      <AlertDialog open={!!impersonateTarget} onOpenChange={(open) => { if (!open) setImpersonateTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Se connecter en tant que</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous ouvrir un nouvel onglet connecté en tant que <strong>{impersonateTarget?.full_name}</strong> ({impersonateTarget?.email}) ?
+              Votre session actuelle restera intacte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={impersonating}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmImpersonate} disabled={impersonating}>
+              {impersonating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+              Ouvrir la session
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
