@@ -113,11 +113,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate magic link
+    // Generate magic link with redirect to the caller's origin
+    const finalRedirect = redirect_url || "https://www.mrhe-courrier.cloud";
     const { data: linkData, error: linkError } =
       await adminClient.auth.admin.generateLink({
         type: "magiclink",
         email: targetAuth.user.email,
+        options: {
+          redirectTo: finalRedirect,
+        },
       });
 
     if (linkError || !linkData) {
