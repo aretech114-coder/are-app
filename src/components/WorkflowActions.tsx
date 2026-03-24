@@ -40,8 +40,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
-
-
+  const [isLastPendingAssignee, setIsLastPendingAssignee] = useState(false);
 
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
@@ -89,21 +88,33 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Check if current user already completed their step 4 or step 7 (acknowledgement)
   useEffect(() => {
     if ((currentStep === 4 || currentStep === 7) && user) {
-      const checkStep = currentStep; // Check assignments at current step
-      supabase
-        .from("mail_assignments")
-        .select("status")
-        .eq("mail_id", mailId)
-        .eq("assigned_to", user.id)
-        .eq("step_number", checkStep)
-        .single()
-        .then(({ data }) => {
-          if (currentStep === 4) {
-            setMyAssignmentCompleted(data?.status === "completed");
-          } else if (currentStep === 7) {
-            setMyAssignmentCompleted(data?.status === "acknowledged");
-          }
-        });
+      const checkStep = currentStep;
+      (async () => {
+        // Fetch all assignments for this step
+        const { data: allAssignments } = await supabase
+          .from("mail_assignments")
+          .select("assigned_to, status")
+          .eq("mail_id", mailId)
+          .eq("step_number", checkStep);
+
+        if (!allAssignments) return;
+
+        const myAssignment = allAssignments.find(a => a.assigned_to === user.id);
+        if (!myAssignment) return;
+
+        if (currentStep === 4) {
+          setMyAssignmentCompleted(myAssignment.status === "completed");
+        } else if (currentStep === 7) {
+          setMyAssignmentCompleted(myAssignment.status === "acknowledged");
+        }
+
+        // Check if I'm the last pending assignee
+        const doneStatuses = currentStep === 4 ? ["completed"] : ["acknowledged"];
+        const pendingOthers = allAssignments.filter(
+          a => a.assigned_to !== user.id && !doneStatuses.includes(a.status)
+        );
+        setIsLastPendingAssignee(pendingOthers.length === 0);
+      })();
     }
   }, [currentStep, mailId, user]);
 
@@ -210,7 +221,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au Ministre", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 4) {
-      actions.push({ key: "complete", label: "Entrez votre traitement", icon: Send, variant: "default" });
+      const label = isLastPendingAssignee ? "Enregistrer & Valider le traitement" : "Enregistrer mon traitement";
+      actions.push({ key: "complete", label, icon: Send, variant: "default" });
     } else if (currentStep === 5) {
       actions.push({ key: "approve", label: "Approuver → Validation Ministre", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
