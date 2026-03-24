@@ -907,6 +907,26 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Impersonate Confirmation */}
+      <AlertDialog open={!!impersonateTarget} onOpenChange={(open) => { if (!open) setImpersonateTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Se connecter en tant que</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous ouvrir un nouvel onglet connecté en tant que <strong>{impersonateTarget?.full_name}</strong> ({impersonateTarget?.email}) ?
+              Votre session actuelle restera intacte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={impersonating}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmImpersonate} disabled={impersonating}>
+              {impersonating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+              Ouvrir la session
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
