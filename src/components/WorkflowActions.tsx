@@ -210,7 +210,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au Ministre", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 4) {
-      actions.push({ key: "complete", label: "Entrez votre traitement", icon: Send, variant: "default" });
+      actions.push({ key: "complete", label: "Enregistrer mon traitement", icon: Send, variant: "default" });
     } else if (currentStep === 5) {
       actions.push({ key: "approve", label: "Approuver → Validation Ministre", icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
