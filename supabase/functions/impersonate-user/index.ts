@@ -132,10 +132,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The properties contain hashed_token and verification_url
-    // We need to construct the proper URL for the frontend to consume
+    // The action_link is a Supabase verify URL. We need to ensure
+    // the redirect_to parameter points to the production domain
     const properties = linkData.properties;
-    const verificationUrl = properties?.action_link;
+    let verificationUrl = properties?.action_link;
+
+    // Replace redirect_to in the action_link to point to caller's domain
+    if (verificationUrl) {
+      const url = new URL(verificationUrl);
+      url.searchParams.set("redirect_to", finalRedirect);
+      verificationUrl = url.toString();
+    }
 
     return new Response(
       JSON.stringify({
