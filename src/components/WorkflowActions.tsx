@@ -40,8 +40,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
-
-
+  const [isLastPendingAssignee, setIsLastPendingAssignee] = useState(false);
 
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
