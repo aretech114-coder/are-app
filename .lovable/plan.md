@@ -1,62 +1,58 @@
 
 
-# Plan : Historique enrichi, traitement collectif amélioré et clarté visuelle
+# Plan : Impersonation réelle via Edge Function
 
-## Problèmes identifiés
+## Problème actuel
+L'impersonation actuelle est purement cosmétique (client-side state). Elle ne change pas la session Supabase, donc les RLS policies continuent de s'appliquer avec l'identité de l'admin. Résultat : on ne voit pas ce que l'utilisateur voit réellement.
 
-1. **Historique** : Affiche les `mail_assignments` brutes. Si un utilisateur est assigné à l'étape 2 ET l'étape 6 pour le même courrier, il voit 2 lignes distinctes au lieu d'une seule entrée mise à jour. Aucune visibilité sur les traitements des autres intervenants ni sur les pièces jointes du workflow.
+## Solution
+Créer une Edge Function `impersonate-user` qui utilise l'API admin Supabase pour générer un lien magique (magic link) pour l'utilisateur cible. L'admin clique sur "Se connecter en tant que", une confirmation s'affiche, puis un nouvel onglet s'ouvre avec une session authentique de l'utilisateur cible.
 
-2. **Étape 4 — bouton avancement** : Actuellement tous les assignés voient "Entrez votre traitement". L'utilisateur veut que seul le dernier assigné restant voie le bouton qui déclenche l'avancement. Les autres ne voient que "Enregistrer".
+## Architecture
 
-3. **TreatmentsList** : Les contributions des conseillers n'ont pas de code couleur unifié par intervenant. Pas de "signature" visuelle claire.
-
-4. **Pièces jointes workflow** : Les fichiers attachés durant les transitions (annotations, documents joints aux étapes 2, 3, 4...) ne sont pas visibles dans l'historique ni le détail.
-
----
-
-## Approche
-
-### A. Historique groupé par courrier (HistoryPage)
-
-Au lieu d'afficher une ligne par `mail_assignment`, **grouper par `mail_id`** :
-- Requêter toutes les `mail_assignments` de l'utilisateur connecté
-- Grouper par `mail_id` : une seule ligne par courrier dans le tableau
-- Afficher l'étape la plus récente de l'utilisateur et son dernier statut
-- Dans le détail : montrer toutes les interventions de l'utilisateur sur ce courrier (multi-étapes)
-- Afficher les traitements des autres intervenants via `TreatmentsList`
-- Collecter les pièces jointes de toutes les `workflow_transitions` du courrier
-
-### B. Bouton conditionnel à l'étape 4 (WorkflowActions)
-
-Modifier la logique step 4 :
-- Requêter le nombre total d'assignés et le nombre de complétés
-- Si `(total - complétés) > 1` : afficher uniquement "Enregistrer mon traitement" (sauvegarde sans avancement)
-- Si `(total - complétés) == 1` et c'est moi : afficher "Enregistrer & Valider le traitement" (sauvegarde + avancement)
-- Même logique pour l'étape 7
-
-### C. TreatmentsList avec couleurs et signatures
-
-- Attribuer une couleur par intervenant (palette de 8 couleurs prédéfinies, rotation par index)
-- Chaque bloc de traitement : bordure gauche colorée, nom en gras avec la couleur correspondante
-- Ajouter la date/heure de soumission sous le nom
-- Afficher les pièces jointes inline avec le composant `AttachmentViewer`
-
-### D. Pièces jointes du workflow dans le détail
-
-- Nouveau composant `WorkflowAttachments` : parse toutes les `workflow_transitions` du courrier pour extraire les URLs `📎 Document joint: ...`
-- Afficher dans le détail de l'historique et du suivi, groupé par étape
-
----
+```text
+Admin clique "Se connecter en tant que X"
+  → Confirmation dialog
+  → Appel Edge Function /impersonate-user { target_user_id }
+  → Edge Function vérifie que l'appelant est admin/superadmin
+  → Utilise auth.admin.generateLink({ type: 'magiclink', email })
+  → Retourne l'URL avec le token
+  → Le front ouvre window.open(url) dans un nouvel onglet
+  → L'utilisateur est connecté en tant que X dans ce nouvel onglet
+  → Bannière "Connecté en tant que X — Revenir à mon compte" visible
+```
 
 ## Fichiers modifiés
 
 | Fichier | Changement |
 |---|---|
-| `src/pages/HistoryPage.tsx` | Groupement par mail_id, détail enrichi avec pièces jointes workflow |
-| `src/components/WorkflowActions.tsx` | Bouton conditionnel étape 4/7 : "Enregistrer" vs "Enregistrer & Valider" |
-| `src/components/TreatmentsList.tsx` | Couleurs par intervenant, signature, dates, AttachmentViewer |
-| `src/components/MailDetailFields.tsx` | Ajout section pièces jointes workflow (extraites des transitions) |
+| `supabase/functions/impersonate-user/index.ts` | **Nouveau** — Edge Function qui vérifie les permissions de l'appelant puis génère un magic link via `auth.admin.generateLink` |
+| `src/pages/AdminPage.tsx` | Remplacer `handleImpersonate` : appel à l'Edge Function + `window.open()` dans un nouvel onglet |
+| `src/hooks/useImpersonation.tsx` | Simplifier ou supprimer — l'impersonation est maintenant une vraie session dans un autre onglet |
+| `src/components/AppLayout.tsx` | Retirer la bannière d'impersonation client-side (plus nécessaire car nouvel onglet = vraie session) |
 
-### Aucune migration SQL nécessaire
-Toutes les données existent déjà dans `mail_assignments`, `workflow_transitions` et `mails`.
+## Détails techniques
+
+### Edge Function `impersonate-user`
+- Reçoit `{ target_user_id }` en POST
+- Vérifie que l'appelant (via JWT) est `superadmin` ou `admin` avec permission `impersonate_users`
+- Interdit l'impersonation d'un superadmin par un admin
+- Récupère l'email de la cible via `auth.admin.getUserById`
+- Génère un magic link via `auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo } })`
+- Retourne l'URL du magic link
+
+### Côté front (AdminPage)
+- Dialog de confirmation : "Voulez-vous vous connecter en tant que {nom} ?"
+- Si confirmé : appel fetch à l'Edge Function
+- Ouvre `window.open(magicLinkUrl, '_blank')` — nouvel onglet avec session de l'utilisateur
+- L'onglet admin reste inchangé avec sa propre session
+
+### Migration SQL
+Aucune migration nécessaire. Les tables et permissions existantes suffisent.
+
+## Sécurité
+- Seuls les superadmins et admins autorisés peuvent appeler la fonction
+- Un admin ne peut pas impersonner un superadmin
+- Le magic link est à usage unique et expire rapidement
+- L'onglet admin conserve sa propre session intacte
 
