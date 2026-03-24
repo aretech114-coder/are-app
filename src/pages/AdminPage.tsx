@@ -59,7 +59,8 @@ interface AdminUserPermission {
 
 export default function AdminPage() {
   const { role: currentUserRole, user, hasPermission } = useAuth();
-  const { startImpersonation } = useImpersonation();
+  const [impersonateTarget, setImpersonateTarget] = useState<any>(null);
+  const [impersonating, setImpersonating] = useState(false);
   const isSuperAdmin = currentUserRole === "superadmin";
   const isAdmin = currentUserRole === "admin";
 
