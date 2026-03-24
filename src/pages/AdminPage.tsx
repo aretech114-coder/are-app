@@ -473,7 +473,10 @@ export default function AdminPage() {
             Authorization: `Bearer ${accessToken}`,
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
-          body: JSON.stringify({ target_user_id: impersonateTarget.id }),
+          body: JSON.stringify({
+            target_user_id: impersonateTarget.id,
+            redirect_url: window.location.origin,
+          }),
         }
       );
 
