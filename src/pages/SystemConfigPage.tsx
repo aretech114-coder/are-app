@@ -20,6 +20,15 @@ interface Permission {
   is_enabled: boolean;
 }
 
+interface ApiKeyRow {
+  id: string;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+  last_used_at: string | null;
+
+}
+
 const FONT_OPTIONS = [
   "Inter",
   "Poppins",
