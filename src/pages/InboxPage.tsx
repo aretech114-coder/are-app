@@ -82,7 +82,99 @@ export default function InboxPage() {
     return new Date(mail.deadline_at) < new Date();
   };
 
-  // Mobile: if a mail is selected, show detail full-screen
+  const renderAiDialog = () => (
+    <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Assistant IA
+          </DialogTitle>
+        </DialogHeader>
+        <div className="min-h-[200px]">
+          {aiLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent mr-3" />
+              Génération en cours...
+            </div>
+          ) : (
+            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{aiContent}</div>
+          )}
+        </div>
+        {!aiLoading && aiContent && (
+          <div className="flex gap-2 pt-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              navigator.clipboard.writeText(aiContent);
+              toast.success("Copié dans le presse-papiers");
+            }}>
+              Copier
+            </Button>
+            {selected && (
+              <Button size="sm" onClick={async () => {
+                const { error } = await supabase.from("mails").update({ ai_draft: aiContent } as any).eq("id", selected.id);
+                if (error) toast.error(error.message);
+                else { toast.success("Brouillon IA sauvegardé"); fetchMails(); }
+              }}>
+                Sauvegarder comme brouillon
+              </Button>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  const renderDocDialog = () => (
+    <Dialog open={showDoc} onOpenChange={setShowDoc}>
+      <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Paperclip className="h-5 w-5" />
+            Pièce jointe
+          </DialogTitle>
+        </DialogHeader>
+        <div className="min-h-[300px] md:min-h-[500px] flex flex-col">
+          {selected?.attachment_url ? (
+            selected.attachment_url.match(/\.pdf/i) ? (
+              <div className="flex flex-col flex-1 gap-2">
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                      Ouvrir dans un nouvel onglet
+                    </a>
+                  </Button>
+                </div>
+                <iframe
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(selected.attachment_url)}&embedded=true`}
+                  className="w-full flex-1 min-h-[300px] md:min-h-[500px] rounded border"
+                  title="Document PDF"
+                />
+              </div>
+            ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)/i) ? (
+              <img
+                src={selected.attachment_url}
+                alt="Pièce jointe"
+                className="max-w-full max-h-[400px] md:max-h-[500px] object-contain mx-auto rounded"
+              />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                <FileText className="h-12 w-12" />
+                <p className="text-sm">Ce type de fichier ne peut pas être prévisualisé directement.</p>
+                <Button asChild variant="default">
+                  <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                    Télécharger le fichier
+                  </a>
+                </Button>
+              </div>
+            )
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucune pièce jointe</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (isMobile && selected) {
     return (
       <div className="animate-fade-in flex flex-col h-[calc(100vh-7.5rem)]">
