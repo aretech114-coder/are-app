@@ -1,58 +1,74 @@
 
 
-# Plan : Impersonation réelle via Edge Function
+# Plan révisé : SAFETY_POLICY.md + Mémoires projet
 
-## Problème actuel
-L'impersonation actuelle est purement cosmétique (client-side state). Elle ne change pas la session Supabase, donc les RLS policies continuent de s'appliquer avec l'identité de l'admin. Résultat : on ne voit pas ce que l'utilisateur voit réellement.
+## Correction principale : Git Flow
 
-## Solution
-Créer une Edge Function `impersonate-user` qui utilise l'API admin Supabase pour générer un lien magique (magic link) pour l'utilisateur cible. L'admin clique sur "Se connecter en tant que", une confirmation s'affiche, puis un nouvel onglet s'ouvre avec une session authentique de l'utilisateur cible.
-
-## Architecture
+Le flux Git est corrigé comme suit :
 
 ```text
-Admin clique "Se connecter en tant que X"
-  → Confirmation dialog
-  → Appel Edge Function /impersonate-user { target_user_id }
-  → Edge Function vérifie que l'appelant est admin/superadmin
-  → Utilise auth.admin.generateLink({ type: 'magiclink', email })
-  → Retourne l'URL avec le token
-  → Le front ouvre window.open(url) dans un nouvel onglet
-  → L'utilisateur est connecté en tant que X dans ce nouvel onglet
-  → Bannière "Connecté en tant que X — Revenir à mon compte" visible
+Lovable → develop (branch par défaut)
+         ↓
+    Pull Request : develop → main
+         ↓
+    Merge → main → Auto-deploy Vercel + Edge Functions
 ```
 
-## Fichiers modifiés
+**Règle absolue** : Lovable ne pousse JAMAIS dans `main`. Tout commit va dans `develop`. Le merge vers `main` se fait uniquement via Pull Request approuvée, ce qui déclenche le déploiement production.
 
-| Fichier | Changement |
-|---|---|
-| `supabase/functions/impersonate-user/index.ts` | **Nouveau** — Edge Function qui vérifie les permissions de l'appelant puis génère un magic link via `auth.admin.generateLink` |
-| `src/pages/AdminPage.tsx` | Remplacer `handleImpersonate` : appel à l'Edge Function + `window.open()` dans un nouvel onglet |
-| `src/hooks/useImpersonation.tsx` | Simplifier ou supprimer — l'impersonation est maintenant une vraie session dans un autre onglet |
-| `src/components/AppLayout.tsx` | Retirer la bannière d'impersonation client-side (plus nécessaire car nouvel onglet = vraie session) |
+## Contenu du SAFETY_POLICY.md
 
-## Détails techniques
+### A. Identité
+- Nom : ARE Platform
+- Domaine production : `are-app.cloud`
+- Deadline : présentation mardi (priorité haute, qualité maintenue)
 
-### Edge Function `impersonate-user`
-- Reçoit `{ target_user_id }` en POST
-- Vérifie que l'appelant (via JWT) est `superadmin` ou `admin` avec permission `impersonate_users`
-- Interdit l'impersonation d'un superadmin par un admin
-- Récupère l'email de la cible via `auth.admin.getUserById`
-- Génère un magic link via `auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo } })`
-- Retourne l'URL du magic link
+### B. Posture agent
+- Développeur senior full-stack + expert cybersécurité
+- Garant qualité code (zéro deprecation), sécurité backend, stabilité production
+- Chaque action passe par vérification SAFETY_POLICY avant exécution
 
-### Côté front (AdminPage)
-- Dialog de confirmation : "Voulez-vous vous connecter en tant que {nom} ?"
-- Si confirmé : appel fetch à l'Edge Function
-- Ouvre `window.open(magicLinkUrl, '_blank')` — nouvel onglet avec session de l'utilisateur
-- L'onglet admin reste inchangé avec sa propre session
+### C. Méthodologie Git Flow
+- Branche par défaut Lovable : `develop`
+- Production : `main` (protégée, merge uniquement via PR depuis `develop`)
+- Aucun push direct vers `main`
+- Edge Functions + migrations : même flux (develop → PR → main → deploy)
 
-### Migration SQL
-Aucune migration nécessaire. Les tables et permissions existantes suffisent.
+### D. Règles de sécurité
+1. Aucune migration destructive sans approbation
+2. RLS obligatoire sur toute table
+3. Edge Functions : JWT + validation rôle systématique
+4. Aucun secret dans le code source
+5. Validation inputs client ET serveur (Zod)
+6. CORS restrictif en production
+7. Notification des risques avant chaque action
 
-## Sécurité
-- Seuls les superadmins et admins autorisés peuvent appeler la fonction
-- Un admin ne peut pas impersonner un superadmin
-- Le magic link est à usage unique et expire rapidement
-- L'onglet admin conserve sa propre session intacte
+### E. Checklist pré-PR (develop → main)
+- RLS actives sur toutes les tables concernées
+- Aucune requête sans pagination
+- Pas de `console.log` de données sensibles
+- Pas de `dangerouslySetInnerHTML` sans DOMPurify
+- Zéro deprecation warning
+- Tests fonctionnels validés sur preview
+
+### F. Roadmap (inchangée)
+- Phase 0 : Safety Policy + domaine + PWA setup
+- Phase 1 : Workflow dynamique
+- Phase 2 : Mobile-First & PWA
+- Phase 3 : API & Intégrations
+- Phase 4-5 : Modules métier + Multi-tenant
+
+## Fichiers créés/modifiés
+
+| Fichier | Action |
+|---------|--------|
+| `SAFETY_POLICY.md` | Création avec contenu ci-dessus |
+| `mem://governance/safety-policy-ref` | Création — référence mémoire |
+| `mem://infrastructure/domaine-production-fr` | Mise à jour → `are-app.cloud` |
+| `mem://preference/git-flow-develop` | Création — règle develop-first |
+
+## Important
+- Aucun code applicatif modifié
+- Aucune migration SQL
+- La branche GitHub `develop` devra être créée manuellement par l'utilisateur (Lovable ne gère pas les branches par défaut)
 
