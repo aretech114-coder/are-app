@@ -189,7 +189,7 @@ export default function SystemConfigPage() {
     }
   };
 
-
+  const generateApiKey = async () => {
     if (!newKeyLabel.trim()) {
       toast.error("Veuillez saisir un libellé pour la clé");
       return;
