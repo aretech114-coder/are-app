@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Search, Sparkles, Paperclip, Clock, FileText, Mail } from "lucide-react";
+import { Search, Sparkles, Paperclip, Clock, FileText, Mail, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
@@ -19,6 +20,7 @@ import { MailDetailFields } from "@/components/MailDetailFields";
 
 export default function InboxPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [mails, setMails] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
   const [search, setSearch] = useState("");
@@ -79,6 +81,146 @@ export default function InboxPage() {
     if (!mail.deadline_at) return false;
     return new Date(mail.deadline_at) < new Date();
   };
+
+  const renderAiDialog = () => (
+    <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Assistant IA
+          </DialogTitle>
+        </DialogHeader>
+        <div className="min-h-[200px]">
+          {aiLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent mr-3" />
+              Génération en cours...
+            </div>
+          ) : (
+            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{aiContent}</div>
+          )}
+        </div>
+        {!aiLoading && aiContent && (
+          <div className="flex gap-2 pt-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              navigator.clipboard.writeText(aiContent);
+              toast.success("Copié dans le presse-papiers");
+            }}>
+              Copier
+            </Button>
+            {selected && (
+              <Button size="sm" onClick={async () => {
+                const { error } = await supabase.from("mails").update({ ai_draft: aiContent } as any).eq("id", selected.id);
+                if (error) toast.error(error.message);
+                else { toast.success("Brouillon IA sauvegardé"); fetchMails(); }
+              }}>
+                Sauvegarder comme brouillon
+              </Button>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  const renderDocDialog = () => (
+    <Dialog open={showDoc} onOpenChange={setShowDoc}>
+      <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Paperclip className="h-5 w-5" />
+            Pièce jointe
+          </DialogTitle>
+        </DialogHeader>
+        <div className="min-h-[300px] md:min-h-[500px] flex flex-col">
+          {selected?.attachment_url ? (
+            selected.attachment_url.match(/\.pdf/i) ? (
+              <div className="flex flex-col flex-1 gap-2">
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                      Ouvrir dans un nouvel onglet
+                    </a>
+                  </Button>
+                </div>
+                <iframe
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(selected.attachment_url)}&embedded=true`}
+                  className="w-full flex-1 min-h-[300px] md:min-h-[500px] rounded border"
+                  title="Document PDF"
+                />
+              </div>
+            ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)/i) ? (
+              <img
+                src={selected.attachment_url}
+                alt="Pièce jointe"
+                className="max-w-full max-h-[400px] md:max-h-[500px] object-contain mx-auto rounded"
+              />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                <FileText className="h-12 w-12" />
+                <p className="text-sm">Ce type de fichier ne peut pas être prévisualisé directement.</p>
+                <Button asChild variant="default">
+                  <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                    Télécharger le fichier
+                  </a>
+                </Button>
+              </div>
+            )
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucune pièce jointe</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (isMobile && selected) {
+    return (
+      <div className="animate-fade-in flex flex-col h-[calc(100vh-7.5rem)]">
+        <div className="flex items-center gap-2 mb-3">
+          <Button variant="ghost" size="icon" onClick={() => setSelected(null)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-base font-semibold truncate flex-1">{selected.subject}</h1>
+        </div>
+        <div className="flex-1 overflow-auto space-y-3">
+          <div className="px-1">
+            <WorkflowStepper currentStep={selected.current_step || 1} />
+          </div>
+          <div className="px-1">
+            <p className="text-sm text-muted-foreground">
+              De: {selected.sender_name} {selected.sender_organization && `— ${selected.sender_organization}`}
+            </p>
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {format(new Date(selected.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
+              </span>
+              <span className="font-mono">{selected.reference_number}</span>
+            </div>
+          </div>
+          <MailDetailFields mail={selected} />
+          {selected.attachment_url && (
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/20">
+              <Paperclip className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm truncate flex-1">Pièce jointe</span>
+              <Button size="sm" variant="default" onClick={() => setShowDoc(true)}>Voir</Button>
+            </div>
+          )}
+          <TreatmentsList mailId={selected.id} />
+          {selected.current_step >= 3 && selected.current_step <= 9 && (
+            <Step4ContextPanel mailId={selected.id} />
+          )}
+        </div>
+        <div className="pt-3 border-t mt-2">
+          <WorkflowActions mailId={selected.id} currentStep={selected.current_step || 1} onAdvanced={fetchMails} />
+        </div>
+        {renderAiDialog()}
+        {renderDocDialog()}
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in h-[calc(100vh-8rem)]">
@@ -275,94 +417,8 @@ export default function InboxPage() {
         </div>
       </div>
 
-      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Assistant IA
-            </DialogTitle>
-          </DialogHeader>
-          <div className="min-h-[200px]">
-            {aiLoading ? (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent mr-3" />
-                Génération en cours...
-              </div>
-            ) : (
-              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{aiContent}</div>
-            )}
-          </div>
-          {!aiLoading && aiContent && (
-            <div className="flex gap-2 pt-2">
-              <Button size="sm" variant="outline" onClick={() => {
-                navigator.clipboard.writeText(aiContent);
-                toast.success("Copié dans le presse-papiers");
-              }}>
-                Copier
-              </Button>
-              {selected && (
-                <Button size="sm" onClick={async () => {
-                  const { error } = await supabase.from("mails").update({ ai_draft: aiContent } as any).eq("id", selected.id);
-                  if (error) toast.error(error.message);
-                  else { toast.success("Brouillon IA sauvegardé"); fetchMails(); }
-                }}>
-                  Sauvegarder comme brouillon
-                </Button>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showDoc} onOpenChange={setShowDoc}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Paperclip className="h-5 w-5" />
-              Pièce jointe
-            </DialogTitle>
-          </DialogHeader>
-          <div className="min-h-[500px] flex flex-col">
-            {selected?.attachment_url ? (
-              selected.attachment_url.match(/\.pdf/i) ? (
-                <div className="flex flex-col flex-1 gap-2">
-                  <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
-                        Ouvrir dans un nouvel onglet
-                      </a>
-                    </Button>
-                  </div>
-                  <iframe
-                    src={`https://docs.google.com/gview?url=${encodeURIComponent(selected.attachment_url)}&embedded=true`}
-                    className="w-full flex-1 min-h-[500px] rounded border"
-                    title="Document PDF"
-                  />
-                </div>
-              ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)/i) ? (
-                <img
-                  src={selected.attachment_url}
-                  alt="Pièce jointe"
-                  className="max-w-full max-h-[500px] object-contain mx-auto rounded"
-                />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                  <FileText className="h-12 w-12" />
-                  <p className="text-sm">Ce type de fichier ne peut pas être prévisualisé directement.</p>
-                  <Button asChild variant="default">
-                    <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
-                      Télécharger le fichier
-                    </a>
-                  </Button>
-                </div>
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">Aucune pièce jointe</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {renderAiDialog()}
+      {renderDocDialog()}
     </div>
   );
 }
