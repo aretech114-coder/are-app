@@ -211,7 +211,7 @@ function buildReminderHtml(name: string, mail: any, reminderNum: number, isUrgen
       <p style="margin:0 0 8px;color:#333;font-size:14px;"><strong>Objet :</strong> ${mail.subject}</p>
       <p style="margin:0;color:#666;font-size:13px;"><strong>Réf :</strong> ${mail.reference_number}</p>
     </div>
-    <p style="color:#888;font-size:12px;margin:24px 0 0;">Cet e-mail a été envoyé automatiquement par le système CourierPro.</p>
+    <p style="color:#888;font-size:12px;margin:24px 0 0;"><p style="color:#888;font-size:12px;margin:24px 0 0;">Cet e-mail a été envoyé automatiquement par le système ARE App.</p></p>
   </div>
 </div></body></html>`;
 }

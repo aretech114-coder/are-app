@@ -50,7 +50,7 @@ export function AppSidebar() {
           </div>
         )}
         <div className="flex flex-col">
-          <span className="text-sm font-semibold text-sidebar-accent-foreground">{settings.site_title || "CourierPro"}</span>
+          <span className="text-sm font-semibold text-sidebar-accent-foreground"><span className="text-sm font-semibold text-sidebar-accent-foreground">{settings.site_title || "ARE App"}</span></span>
           <span className="text-xs text-sidebar-foreground">{settings.site_subtitle || "Gestion Courrier"}</span>
         </div>
       </div>
