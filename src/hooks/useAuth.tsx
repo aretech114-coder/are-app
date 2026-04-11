@@ -15,6 +15,7 @@ interface AuthContext {
   profile: any | null;
   permissions: AdminPermission[];
   loading: boolean;
+  tenantId: string | null;
   signOut: () => Promise<void>;
   hasPermission: (key: string) => boolean;
   refreshPermissions: () => Promise<void>;
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContext>({
   profile: null,
   permissions: [],
   loading: true,
+  tenantId: null,
   signOut: async () => {},
   hasPermission: () => false,
   refreshPermissions: async () => {},
@@ -114,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, signOut, hasPermission, refreshPermissions: fetchPermissions }}>
+    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, tenantId: profile?.tenant_id || null, signOut, hasPermission, refreshPermissions: fetchPermissions }}>
       {children}
     </AuthContext.Provider>
   );

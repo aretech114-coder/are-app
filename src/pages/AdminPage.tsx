@@ -96,8 +96,12 @@ export default function AdminPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editTenantId, setEditTenantId] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // Tenants list for dropdown
+  const [tenantsList, setTenantsList] = useState<{ id: string; name: string }[]>([]);
 
   // Delete dialog state
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -220,10 +224,18 @@ export default function AdminPage() {
     toast.success("Permission admin mise à jour");
   };
 
+  const fetchTenantsList = async () => {
+    const { data } = await supabase.from("tenants").select("id, name").eq("is_active", true);
+    setTenantsList(data || []);
+  };
+
   useEffect(() => {
     fetchRoles();
     fetchUsers();
-    if (isSuperAdmin) fetchAdminUserPermissions();
+    if (isSuperAdmin) {
+      fetchAdminUserPermissions();
+      fetchTenantsList();
+    }
   }, [isSuperAdmin]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -306,6 +318,7 @@ export default function AdminPage() {
     setEditEmail(u.email || "");
     setEditPassword("");
     setEditRole(userRole);
+    setEditTenantId(u.tenant_id || "");
     setEditOpen(true);
   };
 
@@ -338,16 +351,35 @@ export default function AdminPage() {
         return;
       }
 
-      const res = await supabase.functions.invoke("update-user", { body });
-      if (res.error) {
-        toast.error(res.error.message || "Erreur");
-      } else if (res.data?.error) {
-        toast.error(res.data.error);
-      } else {
-        toast.success("Utilisateur mis à jour");
-        setEditOpen(false);
-        fetchUsers();
+      // Update tenant assignment directly on profile (not via edge function)
+      const newTenantId = editTenantId || null;
+      const currentTenantId = editUser.tenant_id || null;
+      if (newTenantId !== currentTenantId) {
+        await supabase.from("profiles").update({ tenant_id: newTenantId } as any).eq("id", editUser.id);
       }
+
+      if (Object.keys(body).length === 1 && newTenantId === currentTenantId) {
+        toast.error("Aucune modification autorisée à enregistrer");
+        setSaving(false);
+        return;
+      }
+
+      if (Object.keys(body).length > 1) {
+        const res = await supabase.functions.invoke("update-user", { body });
+        if (res.error) {
+          toast.error(res.error.message || "Erreur");
+          setSaving(false);
+          return;
+        } else if (res.data?.error) {
+          toast.error(res.data.error);
+          setSaving(false);
+          return;
+        }
+      }
+
+      toast.success("Utilisateur mis à jour");
+      setEditOpen(false);
+      fetchUsers();
     } catch (err: any) {
       toast.error(err.message || "Erreur inattendue");
     } finally {
@@ -876,6 +908,20 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
             </div>
+            {isSuperAdmin && tenantsList.length > 0 && (
+              <div className="space-y-2">
+                <Label>Organisation</Label>
+                <Select value={editTenantId} onValueChange={setEditTenantId} disabled={saving}>
+                  <SelectTrigger><SelectValue placeholder="Aucune organisation" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucune</SelectItem>
+                    {tenantsList.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>Annuler</Button>

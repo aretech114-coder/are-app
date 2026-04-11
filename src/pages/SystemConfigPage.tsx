@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus, Building2, Loader2 } from "lucide-react";
 import { APP_URL } from "@/lib/constants";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
@@ -83,6 +83,13 @@ export default function SystemConfigPage() {
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
 
+  // Tenants
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [newTenantName, setNewTenantName] = useState("");
+  const [newTenantDomain, setNewTenantDomain] = useState("");
+  const [creatingTenant, setCreatingTenant] = useState(false);
+
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
   const [fontHeading, setFontHeading] = useState("Inter");
@@ -118,6 +125,7 @@ export default function SystemConfigPage() {
   useEffect(() => {
     fetchPermissions();
     fetchApiKeys();
+    fetchTenants();
   }, []);
 
   const fetchPermissions = async () => {
@@ -136,6 +144,49 @@ export default function SystemConfigPage() {
       .select("id, label, is_active, created_at, last_used_at")
       .order("created_at", { ascending: false });
     if (!error && data) setApiKeys(data as any);
+  };
+
+  const fetchTenants = async () => {
+    setTenantsLoading(true);
+    const { data, error } = await supabase
+      .from("tenants")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) setTenants(data);
+    setTenantsLoading(false);
+  };
+
+  const createTenant = async () => {
+    if (!newTenantName.trim()) {
+      toast.error("Le nom de l'organisation est requis");
+      return;
+    }
+    setCreatingTenant(true);
+    const { error } = await supabase.from("tenants").insert({
+      name: newTenantName.trim(),
+      domain: newTenantDomain.trim() || null,
+    } as any);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Organisation créée");
+      setNewTenantName("");
+      setNewTenantDomain("");
+      fetchTenants();
+    }
+    setCreatingTenant(false);
+  };
+
+  const toggleTenantActive = async (id: string, currentValue: boolean) => {
+    const { error } = await supabase
+      .from("tenants")
+      .update({ is_active: !currentValue } as any)
+      .eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(!currentValue ? "Organisation activée" : "Organisation désactivée");
+      fetchTenants();
+    }
   };
 
   const generateApiKey = async () => {
@@ -801,6 +852,72 @@ export default function SystemConfigPage() {
               Réinitialiser
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Organisations / Multi-tenant */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Organisations (Multi-tenant)
+          </CardTitle>
+          <CardDescription>
+            Gérez les organisations. Chaque organisation isole ses données (courriers, utilisateurs, missions).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2 flex-col sm:flex-row">
+            <Input
+              value={newTenantName}
+              onChange={(e) => setNewTenantName(e.target.value)}
+              placeholder="Nom de l'organisation"
+              className="flex-1"
+            />
+            <Input
+              value={newTenantDomain}
+              onChange={(e) => setNewTenantDomain(e.target.value)}
+              placeholder="Domaine (optionnel)"
+              className="flex-1"
+            />
+            <Button onClick={createTenant} disabled={creatingTenant}>
+              {creatingTenant ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Ajouter
+            </Button>
+          </div>
+
+          {tenantsLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : tenants.length > 0 ? (
+            <div className="space-y-2">
+              {tenants.map((t) => (
+                <div
+                  key={t.id}
+                  className={`flex items-center justify-between py-2.5 px-3 rounded-lg border ${
+                    t.is_active ? "bg-muted/30" : "bg-muted/10 opacity-50"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t.domain || "Aucun domaine"}
+                      {!t.is_active && " · Inactive"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={t.is_active}
+                    onCheckedChange={() => toggleTenantActive(t.id, t.is_active)}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Aucune organisation créée
+            </p>
+          )}
         </CardContent>
       </Card>
 
