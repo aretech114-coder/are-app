@@ -1,49 +1,47 @@
 
 
-# Revue complète : anomalies et oublis detectes
+# Plan : Header mobile natif — logo, tagline & fond continu
 
-## Bugs trouvés
+## Problèmes identifiés
+1. **Double texte** : "ARE" (initiales) + "ARE App" (titre) s'affichent côté mobile — garder uniquement le logo + "ARE App"
+2. **Fond bleu incomplet** : le bleu du header ne couvre pas la zone de la barre d'état (heure, batterie, réseau)
+3. **Pas de logo par défaut** : quand aucun logo n'est uploadé, on affiche juste du texte
+4. **Pas de tagline** : ajouter "Gestion des courriers" sous le titre, configurable via CMS
 
-### 1. Double balise `<h1>` imbriquée (Auth.tsx + ForgotPasswordPage.tsx)
-- **Auth.tsx ligne 48** : `<h1 className="text-2xl font-bold"><h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1></h1>`
-- **ForgotPasswordPage.tsx ligne 49** : meme probleme identique
-- **Impact** : HTML invalide, accessibilite cassee
+## Corrections
 
-### 2. Titre HTML tronqué dans `index.html`
-- Ligne 6 : `<title>ARE A</title>` au lieu de `ARE App`
-- Les meta OG aussi : `"ARE A"` tronqué
+### 1. `AppLayout.tsx` — Refonte header mobile
+- Supprimer l'affichage conditionnel des initiales (`sidebar_initials || "ARE"`)
+- Afficher toujours : **logo** (uploadé ou généré par défaut) + **"ARE App"** + **tagline**
+- Ajouter `pt-[env(safe-area-inset-top)]` sur le header mobile pour que le fond bleu couvre la zone de la barre d'état
+- Tagline : `settings.site_tagline || "Gestion des courriers"` en texte 10px, opacité 80%
 
-### 3. `manifest.json` theme_color desynchronise
-- Valeur statique `#0F172A` alors que le primary est `#0EA5E9`
-- Le JS met a jour dynamiquement le meta tag mais pas le manifest
+### 2. `index.html` — Status bar style
+- Changer `apple-mobile-web-app-status-bar-style` de `black-translucent` à `default` pour forcer le fond bleu sous la barre d'état en PWA
 
-### 4. Import `useState` inutilisé dans `AppLayout.tsx`
-- Ligne 1 : `useState` importé mais jamais utilisé (warning TypeScript/lint)
+### 3. Logo par défaut (SVG inline)
+- Générer un petit SVG minimaliste (enveloppe/courrier stylisée) comme logo par défaut quand `sidebar_logo_url` est vide
+- 28x28px, blanc sur fond transparent, intégré directement dans le composant
 
-### 5. `InstallGuide` s'affiche dans l'iframe de preview Lovable
-- Pas de garde contre `window.self !== window.top` ni les domaines preview
-- Risque d'afficher le guide d'installation dans l'editeur
+### 4. `useSiteSettings.tsx` — Ajouter `site_tagline`
+- Ajouter `site_tagline` à l'interface `SiteSettings` avec default `"Gestion des courriers"`
+- Limite : 40 caractères max (environ 3-4 mots)
 
-### 6. Default route `/` pour non-reception
-- L'utilisateur connecté arrive sur `/` (Dashboard) mais le bottom nav mobile ne highlight rien car aucun onglet ne pointe vers `/`
-- **Correction** : rediriger vers `/inbox` par defaut apres login
+### 5. `SystemConfigPage.tsx` — Champ tagline dans CMS
+- Ajouter un champ texte "Description courte (tagline)" dans la section Identité
+- `maxLength={40}` avec compteur de caractères affiché
+- Insérer le setting `site_tagline` dans la base si absent
 
-### 7. `notify_password_reset_request` appele sans authentification
-- Sur ForgotPasswordPage, l'utilisateur n'est pas connecté => l'appel RPC utilise l'anon key
-- La RPC est SECURITY DEFINER donc elle fonctionne, mais il faudrait verifier que l'anon role a bien le droit EXECUTE sur cette fonction
+### 6. Migration SQL — Insérer le setting `site_tagline`
+- INSERT du nouveau setting via l'outil d'insertion de données
 
-## Plan de correction
+## Fichiers impactés
 
-| # | Fichier | Correction |
-|---|---------|-----------|
-| 1 | `src/pages/Auth.tsx` | Supprimer le `<h1>` imbriqué |
-| 2 | `src/pages/ForgotPasswordPage.tsx` | Supprimer le `<h1>` imbriqué |
-| 3 | `index.html` | Corriger titre `ARE App` et meta OG |
-| 4 | `public/manifest.json` | Aligner `theme_color` sur `#0EA5E9` |
-| 5 | `src/components/AppLayout.tsx` | Retirer import `useState` inutilisé |
-| 6 | `src/components/InstallGuide.tsx` | Ajouter garde iframe/preview host |
-| 7 | `src/App.tsx` | Rediriger `/` vers `/inbox` pour les roles non-reception |
-| 8 | Migration SQL | Accorder EXECUTE sur `notify_password_reset_request` au role anon |
-
-Toutes ces corrections sont mineures et peuvent etre faites en une seule passe.
+| Fichier | Action |
+|---------|--------|
+| `src/components/AppLayout.tsx` | Refonte header mobile, logo SVG, tagline, safe-area |
+| `index.html` | Status bar style |
+| `src/hooks/useSiteSettings.tsx` | Ajouter `site_tagline` |
+| `src/pages/SystemConfigPage.tsx` | Champ tagline avec limite caractères |
+| Insertion données | Setting `site_tagline` |
 
