@@ -351,16 +351,35 @@ export default function AdminPage() {
         return;
       }
 
-      const res = await supabase.functions.invoke("update-user", { body });
-      if (res.error) {
-        toast.error(res.error.message || "Erreur");
-      } else if (res.data?.error) {
-        toast.error(res.data.error);
-      } else {
-        toast.success("Utilisateur mis à jour");
-        setEditOpen(false);
-        fetchUsers();
+      // Update tenant assignment directly on profile (not via edge function)
+      const newTenantId = editTenantId || null;
+      const currentTenantId = editUser.tenant_id || null;
+      if (newTenantId !== currentTenantId) {
+        await supabase.from("profiles").update({ tenant_id: newTenantId } as any).eq("id", editUser.id);
       }
+
+      if (Object.keys(body).length === 1 && newTenantId === currentTenantId) {
+        toast.error("Aucune modification autorisée à enregistrer");
+        setSaving(false);
+        return;
+      }
+
+      if (Object.keys(body).length > 1) {
+        const res = await supabase.functions.invoke("update-user", { body });
+        if (res.error) {
+          toast.error(res.error.message || "Erreur");
+          setSaving(false);
+          return;
+        } else if (res.data?.error) {
+          toast.error(res.data.error);
+          setSaving(false);
+          return;
+        }
+      }
+
+      toast.success("Utilisateur mis à jour");
+      setEditOpen(false);
+      fetchUsers();
     } catch (err: any) {
       toast.error(err.message || "Erreur inattendue");
     } finally {
