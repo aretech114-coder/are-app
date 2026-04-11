@@ -25,6 +25,7 @@ import ReceptionDashboard from "./pages/ReceptionDashboard";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
+import AccountPage from "./pages/AccountPage";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,7 @@ function AppRoutes() {
       <Route path="/archive" element={<ProtectedRoute><ReceptionRoute><ArchivePage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><ReceptionRoute><AnalyticsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminPage /></AdminRoute></ProtectedRoute>} />
       <Route path="/workflow" element={<ProtectedRoute><WorkflowRoute><WorkflowPage /></WorkflowRoute></ProtectedRoute>} />
       <Route path="/missions" element={<ProtectedRoute><ReceptionRoute><MissionsPage /></ReceptionRoute></ProtectedRoute>} />

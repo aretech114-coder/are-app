@@ -8,8 +8,6 @@ const tabs = [
   { label: "Missions", path: "/missions", icon: Plane },
   { label: "Compte", path: "/account", icon: User },
 ];
-  { label: "Compte", path: "/profile", icon: User },
-];
 
 export function MobileBottomNav() {
   const location = useLocation();
