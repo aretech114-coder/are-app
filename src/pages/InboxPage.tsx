@@ -82,6 +82,54 @@ export default function InboxPage() {
     return new Date(mail.deadline_at) < new Date();
   };
 
+  // Mobile: if a mail is selected, show detail full-screen
+  if (isMobile && selected) {
+    return (
+      <div className="animate-fade-in flex flex-col h-[calc(100vh-7.5rem)]">
+        <div className="flex items-center gap-2 mb-3">
+          <Button variant="ghost" size="icon" onClick={() => setSelected(null)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-base font-semibold truncate flex-1">{selected.subject}</h1>
+        </div>
+        <div className="flex-1 overflow-auto space-y-3">
+          <div className="px-1">
+            <WorkflowStepper currentStep={selected.current_step || 1} />
+          </div>
+          <div className="px-1">
+            <p className="text-sm text-muted-foreground">
+              De: {selected.sender_name} {selected.sender_organization && `— ${selected.sender_organization}`}
+            </p>
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {format(new Date(selected.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
+              </span>
+              <span className="font-mono">{selected.reference_number}</span>
+            </div>
+          </div>
+          <MailDetailFields mail={selected} />
+          {selected.attachment_url && (
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/20">
+              <Paperclip className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm truncate flex-1">Pièce jointe</span>
+              <Button size="sm" variant="default" onClick={() => setShowDoc(true)}>Voir</Button>
+            </div>
+          )}
+          <TreatmentsList mailId={selected.id} />
+          {selected.current_step >= 3 && selected.current_step <= 9 && (
+            <Step4ContextPanel mailId={selected.id} />
+          )}
+        </div>
+        <div className="pt-3 border-t mt-2">
+          <WorkflowActions mailId={selected.id} currentStep={selected.current_step || 1} onAdvanced={fetchMails} />
+        </div>
+        {renderAiDialog()}
+        {renderDocDialog()}
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in h-[calc(100vh-8rem)]">
       <div className="mb-4">
