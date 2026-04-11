@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.notify_password_reset_request(text) TO anon;

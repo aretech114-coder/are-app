@@ -45,7 +45,7 @@ export default function Auth() {
               {settings.sidebar_initials || "ARE"}
             </div>
           )}
-          <h1 className="text-2xl font-bold"><h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1></h1>
+          <h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1>
           <p className="text-muted-foreground text-sm mt-1">Système de Gestion Électronique du Courrier</p>
         </div>
 

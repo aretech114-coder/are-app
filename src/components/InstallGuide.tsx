@@ -16,6 +16,11 @@ export function InstallGuide() {
   const [platform, setPlatform] = useState<"ios" | "android" | "other">("other");
 
   useEffect(() => {
+    // Don't show in iframes or Lovable preview
+    const isInIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
+    const isPreviewHost = window.location.hostname.includes("id-preview--") || window.location.hostname.includes("lovableproject.com") || window.location.hostname.includes("lovable.app");
+    if (isInIframe || isPreviewHost) return;
+
     // Don't show if already in standalone mode or previously dismissed
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches
       || (navigator as any).standalone === true;
