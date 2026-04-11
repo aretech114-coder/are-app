@@ -908,6 +908,20 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
             </div>
+            {isSuperAdmin && tenantsList.length > 0 && (
+              <div className="space-y-2">
+                <Label>Organisation</Label>
+                <Select value={editTenantId} onValueChange={setEditTenantId} disabled={saving}>
+                  <SelectTrigger><SelectValue placeholder="Aucune organisation" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucune</SelectItem>
+                    {tenantsList.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>Annuler</Button>
