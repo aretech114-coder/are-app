@@ -1,47 +1,64 @@
 
 
-# Plan : Header mobile natif — logo, tagline & fond continu
+# Plan : Arrière-plan personnalisable (login) + Page Hub "Compte" mobile
 
-## Problèmes identifiés
-1. **Double texte** : "ARE" (initiales) + "ARE App" (titre) s'affichent côté mobile — garder uniquement le logo + "ARE App"
-2. **Fond bleu incomplet** : le bleu du header ne couvre pas la zone de la barre d'état (heure, batterie, réseau)
-3. **Pas de logo par défaut** : quand aucun logo n'est uploadé, on affiche juste du texte
-4. **Pas de tagline** : ajouter "Gestion des courriers" sous le titre, configurable via CMS
+## 1. Arrière-plan de la page de connexion (Auth.tsx)
 
-## Corrections
+**Objectif** : Le superadmin peut choisir soit une couleur uniforme, soit uploader une image comme arrière-plan de la page de connexion.
 
-### 1. `AppLayout.tsx` — Refonte header mobile
-- Supprimer l'affichage conditionnel des initiales (`sidebar_initials || "ARE"`)
-- Afficher toujours : **logo** (uploadé ou généré par défaut) + **"ARE App"** + **tagline**
-- Ajouter `pt-[env(safe-area-inset-top)]` sur le header mobile pour que le fond bleu couvre la zone de la barre d'état
-- Tagline : `settings.site_tagline || "Gestion des courriers"` en texte 10px, opacité 80%
+### Modifications :
+- **`useSiteSettings.tsx`** : Ajouter deux clés : `login_bg_color` (défaut `#FFFFFF`) et `login_bg_image_url` (défaut vide)
+- **`SystemConfigPage.tsx`** : Dans la section Branding, ajouter :
+  - Un color picker "Couleur de fond (page connexion)"
+  - Un champ upload "Image de fond (page connexion)" — taille recommandée 1920x1080, stocké dans le bucket `branding` sous `login-bg.*`
+  - Si une image est uploadée, elle prend la priorité sur la couleur
+- **`Auth.tsx`** : Remplacer `bg-background` par un style dynamique :
+  - Si `login_bg_image_url` existe → `background-image: url(...)` avec `cover` + `center`
+  - Sinon si `login_bg_color` défini → `background-color: <couleur>`
+  - Sinon → blanc par défaut
+  - Ajouter un overlay semi-transparent pour la lisibilité du formulaire si image
+- **`ForgotPasswordPage.tsx`** : Appliquer le même arrière-plan pour cohérence
+- **Insertion données** : Ajouter les settings `login_bg_color` et `login_bg_image_url` dans `site_settings`
 
-### 2. `index.html` — Status bar style
-- Changer `apple-mobile-web-app-status-bar-style` de `black-translucent` à `default` pour forcer le fond bleu sous la barre d'état en PWA
+## 2. Page Hub "Compte" mobile (nouvelle page)
 
-### 3. Logo par défaut (SVG inline)
-- Générer un petit SVG minimaliste (enveloppe/courrier stylisée) comme logo par défaut quand `sidebar_logo_url` est vide
-- 28x28px, blanc sur fond transparent, intégré directement dans le composant
+**Objectif** : L'onglet "Compte" du bottom nav ne renvoie plus directement vers `/profile` mais vers une page hub `/account` qui liste les fonctionnalités accessibles selon le rôle.
 
-### 4. `useSiteSettings.tsx` — Ajouter `site_tagline`
-- Ajouter `site_tagline` à l'interface `SiteSettings` avec default `"Gestion des courriers"`
-- Limite : 40 caractères max (environ 3-4 mots)
+### Nouvelle page `src/pages/AccountPage.tsx` :
+- Header avec avatar, nom et rôle de l'utilisateur
+- Liste de liens sous forme de cards/lignes cliquables, filtrées par rôle :
 
-### 5. `SystemConfigPage.tsx` — Champ tagline dans CMS
-- Ajouter un champ texte "Description courte (tagline)" dans la section Identité
-- `maxLength={40}` avec compteur de caractères affiché
-- Insérer le setting `site_tagline` dans la base si absent
+| Élément | Route | Rôles autorisés |
+|---------|-------|-----------------|
+| Tableau de bord | `/` | superadmin, admin, ministre, dircab |
+| Statistiques | `/analytics` | tous sauf reception |
+| Tableau de suivi | `/suivi` | ministre, dircab, superadmin, admin |
+| Profil | `/profile` | tous |
+| Enregistrement | `/mail-entry` | reception, admin, superadmin |
+| Administration | `/admin` | admin (manage_users), superadmin |
+| Workflow | `/workflow` | admin (manage_workflow), superadmin |
+| Configuration système | `/system-config` | superadmin |
+| Archives | `/archive` | tous sauf reception |
 
-### 6. Migration SQL — Insérer le setting `site_tagline`
-- INSERT du nouveau setting via l'outil d'insertion de données
+- Section "Préférences" :
+  - Toggle mode sombre/clair (réutilise `ThemeToggle`)
+  - Lien vers changement de mot de passe (ancre vers `/profile#password` ou directement dans la page)
+- Bouton "Se déconnecter" en bas (rouge)
+
+### Routing :
+- **`App.tsx`** : Ajouter route `/account` → `AccountPage`
+- **`MobileBottomNav.tsx`** : Changer le path du dernier onglet de `/profile` à `/account`
 
 ## Fichiers impactés
 
 | Fichier | Action |
 |---------|--------|
-| `src/components/AppLayout.tsx` | Refonte header mobile, logo SVG, tagline, safe-area |
-| `index.html` | Status bar style |
-| `src/hooks/useSiteSettings.tsx` | Ajouter `site_tagline` |
-| `src/pages/SystemConfigPage.tsx` | Champ tagline avec limite caractères |
-| Insertion données | Setting `site_tagline` |
+| `src/pages/AccountPage.tsx` | Nouveau — hub mobile avec menus par rôle |
+| `src/pages/Auth.tsx` | Arrière-plan dynamique (image ou couleur) |
+| `src/pages/ForgotPasswordPage.tsx` | Même arrière-plan |
+| `src/hooks/useSiteSettings.tsx` | Ajouter `login_bg_color`, `login_bg_image_url` |
+| `src/pages/SystemConfigPage.tsx` | Color picker + upload image de fond |
+| `src/components/MobileBottomNav.tsx` | Pointer vers `/account` |
+| `src/App.tsx` | Route `/account` |
+| Insertion données | 2 nouveaux settings |
 
