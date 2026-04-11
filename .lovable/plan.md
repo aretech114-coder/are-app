@@ -1,74 +1,34 @@
 
 
-# Plan révisé : SAFETY_POLICY.md + Mémoires projet
+# Plan : Mise à jour SAFETY_POLICY.md — Protocole migrations SQL manuelles
 
-## Correction principale : Git Flow
+## Objectif
 
-Le flux Git est corrigé comme suit :
+Ajouter une section dans le Safety Policy qui décrit le protocole de gestion des migrations SQL une fois GitHub activé. Ce protocole prévoit que pour toute modification structurelle (ajout/modification de tables, colonnes, RLS, fonctions RPC, triggers), un fichier SQL téléchargeable sera généré pour exécution manuelle dans le SQL Editor de la base de données.
 
-```text
-Lovable → develop (branch par défaut)
-         ↓
-    Pull Request : develop → main
-         ↓
-    Merge → main → Auto-deploy Vercel + Edge Functions
-```
+## Ce qui change
 
-**Règle absolue** : Lovable ne pousse JAMAIS dans `main`. Tout commit va dans `develop`. Le merge vers `main` se fait uniquement via Pull Request approuvée, ce qui déclenche le déploiement production.
+**Fichier modifié : `SAFETY_POLICY.md`**
 
-## Contenu du SAFETY_POLICY.md
+Ajout d'une nouvelle sous-section **D6. Migrations SQL contrôlées** dans la section D (Règles de sécurité), avec les règles suivantes :
 
-### A. Identité
-- Nom : ARE Platform
-- Domaine production : `are-app.cloud`
-- Deadline : présentation mardi (priorité haute, qualité maintenue)
+1. **Mode actuel (pré-GitHub)** : Les migrations sont exécutées via l'outil de migration Lovable Cloud (comportement actuel, inchangé).
+2. **Mode GitHub (à activer sur signal)** : Dès activation, toute migration structurelle (CREATE TABLE, ALTER TABLE, CREATE/ALTER FUNCTION, CREATE POLICY, etc.) génère un fichier `.sql` téléchargeable dans `/mnt/documents/migrations/`.
+3. **Contenu du fichier** : Le SQL complet, commenté, prêt à copier-coller dans le SQL Editor.
+4. **Vérification Safety Policy** : Avant chaque génération, vérifier les règles D1 (RLS, pas de migration destructive sans approbation, UUID, etc.).
+5. **Nomenclature** : `YYYY-MM-DD_description.sql` (ex: `2026-04-11_add_color_columns_to_site_settings.sql`).
+6. **Aucune exécution automatique** en mode GitHub — le collaborateur humain exécute manuellement après revue.
 
-### B. Posture agent
-- Développeur senior full-stack + expert cybersécurité
-- Garant qualité code (zéro deprecation), sécurité backend, stabilité production
-- Chaque action passe par vérification SAFETY_POLICY avant exécution
+Mise à jour correspondante de la **mémoire projet** pour référencer cette règle.
 
-### C. Méthodologie Git Flow
-- Branche par défaut Lovable : `develop`
-- Production : `main` (protégée, merge uniquement via PR depuis `develop`)
-- Aucun push direct vers `main`
-- Edge Functions + migrations : même flux (develop → PR → main → deploy)
-
-### D. Règles de sécurité
-1. Aucune migration destructive sans approbation
-2. RLS obligatoire sur toute table
-3. Edge Functions : JWT + validation rôle systématique
-4. Aucun secret dans le code source
-5. Validation inputs client ET serveur (Zod)
-6. CORS restrictif en production
-7. Notification des risques avant chaque action
-
-### E. Checklist pré-PR (develop → main)
-- RLS actives sur toutes les tables concernées
-- Aucune requête sans pagination
-- Pas de `console.log` de données sensibles
-- Pas de `dangerouslySetInnerHTML` sans DOMPurify
-- Zéro deprecation warning
-- Tests fonctionnels validés sur preview
-
-### F. Roadmap (inchangée)
-- Phase 0 : Safety Policy + domaine + PWA setup
-- Phase 1 : Workflow dynamique
-- Phase 2 : Mobile-First & PWA
-- Phase 3 : API & Intégrations
-- Phase 4-5 : Modules métier + Multi-tenant
-
-## Fichiers créés/modifiés
+## Fichiers impactés
 
 | Fichier | Action |
 |---------|--------|
-| `SAFETY_POLICY.md` | Création avec contenu ci-dessus |
-| `mem://governance/safety-policy-ref` | Création — référence mémoire |
-| `mem://infrastructure/domaine-production-fr` | Mise à jour → `are-app.cloud` |
-| `mem://preference/git-flow-develop` | Création — règle develop-first |
+| `SAFETY_POLICY.md` | Ajout section D6 |
+| `mem://governance/safety-policy-ref` | Mise à jour référence |
 
-## Important
-- Aucun code applicatif modifié
-- Aucune migration SQL
-- La branche GitHub `develop` devra être créée manuellement par l'utilisateur (Lovable ne gère pas les branches par défaut)
+## Statut
+
+Le mode GitHub n'est **pas encore activé**. Les migrations continuent via l'outil Lovable Cloud jusqu'à signal explicite.
 
