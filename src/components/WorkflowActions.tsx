@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { advanceWorkflow, getStepInfo } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
+import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin } from "lucide-react";
@@ -248,12 +249,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       // Upload attachment if provided
       let annotationAttachmentUrl: string | null = null;
       if (attachmentFile) {
-        const sanitizedName = attachmentFile.name
+        const { file: compressedFile, originalSize, compressedSize, wasCompressed } = await compressFile(attachmentFile);
+        if (wasCompressed) {
+          toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
+        }
+        const sanitizedName = compressedFile.name
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
           .replace(/[^a-zA-Z0-9._-]/g, "_")
           .replace(/_+/g, "_");
         const filePath = `annotations/${mailId}/${Date.now()}_${sanitizedName}`;
-        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, attachmentFile);
+        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, compressedFile);
         if (uploadErr) throw uploadErr;
         const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
         annotationAttachmentUrl = urlData?.signedUrl || null;
