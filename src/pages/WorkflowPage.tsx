@@ -228,11 +228,11 @@ export default function WorkflowPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {WORKFLOW_STEPS.filter((step) => step.step >= 2).map((step) => {
-            const config = responsibleByStep.get(step.step);
+          {workflowSteps.filter((step) => step.step_order >= 2).map((step) => {
+            const config = responsibleByStep.get(step.step_order);
             const selectedUserId = config?.default_user_id || "none";
             const selectedUser = selectedUserId !== "none" ? usersMap.get(selectedUserId) : null;
-            const isManagedDefaultStep = MANAGED_DEFAULT_STEPS.includes(step.step);
+            const isManagedDefaultStep = MANAGED_DEFAULT_STEPS.includes(step.step_order);
 
             return (
               <div
