@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus } from "lucide-react";
+import { APP_URL } from "@/lib/constants";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Permission {
@@ -17,6 +18,15 @@ interface Permission {
   label: string;
   description: string | null;
   is_enabled: boolean;
+}
+
+interface ApiKeyRow {
+  id: string;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+  last_used_at: string | null;
+
 }
 
 const FONT_OPTIONS = [
@@ -67,6 +77,12 @@ export default function SystemConfigPage() {
   const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
   const [uploadingLoginBg, setUploadingLoginBg] = useState(false);
 
+  // API Keys
+  const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([]);
+  const [newKeyLabel, setNewKeyLabel] = useState("");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [generatingKey, setGeneratingKey] = useState(false);
+
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
   const [fontHeading, setFontHeading] = useState("Inter");
@@ -101,6 +117,7 @@ export default function SystemConfigPage() {
 
   useEffect(() => {
     fetchPermissions();
+    fetchApiKeys();
   }, []);
 
   const fetchPermissions = async () => {
@@ -111,6 +128,60 @@ export default function SystemConfigPage() {
     if (error) toast.error(error.message);
     else setPermissions(data || []);
     setLoading(false);
+  };
+
+  const fetchApiKeys = async () => {
+    const { data, error } = await supabase
+      .from("api_keys" as any)
+      .select("id, label, is_active, created_at, last_used_at")
+      .order("created_at", { ascending: false });
+    if (!error && data) setApiKeys(data as any);
+  };
+
+  const generateApiKey = async () => {
+    if (!newKeyLabel.trim()) {
+      toast.error("Veuillez saisir un libellé pour la clé");
+      return;
+    }
+    setGeneratingKey(true);
+    try {
+      // Generate a random key
+      const rawKey = crypto.randomUUID() + "-" + crypto.randomUUID();
+      // Hash it
+      const encoder = new TextEncoder();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const keyHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+      const { error } = await supabase.from("api_keys" as any).insert({
+        key_hash: keyHash,
+        label: newKeyLabel.trim(),
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+        permissions: ["read"],
+      } as any);
+
+      if (error) throw error;
+      setGeneratedKey(rawKey);
+      setNewKeyLabel("");
+      fetchApiKeys();
+      toast.success("Clé API créée");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la création");
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
+
+  const revokeApiKey = async (id: string) => {
+    const { error } = await supabase
+      .from("api_keys" as any)
+      .update({ is_active: false } as any)
+      .eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Clé révoquée");
+      fetchApiKeys();
+    }
   };
 
   const togglePermission = async (id: string, currentValue: boolean) => {
@@ -730,6 +801,94 @@ export default function SystemConfigPage() {
               Réinitialiser
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* API Keys */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Clés API
+          </CardTitle>
+          <CardDescription>
+            Générez des clés pour accéder à l'API REST publique. Les clés ne sont affichées qu'une seule fois à la création.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              value={newKeyLabel}
+              onChange={(e) => setNewKeyLabel(e.target.value)}
+              placeholder="Libellé (ex: CRM interne)"
+              className="flex-1"
+            />
+            <Button onClick={generateApiKey} disabled={generatingKey}>
+              <Plus className="h-4 w-4 mr-1" />
+              Générer
+            </Button>
+          </div>
+
+          {generatedKey && (
+            <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                ⚠️ Copiez cette clé maintenant — elle ne sera plus affichée.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted px-2 py-1.5 rounded break-all font-mono">
+                  {generatedKey}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedKey);
+                    toast.success("Clé copiée");
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                URL de base : <code className="bg-muted px-1 rounded">{APP_URL}/functions/v1/api-public</code>
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setGeneratedKey(null)} className="text-xs">
+                Fermer
+              </Button>
+            </div>
+          )}
+
+          {apiKeys.length > 0 && (
+            <div className="space-y-2">
+              {apiKeys.map((key) => (
+                <div
+                  key={key.id}
+                  className={`flex items-center justify-between py-2.5 px-3 rounded-lg border ${
+                    key.is_active ? "bg-muted/30" : "bg-muted/10 opacity-50"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{key.label || "Sans nom"}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Créée {new Date(key.created_at).toLocaleDateString("fr-FR")}
+                      {key.last_used_at && ` · Dernier usage ${new Date(key.last_used_at).toLocaleDateString("fr-FR")}`}
+                      {!key.is_active && " · Révoquée"}
+                    </p>
+                  </div>
+                  {key.is_active && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => revokeApiKey(key.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

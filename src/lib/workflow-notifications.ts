@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { APP_URL } from "@/lib/constants";
 
 /**
  * Sends a workflow notification email via the send-notification-email edge function.
@@ -93,6 +94,9 @@ function buildNotificationHtml(params: {
         </p>
         ${params.referenceNumber ? `<p style="margin: 0; color: #666; font-size: 13px;"><strong>Réf :</strong> ${params.referenceNumber}</p>` : ""}
       </div>
+      <a href="${APP_URL}/inbox?mail=${(params as any).mailId || ""}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background-color: #1a1a2e; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">
+        Voir le courrier
+      </a>
       <p style="color: #888; font-size: 12px; margin: 24px 0 0;">
         Cet e-mail a été envoyé automatiquement par le système ARE App.
       </p>

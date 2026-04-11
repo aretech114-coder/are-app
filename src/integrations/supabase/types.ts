@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      api_keys: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          key_hash: string
+          label: string
+          last_used_at: string | null
+          permissions: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          key_hash: string
+          label?: string
+          last_used_at?: string | null
+          permissions?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          key_hash?: string
+          label?: string
+          last_used_at?: string | null
+          permissions?: Json
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           created_at: string
@@ -256,6 +289,7 @@ export type Database = {
           sender_phone: string | null
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
+          tenant_id: string | null
           updated_at: string | null
           workflow_completed_at: string | null
           workflow_started_at: string | null
@@ -291,6 +325,7 @@ export type Database = {
           sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
+          tenant_id?: string | null
           updated_at?: string | null
           workflow_completed_at?: string | null
           workflow_started_at?: string | null
@@ -326,6 +361,7 @@ export type Database = {
           sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
+          tenant_id?: string | null
           updated_at?: string | null
           workflow_completed_at?: string | null
           workflow_started_at?: string | null
@@ -511,6 +547,33 @@ export type Database = {
           step_name?: string
           step_number?: number
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          domain: string | null
+          id: string
+          is_active: boolean
+          name: string
+          settings: Json
+        }
+        Insert: {
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          settings?: Json
+        }
+        Update: {
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          settings?: Json
         }
         Relationships: []
       }

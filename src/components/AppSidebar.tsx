@@ -1,5 +1,5 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList, Puzzle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -150,7 +150,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* SuperAdmin only: System Configuration */}
+        {/* SuperAdmin only: System Configuration + Integrations */}
         {isSuperAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">
@@ -168,6 +168,19 @@ export function AppSidebar() {
                     >
                       <Settings className="h-4 w-4 shrink-0" />
                       <span className="text-sm">Configuration Système</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/integrations"
+                      end
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <Puzzle className="h-4 w-4 shrink-0" />
+                      <span className="text-sm">Intégrations</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
