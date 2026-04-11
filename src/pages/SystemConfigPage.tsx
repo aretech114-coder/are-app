@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus } from "lucide-react";
+import { APP_URL } from "@/lib/constants";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Permission {
