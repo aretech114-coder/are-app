@@ -855,6 +855,72 @@ export default function SystemConfigPage() {
         </CardContent>
       </Card>
 
+      {/* Organisations / Multi-tenant */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Organisations (Multi-tenant)
+          </CardTitle>
+          <CardDescription>
+            Gérez les organisations. Chaque organisation isole ses données (courriers, utilisateurs, missions).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2 flex-col sm:flex-row">
+            <Input
+              value={newTenantName}
+              onChange={(e) => setNewTenantName(e.target.value)}
+              placeholder="Nom de l'organisation"
+              className="flex-1"
+            />
+            <Input
+              value={newTenantDomain}
+              onChange={(e) => setNewTenantDomain(e.target.value)}
+              placeholder="Domaine (optionnel)"
+              className="flex-1"
+            />
+            <Button onClick={createTenant} disabled={creatingTenant}>
+              {creatingTenant ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Ajouter
+            </Button>
+          </div>
+
+          {tenantsLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : tenants.length > 0 ? (
+            <div className="space-y-2">
+              {tenants.map((t) => (
+                <div
+                  key={t.id}
+                  className={`flex items-center justify-between py-2.5 px-3 rounded-lg border ${
+                    t.is_active ? "bg-muted/30" : "bg-muted/10 opacity-50"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t.domain || "Aucun domaine"}
+                      {!t.is_active && " · Inactive"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={t.is_active}
+                    onCheckedChange={() => toggleTenantActive(t.id, t.is_active)}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Aucune organisation créée
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* API Keys */}
       <Card>
         <CardHeader>
