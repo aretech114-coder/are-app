@@ -77,6 +77,12 @@ export default function SystemConfigPage() {
   const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
   const [uploadingLoginBg, setUploadingLoginBg] = useState(false);
 
+  // API Keys
+  const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([]);
+  const [newKeyLabel, setNewKeyLabel] = useState("");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [generatingKey, setGeneratingKey] = useState(false);
+
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
   const [fontHeading, setFontHeading] = useState("Inter");
