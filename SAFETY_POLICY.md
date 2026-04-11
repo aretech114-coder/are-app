@@ -111,6 +111,20 @@ Le projet utilise deux modes de gestion des migrations selon l'état de la conne
 
 Le passage en mode GitHub sera signalé explicitement par le collaborateur. Jusqu'à ce signal, le mode pré-GitHub reste en vigueur.
 
+### D7. Continuité et intégrité des données
+
+Toute modification de la base de données doit garantir la préservation des données existantes et la continuité des services.
+
+| Règle | Description |
+|-------|-------------|
+| **CI-1** | Migrations non-destructives : privilégier `ADD COLUMN`, `CREATE INDEX`, jamais `DROP TABLE`, `DROP COLUMN` ou `TRUNCATE` sans approbation explicite |
+| **CI-2** | Idempotence obligatoire : utiliser `IF NOT EXISTS` / `IF EXISTS` sur toutes les opérations DDL |
+| **CI-3** | Jamais de `DELETE FROM` sans clause `WHERE` en migration |
+| **CI-4** | Rollback documenté pour chaque migration critique (instructions de retour arrière) |
+| **CI-5** | Tests de non-régression : vérifier que les requêtes existantes fonctionnent après chaque migration |
+| **CI-6** | Sauvegarde recommandée avant toute migration structurelle majeure |
+| **CI-7** | Les colonnes ajoutées doivent avoir des valeurs par défaut ou être `NULL`-ables pour ne pas casser les insertions existantes |
+
 ---
 
 ## E. Protocole d'action

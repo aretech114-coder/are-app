@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     }
 
     // Generate magic link with redirect to the caller's origin
-    const finalRedirect = redirect_url || "https://www.mrhe-courrier.cloud";
+    const finalRedirect = redirect_url || "https://are-app.cloud";
     const { data: linkData, error: linkError } =
       await adminClient.auth.admin.generateLink({
         type: "magiclink",
