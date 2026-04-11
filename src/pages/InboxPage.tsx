@@ -20,6 +20,7 @@ import { MailDetailFields } from "@/components/MailDetailFields";
 
 export default function InboxPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [mails, setMails] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
   const [search, setSearch] = useState("");
