@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface SiteSettings {
   site_title: string;
   site_subtitle: string;
+  site_tagline: string;
   sidebar_initials: string;
   favicon_url: string;
   sidebar_logo_url: string;
@@ -24,6 +25,7 @@ interface SiteSettings {
 const defaults: SiteSettings = {
   site_title: "ARE App",
   site_subtitle: "Gestion Courrier",
+  site_tagline: "Gestion des courriers",
   sidebar_initials: "ARE",
   favicon_url: "",
   sidebar_logo_url: "",

@@ -54,6 +54,7 @@ export default function SystemConfigPage() {
 
   const [siteTitle, setSiteTitle] = useState("");
   const [siteSubtitle, setSiteSubtitle] = useState("");
+  const [siteTagline, setSiteTagline] = useState("");
   const [sidebarInitials, setSidebarInitials] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
@@ -74,6 +75,7 @@ export default function SystemConfigPage() {
   useEffect(() => {
     setSiteTitle(settings.site_title);
     setSiteSubtitle(settings.site_subtitle);
+    setSiteTagline(settings.site_tagline || "");
     setSidebarInitials(settings.sidebar_initials);
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
@@ -151,6 +153,7 @@ export default function SystemConfigPage() {
       await Promise.all([
         updateSetting("site_title", siteTitle),
         updateSetting("site_subtitle", siteSubtitle),
+        updateSetting("site_tagline", siteTagline),
         updateSetting("sidebar_initials", sidebarInitials),
         updateSetting("favicon_url", faviconUrl),
         updateSetting("sidebar_logo_url", sidebarLogoUrl),
@@ -337,6 +340,27 @@ export default function SystemConfigPage() {
                 placeholder="Gestion Courrier"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="site_tagline">Description courte (tagline mobile)</Label>
+            <div className="relative">
+              <Input
+                id="site_tagline"
+                value={siteTagline}
+                onChange={(e) => {
+                  if (e.target.value.length <= 40) setSiteTagline(e.target.value);
+                }}
+                placeholder="Gestion des courriers"
+                maxLength={40}
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                {siteTagline.length}/40
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Affichée sous le titre dans le header mobile. Max 40 caractères.
+            </p>
           </div>
 
           <div className="space-y-2">
