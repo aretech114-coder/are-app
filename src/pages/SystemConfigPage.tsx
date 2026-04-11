@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -59,9 +60,12 @@ export default function SystemConfigPage() {
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
   const [pwaIconUrl, setPwaIconUrl] = useState("");
+  const [loginBgColor, setLoginBgColor] = useState("#FFFFFF");
+  const [loginBgImageUrl, setLoginBgImageUrl] = useState("");
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
+  const [uploadingLoginBg, setUploadingLoginBg] = useState(false);
 
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
@@ -71,6 +75,7 @@ export default function SystemConfigPage() {
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
+  const loginBgInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -80,6 +85,8 @@ export default function SystemConfigPage() {
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
     setPwaIconUrl((settings as any).pwa_icon_url || "");
+    setLoginBgColor((settings as any).login_bg_color || "#FFFFFF");
+    setLoginBgImageUrl((settings as any).login_bg_image_url || "");
     setColors({
       primary_color: settings.primary_color || COLOR_DEFAULTS.primary_color,
       secondary_color: settings.secondary_color || COLOR_DEFAULTS.secondary_color,
@@ -158,6 +165,8 @@ export default function SystemConfigPage() {
         updateSetting("favicon_url", faviconUrl),
         updateSetting("sidebar_logo_url", sidebarLogoUrl),
         updateSetting("pwa_icon_url", pwaIconUrl),
+        updateSetting("login_bg_color", loginBgColor),
+        updateSetting("login_bg_image_url", loginBgImageUrl),
       ]);
       toast.success("Paramètres de branding sauvegardés");
     } catch {
@@ -535,6 +544,74 @@ export default function SystemConfigPage() {
             <p className="text-xs text-muted-foreground">
               Image PNG carrée 512×512 utilisée comme icône de l'application sur les appareils mobiles.
             </p>
+          </div>
+
+          {/* Login background */}
+          <Separator className="my-2" />
+          <p className="text-sm font-medium">Arrière-plan de la page de connexion</p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Couleur de fond</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={loginBgColor}
+                  onChange={(e) => setLoginBgColor(e.target.value)}
+                  className="w-10 h-10 rounded-lg border cursor-pointer p-0.5"
+                />
+                <Input
+                  value={loginBgColor}
+                  onChange={(e) => setLoginBgColor(e.target.value)}
+                  placeholder="#FFFFFF"
+                  className="font-mono text-xs h-10 flex-1"
+                  maxLength={7}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Utilisé si aucune image n'est définie</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Image de fond (1920×1080)</Label>
+              <div className="flex items-center gap-2">
+                {loginBgImageUrl ? (
+                  <div className="relative">
+                    <img src={loginBgImageUrl} alt="BG" className="w-10 h-10 rounded-lg object-cover border" />
+                    <button
+                      onClick={() => setLoginBgImageUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingLoginBg}
+                  onClick={() => loginBgInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {uploadingLoginBg ? "Upload..." : "Uploader"}
+                </Button>
+                <input
+                  ref={loginBgInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFile(file, "login-bg", setUploadingLoginBg, setLoginBgImageUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Prioritaire sur la couleur si définie</p>
+            </div>
           </div>
 
           {/* Preview */}

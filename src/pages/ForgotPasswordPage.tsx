@@ -24,7 +24,6 @@ export default function ForgotPasswordPage() {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      // Notify admins about the password reset request
       await supabase.rpc("notify_password_reset_request", { _email: email });
       setSent(true);
       toast.success("Email de réinitialisation envoyé");
@@ -35,9 +34,24 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const hasBgImage = !!settings.login_bg_image_url;
+  const bgStyle: React.CSSProperties = hasBgImage
+    ? {
+        backgroundImage: `url(${settings.login_bg_image_url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }
+    : settings.login_bg_color && settings.login_bg_color !== "#FFFFFF"
+    ? { backgroundColor: settings.login_bg_color }
+    : {};
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md animate-fade-in">
+    <div className="min-h-screen flex items-center justify-center p-4 relative" style={bgStyle}>
+      {hasBgImage && (
+        <div className="absolute inset-0 bg-black/40" />
+      )}
+      <div className="w-full max-w-md animate-fade-in relative z-10">
         <div className="text-center mb-8">
           {settings.sidebar_logo_url ? (
             <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-4 object-cover" />
@@ -46,7 +60,7 @@ export default function ForgotPasswordPage() {
               {settings.sidebar_initials || "ARE"}
             </div>
           )}
-          <h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1>
+          <h1 className={`text-2xl font-bold ${hasBgImage ? "text-white" : ""}`}>{settings.site_title || "ARE App"}</h1>
         </div>
 
         <Card>
