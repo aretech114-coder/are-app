@@ -214,6 +214,9 @@ export default function WorkflowPage() {
         </CardContent>
       </Card>
 
+      {/* Dynamic Step Manager */}
+      <WorkflowStepManager />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
