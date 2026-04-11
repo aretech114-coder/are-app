@@ -10,18 +10,55 @@ interface SiteSettings {
   allow_indexing: string;
   show_forgot_password: string;
   show_remember_me: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  sidebar_bg_color: string;
+  background_color: string;
+  link_color: string;
+  font_heading: string;
+  font_body: string;
 }
 
 const defaults: SiteSettings = {
-  site_title: "CourierPro",
+  site_title: "ARE App",
   site_subtitle: "Gestion Courrier",
-  sidebar_initials: "CP",
+  sidebar_initials: "ARE",
   favicon_url: "",
   sidebar_logo_url: "",
   allow_indexing: "false",
   show_forgot_password: "true",
   show_remember_me: "true",
+  primary_color: "#0EA5E9",
+  secondary_color: "#1E293B",
+  accent_color: "#0EA5E9",
+  sidebar_bg_color: "#1E293B",
+  background_color: "#F8FAFC",
+  link_color: "#0EA5E9",
+  font_heading: "Inter",
+  font_body: "Inter",
 };
+
+function hexToHsl(hex: string): string | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return null;
+  let r = parseInt(result[1], 16) / 255;
+  let g = parseInt(result[2], 16) / 255;
+  let b = parseInt(result[3], 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
 
 interface SiteSettingsContext {
   settings: SiteSettings;
@@ -61,9 +98,9 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Apply side effects: title, favicon, meta robots
+  // Apply side effects: title, favicon, meta robots, colors, fonts
   useEffect(() => {
-    document.title = settings.site_title || "CourierPro";
+    document.title = settings.site_title || "ARE App";
 
     // Favicon
     let link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
@@ -82,6 +119,42 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
       document.head.appendChild(meta);
     }
     meta.content = settings.allow_indexing === "true" ? "index, follow" : "noindex, nofollow";
+
+    // Dynamic colors
+    const root = document.documentElement;
+    const colorMap: Record<string, string> = {
+      primary_color: "--primary",
+      accent_color: "--accent",
+      sidebar_bg_color: "--sidebar-background",
+    };
+    for (const [key, cssVar] of Object.entries(colorMap)) {
+      const val = settings[key as keyof SiteSettings];
+      if (val) {
+        const hsl = hexToHsl(val);
+        if (hsl) root.style.setProperty(cssVar, hsl);
+      }
+    }
+
+    // Fonts
+    const loadGoogleFont = (font: string) => {
+      if (!font || font === "Inter") return; // Inter is already loaded
+      const id = `gfont-${font.replace(/\s/g, "-")}`;
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@400;500;600;700&display=swap`;
+      document.head.appendChild(link);
+    };
+
+    if (settings.font_heading) {
+      loadGoogleFont(settings.font_heading);
+      root.style.setProperty("--font-heading", `"${settings.font_heading}", sans-serif`);
+    }
+    if (settings.font_body) {
+      loadGoogleFont(settings.font_body);
+      root.style.setProperty("--font-body", `"${settings.font_body}", sans-serif`);
+    }
   }, [settings]);
 
   const updateSetting = async (key: string, value: string) => {

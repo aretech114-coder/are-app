@@ -69,7 +69,7 @@ function buildNotificationHtml(params: {
     rejection: "Dossier renvoyé",
   };
 
-  const title = typeLabels[params.notificationType] || "Notification CourierPro";
+  const title = typeLabels[params.notificationType] || "Notification ARE App";
 
   return `
 <!DOCTYPE html>
@@ -94,7 +94,7 @@ function buildNotificationHtml(params: {
         ${params.referenceNumber ? `<p style="margin: 0; color: #666; font-size: 13px;"><strong>Réf :</strong> ${params.referenceNumber}</p>` : ""}
       </div>
       <p style="color: #888; font-size: 12px; margin: 24px 0 0;">
-        Cet e-mail a été envoyé automatiquement par le système CourierPro.
+        Cet e-mail a été envoyé automatiquement par le système ARE App.
       </p>
     </div>
   </div>

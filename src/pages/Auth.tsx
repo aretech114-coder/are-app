@@ -42,10 +42,10 @@ export default function Auth() {
             <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-4 object-cover" />
           ) : (
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mb-4">
-              {settings.sidebar_initials || "CP"}
+              {settings.sidebar_initials || "ARE"}
             </div>
           )}
-          <h1 className="text-2xl font-bold">{settings.site_title || "CourierPro"}</h1>
+          <h1 className="text-2xl font-bold"><h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1></h1>
           <p className="text-muted-foreground text-sm mt-1">Système de Gestion Électronique du Courrier</p>
         </div>
 
@@ -65,7 +65,7 @@ export default function Auth() {
                     name="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="agent@courierpro.com"
+                    placeholder="agent@are-app.cloud"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-9"
