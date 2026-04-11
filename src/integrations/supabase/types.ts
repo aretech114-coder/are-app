@@ -717,6 +717,10 @@ export type Database = {
         Args: { _mail_id: string; _user_id: string }
         Returns: boolean
       }
+      notify_password_reset_request: {
+        Args: { _email: string }
+        Returns: undefined
+      }
       resolve_step_assignee: {
         Args: { _mail_id?: string; _step_number: number }
         Returns: string

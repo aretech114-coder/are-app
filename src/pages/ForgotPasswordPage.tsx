@@ -24,6 +24,8 @@ export default function ForgotPasswordPage() {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
+      // Notify admins about the password reset request
+      await supabase.rpc("notify_password_reset_request", { _email: email });
       setSent(true);
       toast.success("Email de réinitialisation envoyé");
     } catch (error: any) {

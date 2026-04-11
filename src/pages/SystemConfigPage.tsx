@@ -57,8 +57,10 @@ export default function SystemConfigPage() {
   const [sidebarInitials, setSidebarInitials] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
+  const [pwaIconUrl, setPwaIconUrl] = useState("");
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
 
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
@@ -67,6 +69,7 @@ export default function SystemConfigPage() {
 
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const pwaIconInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -74,6 +77,7 @@ export default function SystemConfigPage() {
     setSidebarInitials(settings.sidebar_initials);
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
+    setPwaIconUrl((settings as any).pwa_icon_url || "");
     setColors({
       primary_color: settings.primary_color || COLOR_DEFAULTS.primary_color,
       secondary_color: settings.secondary_color || COLOR_DEFAULTS.secondary_color,
@@ -150,6 +154,7 @@ export default function SystemConfigPage() {
         updateSetting("sidebar_initials", sidebarInitials),
         updateSetting("favicon_url", faviconUrl),
         updateSetting("sidebar_logo_url", sidebarLogoUrl),
+        updateSetting("pwa_icon_url", pwaIconUrl),
       ]);
       toast.success("Paramètres de branding sauvegardés");
     } catch {
@@ -450,6 +455,61 @@ export default function SystemConfigPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               Si renseigné, cette image remplacera les initiales dans la barre latérale.
+            </p>
+          </div>
+
+          {/* PWA Icon upload */}
+          <div className="space-y-2">
+            <Label>Icône PWA (512×512)</Label>
+            <div className="flex items-center gap-3">
+              {pwaIconUrl ? (
+                <div className="relative">
+                  <img src={pwaIconUrl} alt="PWA Icon" className="w-10 h-10 rounded-lg object-cover border" />
+                  <button
+                    onClick={() => setPwaIconUrl("")}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5 flex-1">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingPwaIcon}
+                    onClick={() => pwaIconInputRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    {uploadingPwaIcon ? "Upload..." : "Uploader une icône"}
+                  </Button>
+                </div>
+                <Input
+                  value={pwaIconUrl}
+                  onChange={(e) => setPwaIconUrl(e.target.value)}
+                  placeholder="Ou saisir une URL..."
+                  className="text-xs h-8"
+                />
+                <input
+                  ref={pwaIconInputRef}
+                  type="file"
+                  accept="image/png"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFile(file, "pwa-icon", setUploadingPwaIcon, setPwaIconUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Image PNG carrée 512×512 utilisée comme icône de l'application sur les appareils mobiles.
             </p>
           </div>
 

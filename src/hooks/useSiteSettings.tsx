@@ -7,6 +7,7 @@ interface SiteSettings {
   sidebar_initials: string;
   favicon_url: string;
   sidebar_logo_url: string;
+  pwa_icon_url: string;
   allow_indexing: string;
   show_forgot_password: string;
   show_remember_me: string;
@@ -26,6 +27,7 @@ const defaults: SiteSettings = {
   sidebar_initials: "ARE",
   favicon_url: "",
   sidebar_logo_url: "",
+  pwa_icon_url: "",
   allow_indexing: "false",
   show_forgot_password: "true",
   show_remember_me: "true",
@@ -98,7 +100,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Apply side effects: title, favicon, meta robots, colors, fonts
+  // Apply side effects: title, favicon, meta robots, colors, fonts, theme-color
   useEffect(() => {
     document.title = settings.site_title || "ARE App";
 
@@ -120,6 +122,26 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     }
     meta.content = settings.allow_indexing === "true" ? "index, follow" : "noindex, nofollow";
 
+    // Theme color for PWA status bar
+    let themeColor = document.querySelector("meta[name='theme-color']") as HTMLMetaElement | null;
+    if (!themeColor) {
+      themeColor = document.createElement("meta");
+      themeColor.name = "theme-color";
+      document.head.appendChild(themeColor);
+    }
+    themeColor.content = settings.primary_color || "#0EA5E9";
+
+    // Apple touch icon (PWA icon)
+    if (settings.pwa_icon_url) {
+      let appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement | null;
+      if (!appleIcon) {
+        appleIcon = document.createElement("link");
+        appleIcon.rel = "apple-touch-icon";
+        document.head.appendChild(appleIcon);
+      }
+      appleIcon.href = settings.pwa_icon_url;
+    }
+
     // Dynamic colors
     const root = document.documentElement;
     const colorMap: Record<string, string> = {
@@ -137,14 +159,14 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
 
     // Fonts
     const loadGoogleFont = (font: string) => {
-      if (!font || font === "Inter") return; // Inter is already loaded
+      if (!font || font === "Inter") return;
       const id = `gfont-${font.replace(/\s/g, "-")}`;
       if (document.getElementById(id)) return;
-      const link = document.createElement("link");
-      link.id = id;
-      link.rel = "stylesheet";
-      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@400;500;600;700&display=swap`;
-      document.head.appendChild(link);
+      const glink = document.createElement("link");
+      glink.id = id;
+      glink.rel = "stylesheet";
+      glink.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@400;500;600;700&display=swap`;
+      document.head.appendChild(glink);
     };
 
     if (settings.font_heading) {

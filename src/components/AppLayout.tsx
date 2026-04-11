@@ -1,10 +1,12 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { InstallGuide } from "@/components/InstallGuide";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Menu, User, LogOut, Settings } from "lucide-react";
@@ -13,6 +15,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { profile, role, signOut } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { settings } = useSiteSettings();
 
   const displayName = profile?.full_name || "Agent";
 
@@ -24,13 +27,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <AppSidebar />
         </div>
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center justify-between border-b px-4 bg-card shrink-0">
+          <header className={`h-14 flex items-center justify-between border-b px-4 shrink-0 ${
+            isMobile ? "bg-primary text-primary-foreground" : "bg-card"
+          }`}>
             {!isMobile ? (
               <SidebarTrigger>
                 <Menu className="h-5 w-5" />
               </SidebarTrigger>
             ) : (
-              <span className="text-sm font-semibold truncate">ARE App</span>
+              <div className="flex items-center gap-2">
+                {settings.sidebar_logo_url ? (
+                  <img src={settings.sidebar_logo_url} alt="Logo" className="h-7 w-7 rounded object-cover" />
+                ) : (
+                  <span className="font-bold text-sm">{settings.sidebar_initials || "ARE"}</span>
+                )}
+                <span className="text-sm font-semibold truncate">{settings.site_title || "ARE App"}</span>
+              </div>
             )}
             {/* Avatar dropdown hidden on mobile (replaced by Compte tab) */}
             <div className="hidden md:block">
@@ -76,6 +88,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </main>
         {/* Mobile bottom navigation */}
         {isMobile && <MobileBottomNav />}
+        {/* PWA Install Guide */}
+        {isMobile && <InstallGuide />}
       </div>
     </SidebarProvider>
   );
