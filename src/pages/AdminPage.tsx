@@ -96,8 +96,12 @@ export default function AdminPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editTenantId, setEditTenantId] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // Tenants list for dropdown
+  const [tenantsList, setTenantsList] = useState<{ id: string; name: string }[]>([]);
 
   // Delete dialog state
   const [deleteOpen, setDeleteOpen] = useState(false);
