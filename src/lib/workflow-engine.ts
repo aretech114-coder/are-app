@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { sendWorkflowNotificationEmail, isStepNotificationEnabled } from "@/lib/workflow-notifications";
 
+// ── Static fallback (kept for backward compatibility) ──
 export const WORKFLOW_STEPS = [
   { step: 1, name: "Réception", role: "secretariat", description: "Scan, attribution ID, saisie métadonnées" },
   { step: 2, name: "Routage Hiérarchique", role: "ministre", description: "Dispatch: Ministre → Dircab → Dircaba" },
@@ -14,6 +15,26 @@ export const WORKFLOW_STEPS = [
 ] as const;
 
 export type WorkflowStepInfo = typeof WORKFLOW_STEPS[number];
+
+// ── Dynamic DB-aware helpers ──
+
+/** Fetch step info from DB, fallback to static */
+export async function getStepInfoFromDB(stepNumber: number): Promise<{ name: string; description: string | null } | undefined> {
+  const { data } = await supabase
+    .from("workflow_steps")
+    .select("name, description")
+    .eq("step_order", stepNumber)
+    .eq("is_active", true)
+    .single();
+
+  if (data) return { name: data.name, description: data.description };
+
+  // Fallback to static
+  const staticStep = WORKFLOW_STEPS.find(s => s.step === stepNumber);
+  return staticStep ? { name: staticStep.name, description: staticStep.description } : undefined;
+}
+
+// ── Static helpers (still used across UI) ──
 
 export function getStepInfo(stepNumber: number): WorkflowStepInfo | undefined {
   return WORKFLOW_STEPS.find(s => s.step === stepNumber);
@@ -39,10 +60,10 @@ export function getStepColor(stepNumber: number): string {
   return colors[stepNumber] || "bg-muted text-muted-foreground";
 }
 
+// ── Advance workflow ──
+
 export interface AdvanceOptions {
-  /** Skip auto-assignment for dynamic steps */
   skipAutoAssign?: boolean;
-  /** Explicit assignee IDs for dynamic steps (4, 7) */
   assigneeIds?: string[];
 }
 
@@ -56,9 +77,7 @@ interface AdvanceResult {
 
 /**
  * Advance the workflow by calling the SECURITY DEFINER RPC.
- * All transitions happen atomically in the database, eliminating RLS issues.
- * The RPC handles: step calculation, step 3 bypass (ministre absent),
- * step 7 skip (non note_technique), assignments, and notifications.
+ * The RPC now reads workflow_steps dynamically for step calculation and skip conditions.
  */
 export async function advanceWorkflow(
   mailId: string,
@@ -92,7 +111,6 @@ export async function advanceWorkflow(
   const newStep = result.new_step as number;
   const assignedTo = result.assigned_to as string | null;
 
-  // Send email notification (non-blocking, stays client-side)
   if (assignedTo) {
     sendStepEmailNotification(newStep, assignedTo, mailId, action).catch(console.error);
   }
@@ -106,7 +124,7 @@ export async function advanceWorkflow(
 }
 
 /**
- * Send email notification for a workflow step transition (non-blocking).
+ * Send email notification — now uses dynamic DB step info.
  */
 async function sendStepEmailNotification(
   newStep: number,
@@ -118,7 +136,7 @@ async function sendStepEmailNotification(
     const emailEnabled = await isStepNotificationEnabled(newStep);
     if (!emailEnabled) return;
 
-    const stepInfo = getStepInfo(newStep);
+    const stepInfo = await getStepInfoFromDB(newStep);
     if (!stepInfo) return;
 
     const [{ data: recipientProfile }, { data: mailData }] = await Promise.all([
