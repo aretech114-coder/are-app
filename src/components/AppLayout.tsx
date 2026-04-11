@@ -34,7 +34,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <header
             className={`flex items-center justify-between border-b px-4 shrink-0 ${
               isMobile
-                ? "bg-primary text-primary-foreground pt-[env(safe-area-inset-top)] min-h-[56px]"
+                ? "sticky top-0 z-50 bg-primary text-primary-foreground pt-[env(safe-area-inset-top)] min-h-[56px]"
                 : "h-14 bg-card"
             }`}
           >
