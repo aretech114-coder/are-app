@@ -591,32 +591,44 @@ export type Database = {
       }
       workflow_steps: {
         Row: {
+          action_labels: Json | null
+          assignment_mode: string | null
+          color_class: string | null
           conditions: Json | null
           created_at: string | null
           description: string | null
           id: string
           is_active: boolean
           name: string
+          responsible_role: string | null
           step_order: number
           updated_at: string | null
         }
         Insert: {
+          action_labels?: Json | null
+          assignment_mode?: string | null
+          color_class?: string | null
           conditions?: Json | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          responsible_role?: string | null
           step_order: number
           updated_at?: string | null
         }
         Update: {
+          action_labels?: Json | null
+          assignment_mode?: string | null
+          color_class?: string | null
           conditions?: Json | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          responsible_role?: string | null
           step_order?: number
           updated_at?: string | null
         }
