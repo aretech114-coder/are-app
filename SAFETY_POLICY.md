@@ -86,6 +86,31 @@ Lovable (édition) → develop (branche par défaut)
 - Rotation des secrets recommandée tous les 90 jours
 - Liste des secrets requis : `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SUPABASE_SERVICE_ROLE_KEY`
 
+### D6. Migrations SQL contrôlées
+
+Le projet utilise deux modes de gestion des migrations selon l'état de la connexion GitHub :
+
+| Mode | Statut | Comportement |
+|------|--------|-------------|
+| **Pré-GitHub** (actuel) | ✅ Actif | Migrations exécutées via l'outil Lovable Cloud |
+| **Mode GitHub** | ⏳ À activer sur signal | Fichier `.sql` téléchargeable généré, exécution manuelle |
+
+#### Règles en mode GitHub
+
+1. **Aucune exécution automatique** — Toute modification structurelle (CREATE TABLE, ALTER TABLE, CREATE/ALTER FUNCTION, CREATE POLICY, triggers) génère un fichier `.sql` téléchargeable
+2. **Emplacement** : `/mnt/documents/migrations/`
+3. **Nomenclature** : `YYYY-MM-DD_description.sql` (ex : `2026-04-11_add_color_columns.sql`)
+4. **Contenu obligatoire** :
+   - SQL complet, commenté, prêt pour le SQL Editor de Supabase
+   - En-tête avec description, date, auteur, niveau de risque
+   - Instructions de rollback si applicable
+5. **Vérification pré-génération** : Chaque migration doit être conforme aux règles D1 (RLS obligatoire, pas de destructif sans approbation, UUID, pagination)
+6. **Le collaborateur humain exécute manuellement** après revue du fichier
+
+#### Activation
+
+Le passage en mode GitHub sera signalé explicitement par le collaborateur. Jusqu'à ce signal, le mode pré-GitHub reste en vigueur.
+
 ---
 
 ## E. Protocole d'action
