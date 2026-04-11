@@ -5,8 +5,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type } from "lucide-react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Permission {
@@ -17,12 +18,34 @@ interface Permission {
   is_enabled: boolean;
 }
 
+const FONT_OPTIONS = [
+  "Inter",
+  "Poppins",
+  "Roboto",
+  "Nunito",
+  "DM Sans",
+  "Montserrat",
+  "Open Sans",
+  "Lato",
+];
+
+const COLOR_DEFAULTS: Record<string, string> = {
+  primary_color: "#0EA5E9",
+  secondary_color: "#1E293B",
+  accent_color: "#0EA5E9",
+  sidebar_bg_color: "#1E293B",
+  background_color: "#F8FAFC",
+  link_color: "#0EA5E9",
+};
+
 function sanitizeFileName(name: string): string {
   return name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9._-]/g, "_");
 }
+
+const isValidHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
 
 export default function SystemConfigPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -37,6 +60,11 @@ export default function SystemConfigPage() {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
+  // Colors & fonts
+  const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
+  const [fontHeading, setFontHeading] = useState("Inter");
+  const [fontBody, setFontBody] = useState("Inter");
+
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +74,16 @@ export default function SystemConfigPage() {
     setSidebarInitials(settings.sidebar_initials);
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
+    setColors({
+      primary_color: settings.primary_color || COLOR_DEFAULTS.primary_color,
+      secondary_color: settings.secondary_color || COLOR_DEFAULTS.secondary_color,
+      accent_color: settings.accent_color || COLOR_DEFAULTS.accent_color,
+      sidebar_bg_color: settings.sidebar_bg_color || COLOR_DEFAULTS.sidebar_bg_color,
+      background_color: settings.background_color || COLOR_DEFAULTS.background_color,
+      link_color: settings.link_color || COLOR_DEFAULTS.link_color,
+    });
+    setFontHeading(settings.font_heading || "Inter");
+    setFontBody(settings.font_body || "Inter");
   }, [settings]);
 
   useEffect(() => {
@@ -119,6 +157,31 @@ export default function SystemConfigPage() {
     }
   };
 
+  const saveColors = async () => {
+    for (const [key, val] of Object.entries(colors)) {
+      if (!isValidHex(val)) {
+        toast.error(`Couleur invalide pour ${key}: ${val}`);
+        return;
+      }
+    }
+    try {
+      await Promise.all([
+        ...Object.entries(colors).map(([key, val]) => updateSetting(key, val)),
+        updateSetting("font_heading", fontHeading),
+        updateSetting("font_body", fontBody),
+      ]);
+      toast.success("Couleurs et polices sauvegardées");
+    } catch {
+      toast.error("Erreur lors de la sauvegarde");
+    }
+  };
+
+  const resetColors = () => {
+    setColors({ ...COLOR_DEFAULTS });
+    setFontHeading("Inter");
+    setFontBody("Inter");
+  };
+
   const toggleIndexing = async () => {
     const newValue = settings.allow_indexing === "true" ? "false" : "true";
     await updateSetting("allow_indexing", newValue);
@@ -137,6 +200,15 @@ export default function SystemConfigPage() {
     toast.success(newValue === "true" ? "Case activée" : "Case désactivée");
   };
 
+  const colorFields = [
+    { key: "primary_color", label: "Couleur primaire", desc: "Boutons, liens actifs, éléments principaux" },
+    { key: "secondary_color", label: "Couleur secondaire", desc: "Arrière-plans secondaires" },
+    { key: "accent_color", label: "Couleur d'accentuation", desc: "Éléments mis en avant" },
+    { key: "sidebar_bg_color", label: "Fond de la sidebar", desc: "Arrière-plan de la barre latérale" },
+    { key: "background_color", label: "Fond de page", desc: "Arrière-plan principal" },
+    { key: "link_color", label: "Couleur des liens", desc: "Liens cliquables" },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -153,7 +225,7 @@ export default function SystemConfigPage() {
           Configuration Système
         </h1>
         <p className="page-description">
-          Contrôlez les fonctionnalités, le branding et le SEO de la plateforme
+          Contrôlez les fonctionnalités, le branding, les couleurs et le SEO de la plateforme
         </p>
       </div>
 
@@ -248,7 +320,7 @@ export default function SystemConfigPage() {
                 id="site_title"
                 value={siteTitle}
                 onChange={(e) => setSiteTitle(e.target.value)}
-                placeholder="CourierPro"
+                placeholder="ARE App"
               />
             </div>
             <div className="space-y-2">
@@ -268,7 +340,7 @@ export default function SystemConfigPage() {
               id="sidebar_initials"
               value={sidebarInitials}
               onChange={(e) => setSidebarInitials(e.target.value)}
-              placeholder="CP"
+              placeholder="ARE"
               maxLength={4}
               className="max-w-32"
             />
@@ -388,11 +460,11 @@ export default function SystemConfigPage() {
               <img src={sidebarLogoUrl} alt="Logo preview" className="w-9 h-9 rounded-lg object-cover" />
             ) : (
               <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-                {sidebarInitials || "CP"}
+                {sidebarInitials || "ARE"}
               </div>
             )}
             <div className="flex flex-col">
-              <span className="text-sm font-semibold">{siteTitle || "CourierPro"}</span>
+              <span className="text-sm font-semibold">{siteTitle || "ARE App"}</span>
               <span className="text-xs text-muted-foreground">{siteSubtitle || "Gestion Courrier"}</span>
             </div>
           </div>
@@ -401,6 +473,102 @@ export default function SystemConfigPage() {
             <Save className="h-4 w-4 mr-2" />
             Enregistrer le branding
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Colors & Fonts */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Type className="h-5 w-5" />
+            Couleurs & Typographie
+          </CardTitle>
+          <CardDescription>
+            Personnalisez les couleurs et les polices de la plateforme. Les changements sont appliqués en temps réel après sauvegarde.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Color pickers */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {colorFields.map(({ key, label, desc }) => (
+              <div key={key} className="space-y-1.5">
+                <Label className="text-sm font-medium">{label}</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={colors[key] || COLOR_DEFAULTS[key]}
+                    onChange={(e) => setColors((prev) => ({ ...prev, [key]: e.target.value }))}
+                    className="w-10 h-10 rounded-lg border cursor-pointer p-0.5"
+                  />
+                  <Input
+                    value={colors[key] || ""}
+                    onChange={(e) => setColors((prev) => ({ ...prev, [key]: e.target.value }))}
+                    placeholder="#000000"
+                    className="font-mono text-xs h-10 flex-1"
+                    maxLength={7}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Font selectors */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Police des titres</Label>
+              <Select value={fontHeading} onValueChange={setFontHeading}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FONT_OPTIONS.map((f) => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Police du texte</Label>
+              <Select value={fontBody} onValueChange={setFontBody}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FONT_OPTIONS.map((f) => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="p-4 rounded-lg border bg-muted/20 space-y-2">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Aperçu des couleurs</span>
+            <div className="flex flex-wrap gap-2">
+              {colorFields.map(({ key, label }) => (
+                <div key={key} className="flex flex-col items-center gap-1">
+                  <div
+                    className="w-12 h-12 rounded-lg border shadow-sm"
+                    style={{ backgroundColor: colors[key] || COLOR_DEFAULTS[key] }}
+                  />
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight max-w-14">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button onClick={saveColors} className="flex-1 sm:flex-none">
+              <Save className="h-4 w-4 mr-2" />
+              Enregistrer les couleurs
+            </Button>
+            <Button variant="outline" onClick={resetColors}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Réinitialiser
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
