@@ -69,7 +69,7 @@ function AppRoutes() {
   const { user, loading, role } = useAuth();
   if (loading) return null;
 
-  const defaultRoute = role === "reception" ? "/reception-dashboard" : "/";
+  const defaultRoute = role === "reception" ? "/reception-dashboard" : "/inbox";
 
   return (
     <Routes>

@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
               {settings.sidebar_initials || "ARE"}
             </div>
           )}
-          <h1 className="text-2xl font-bold"><h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1></h1>
+          <h1 className="text-2xl font-bold">{settings.site_title || "ARE App"}</h1>
         </div>
 
         <Card>
