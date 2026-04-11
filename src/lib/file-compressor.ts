@@ -134,7 +134,7 @@ async function compressPDF(file: File): Promise<File> {
   const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
 
   const savedBytes = await pdfDoc.save();
-  const blob = new Blob([savedBytes], { type: "application/pdf" });
+  const blob = new Blob([savedBytes.buffer as ArrayBuffer], { type: "application/pdf" });
 
   if (blob.size >= file.size) {
     return file; // No gain
