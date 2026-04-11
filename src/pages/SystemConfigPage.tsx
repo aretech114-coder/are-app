@@ -804,6 +804,94 @@ export default function SystemConfigPage() {
         </CardContent>
       </Card>
 
+      {/* API Keys */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Clés API
+          </CardTitle>
+          <CardDescription>
+            Générez des clés pour accéder à l'API REST publique. Les clés ne sont affichées qu'une seule fois à la création.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              value={newKeyLabel}
+              onChange={(e) => setNewKeyLabel(e.target.value)}
+              placeholder="Libellé (ex: CRM interne)"
+              className="flex-1"
+            />
+            <Button onClick={generateApiKey} disabled={generatingKey}>
+              <Plus className="h-4 w-4 mr-1" />
+              Générer
+            </Button>
+          </div>
+
+          {generatedKey && (
+            <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                ⚠️ Copiez cette clé maintenant — elle ne sera plus affichée.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted px-2 py-1.5 rounded break-all font-mono">
+                  {generatedKey}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedKey);
+                    toast.success("Clé copiée");
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                URL de base : <code className="bg-muted px-1 rounded">{APP_URL}/functions/v1/api-public</code>
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setGeneratedKey(null)} className="text-xs">
+                Fermer
+              </Button>
+            </div>
+          )}
+
+          {apiKeys.length > 0 && (
+            <div className="space-y-2">
+              {apiKeys.map((key) => (
+                <div
+                  key={key.id}
+                  className={`flex items-center justify-between py-2.5 px-3 rounded-lg border ${
+                    key.is_active ? "bg-muted/30" : "bg-muted/10 opacity-50"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{key.label || "Sans nom"}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Créée {new Date(key.created_at).toLocaleDateString("fr-FR")}
+                      {key.last_used_at && ` · Dernier usage ${new Date(key.last_used_at).toLocaleDateString("fr-FR")}`}
+                      {!key.is_active && " · Révoquée"}
+                    </p>
+                  </div>
+                  {key.is_active && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => revokeApiKey(key.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Admin Permissions */}
       <Card>
         <CardHeader>
