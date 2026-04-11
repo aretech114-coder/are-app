@@ -1,6 +1,6 @@
 ---
 name: Safety Policy Reference
-description: Gouvernance, sécurité, Git flow, checklist pré-PR, protocole migrations SQL manuelles
+description: Gouvernance, sécurité, Git flow, checklist pré-PR, protocole migrations SQL manuelles, continuité des données
 type: reference
 ---
 Le fichier SAFETY_POLICY.md est la référence absolue pour toute action sur le projet ARE Platform.
@@ -12,6 +12,7 @@ Sections clés :
 - **D6. Migrations SQL contrôlées** — Deux modes :
   - Pré-GitHub (actuel) : migrations via Lovable Cloud
   - Mode GitHub (à activer sur signal) : fichier .sql téléchargeable dans /mnt/documents/migrations/, nomenclature YYYY-MM-DD_description.sql, exécution manuelle par le collaborateur
+- **D7. Continuité et intégrité des données** — Migrations non-destructives, IF NOT EXISTS obligatoire, jamais de DROP/TRUNCATE sans WHERE, rollback documenté, colonnes nullable ou avec défaut
 - **E. Protocole d'action** — Lire policy → identifier risques → notifier → attendre approbation → exécuter → vérifier
 - **F. Checklist pré-PR** — RLS, pagination, pas de console.log sensible, Zod, responsive, performance
 - **G. Architecture** — Modularité, API-first, workflow dynamique, multi-tenant ready
