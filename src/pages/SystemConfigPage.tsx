@@ -83,6 +83,13 @@ export default function SystemConfigPage() {
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
 
+  // Tenants
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [newTenantName, setNewTenantName] = useState("");
+  const [newTenantDomain, setNewTenantDomain] = useState("");
+  const [creatingTenant, setCreatingTenant] = useState(false);
+
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
   const [fontHeading, setFontHeading] = useState("Inter");
