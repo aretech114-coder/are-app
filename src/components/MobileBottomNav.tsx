@@ -6,6 +6,8 @@ const tabs = [
   { label: "Réunions", path: "/reunions", icon: CalendarDays },
   { label: "Historique", path: "/history", icon: History },
   { label: "Missions", path: "/missions", icon: Plane },
+  { label: "Compte", path: "/account", icon: User },
+];
   { label: "Compte", path: "/profile", icon: User },
 ];
 

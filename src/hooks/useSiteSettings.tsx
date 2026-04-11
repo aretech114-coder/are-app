@@ -20,6 +20,8 @@ interface SiteSettings {
   link_color: string;
   font_heading: string;
   font_body: string;
+  login_bg_color: string;
+  login_bg_image_url: string;
 }
 
 const defaults: SiteSettings = {
@@ -41,6 +43,8 @@ const defaults: SiteSettings = {
   link_color: "#0EA5E9",
   font_heading: "Inter",
   font_body: "Inter",
+  login_bg_color: "#FFFFFF",
+  login_bg_image_url: "",
 };
 
 function hexToHsl(hex: string): string | null {
