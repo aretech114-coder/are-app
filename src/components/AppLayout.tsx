@@ -9,7 +9,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Menu, User, LogOut, Settings } from "lucide-react";
+import { Menu, User, LogOut, Settings, Mail } from "lucide-react";
+
+function DefaultLogo() {
+  return <Mail className="h-7 w-7 text-primary-foreground" />;
+}
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { profile, role, signOut } = useAuth();
@@ -27,21 +31,36 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <AppSidebar />
         </div>
         <main className="flex-1 flex flex-col min-w-0">
-          <header className={`h-14 flex items-center justify-between border-b px-4 shrink-0 ${
-            isMobile ? "bg-primary text-primary-foreground" : "bg-card"
-          }`}>
+          <header
+            className={`flex items-center justify-between border-b px-4 shrink-0 ${
+              isMobile
+                ? "bg-primary text-primary-foreground pt-[env(safe-area-inset-top)] min-h-[56px]"
+                : "h-14 bg-card"
+            }`}
+          >
             {!isMobile ? (
               <SidebarTrigger>
                 <Menu className="h-5 w-5" />
               </SidebarTrigger>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 py-2">
                 {settings.sidebar_logo_url ? (
-                  <img src={settings.sidebar_logo_url} alt="Logo" className="h-7 w-7 rounded object-cover" />
+                  <img
+                    src={settings.sidebar_logo_url}
+                    alt="Logo"
+                    className="h-7 w-7 rounded object-cover"
+                  />
                 ) : (
-                  <span className="font-bold text-sm">{settings.sidebar_initials || "ARE"}</span>
+                  <DefaultLogo />
                 )}
-                <span className="text-sm font-semibold truncate">{settings.site_title || "ARE App"}</span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold truncate leading-tight">
+                    {settings.site_title || "ARE App"}
+                  </span>
+                  <span className="text-[10px] opacity-80 leading-tight truncate max-w-[180px]">
+                    {settings.site_tagline || "Gestion des courriers"}
+                  </span>
+                </div>
               </div>
             )}
             {/* Avatar dropdown hidden on mobile (replaced by Compte tab) */}
@@ -75,14 +94,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                  <DropdownMenuItem
+                    onClick={signOut}
+                    className="text-destructive focus:text-destructive"
+                  >
                     <LogOut className="h-4 w-4 mr-2" /> Déconnexion
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </header>
-          <div className={`flex-1 overflow-auto p-3 md:p-6 ${isMobile ? "pb-20" : ""}`}>
+          <div
+            className={`flex-1 overflow-auto p-3 md:p-6 ${isMobile ? "pb-20" : ""}`}
+          >
             {children}
           </div>
         </main>
