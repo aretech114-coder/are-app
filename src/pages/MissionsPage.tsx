@@ -81,14 +81,14 @@ export default function MissionsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="page-header">Missions Officielles</h1>
           <p className="page-description">Suivi des déplacements et missions</p>
         </div>
         <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Nouvelle Mission</Button>
+            <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" />Nouvelle Mission</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Créer une mission</DialogTitle></DialogHeader>
