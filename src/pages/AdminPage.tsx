@@ -318,6 +318,7 @@ export default function AdminPage() {
     setEditEmail(u.email || "");
     setEditPassword("");
     setEditRole(userRole);
+    setEditTenantId(u.tenant_id || "");
     setEditOpen(true);
   };
 
