@@ -224,10 +224,18 @@ export default function AdminPage() {
     toast.success("Permission admin mise à jour");
   };
 
+  const fetchTenantsList = async () => {
+    const { data } = await supabase.from("tenants").select("id, name").eq("is_active", true);
+    setTenantsList(data || []);
+  };
+
   useEffect(() => {
     fetchRoles();
     fetchUsers();
-    if (isSuperAdmin) fetchAdminUserPermissions();
+    if (isSuperAdmin) {
+      fetchAdminUserPermissions();
+      fetchTenantsList();
+    }
   }, [isSuperAdmin]);
 
   const handleCreate = async (e: React.FormEvent) => {
