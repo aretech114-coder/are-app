@@ -1,6 +1,6 @@
-import { Check, Clock, ArrowRight } from "lucide-react";
-import { WORKFLOW_STEPS, getStepColor } from "@/lib/workflow-engine";
+import { Check, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 
 interface WorkflowStepperProps {
   currentStep: number;
@@ -8,20 +8,22 @@ interface WorkflowStepperProps {
 }
 
 export function WorkflowStepper({ currentStep, className }: WorkflowStepperProps) {
+  const { data: steps } = useActiveWorkflowSteps();
+
   return (
     <div className={cn("flex items-center gap-1 overflow-x-auto py-2", className)}>
-      {WORKFLOW_STEPS.map((step, index) => {
-        const isCompleted = step.step < currentStep;
-        const isCurrent = step.step === currentStep;
-        const isFuture = step.step > currentStep;
+      {steps.map((step, index) => {
+        const isCompleted = step.step_order < currentStep;
+        const isCurrent = step.step_order === currentStep;
+        const isFuture = step.step_order > currentStep;
 
         return (
-          <div key={step.step} className="flex items-center gap-1 shrink-0">
+          <div key={step.id} className="flex items-center gap-1 shrink-0">
             <div
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all",
                 isCompleted && "bg-success/10 text-success border-success/30",
-                isCurrent && getStepColor(step.step),
+                isCurrent && (step.color_class || "bg-primary/10 text-primary border-primary/30"),
                 isFuture && "bg-muted/50 text-muted-foreground border-border opacity-50"
               )}
             >
@@ -31,11 +33,11 @@ export function WorkflowStepper({ currentStep, className }: WorkflowStepperProps
                 isCurrent && "bg-current text-current ring-2 ring-offset-1 ring-primary",
                 isFuture && "bg-muted text-muted-foreground"
               )}>
-                {isCompleted ? <Check className="h-3 w-3" /> : step.step}
+                {isCompleted ? <Check className="h-3 w-3" /> : step.step_order}
               </div>
               <span className="hidden sm:inline whitespace-nowrap">{step.name}</span>
             </div>
-            {index < WORKFLOW_STEPS.length - 1 && (
+            {index < steps.length - 1 && (
               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
             )}
           </div>
