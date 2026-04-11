@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import { Workflow, Clock, Settings2, UserCog, Mail } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
-import { WORKFLOW_STEPS, getStepColor } from "@/lib/workflow-engine";
+import { WorkflowStepManager } from "@/components/WorkflowStepManager";
+import { useWorkflowSteps, getStepColorFromList } from "@/hooks/useWorkflowSteps";
+import { getStepColor } from "@/lib/workflow-engine";
 import {
   fetchWorkflowAssignableUsers,
   fetchWorkflowStepResponsibles,
@@ -46,6 +48,7 @@ const MANAGED_DEFAULT_STEPS = [2, 3, 5, 6, 8, 9];
 
 export default function WorkflowPage() {
   const { role, hasPermission, user } = useAuth();
+  const { data: workflowSteps = [] } = useWorkflowSteps();
   const [slaConfigs, setSlaConfigs] = useState<SlaConfig[]>([]);
   const [responsibles, setResponsibles] = useState<WorkflowStepResponsible[]>([]);
   const [users, setUsers] = useState<AssignableUser[]>([]);
@@ -211,6 +214,9 @@ export default function WorkflowPage() {
         </CardContent>
       </Card>
 
+      {/* Dynamic Step Manager */}
+      <WorkflowStepManager />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -222,20 +228,20 @@ export default function WorkflowPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {WORKFLOW_STEPS.filter((step) => step.step >= 2).map((step) => {
-            const config = responsibleByStep.get(step.step);
+          {workflowSteps.filter((step) => step.step_order >= 2).map((step) => {
+            const config = responsibleByStep.get(step.step_order);
             const selectedUserId = config?.default_user_id || "none";
             const selectedUser = selectedUserId !== "none" ? usersMap.get(selectedUserId) : null;
-            const isManagedDefaultStep = MANAGED_DEFAULT_STEPS.includes(step.step);
+            const isManagedDefaultStep = MANAGED_DEFAULT_STEPS.includes(step.step_order);
 
             return (
               <div
-                key={step.step}
+                key={step.id}
                 className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2"
               >
                 <div className="flex items-center gap-3">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getStepColor(step.step)}`}>
-                    {step.step}
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${step.color_class || getStepColor(step.step_order)}`}>
+                    {step.step_order}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{step.name}</p>
@@ -246,7 +252,7 @@ export default function WorkflowPage() {
                       <Mail className={`h-4 w-4 ${config?.notify_enabled !== false ? "text-primary" : "text-muted-foreground"}`} />
                       <Switch
                         checked={config?.notify_enabled !== false}
-                        onCheckedChange={(checked) => handleNotifyToggle(step.step, checked)}
+                        onCheckedChange={(checked) => handleNotifyToggle(step.step_order, checked)}
                       />
                     </div>
                   )}
@@ -256,8 +262,8 @@ export default function WorkflowPage() {
                   <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
                     <Select
                       value={selectedUserId}
-                      onValueChange={(value) => handleResponsibleChange(step.step, value)}
-                      disabled={!canManageResponsibles || savingStep === step.step}
+                      onValueChange={(value) => handleResponsibleChange(step.step_order, value)}
+                      disabled={!canManageResponsibles || savingStep === step.step_order}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionner le responsable par défaut" />
@@ -273,7 +279,7 @@ export default function WorkflowPage() {
                     </Select>
 
                     <div className="text-xs text-muted-foreground">
-                      {step.step === 6
+                      {step.step_order === 6
                         ? "Fallback: assignee étape 2 si vide"
                         : selectedUser
                           ? `${selectedUser.full_name}`
