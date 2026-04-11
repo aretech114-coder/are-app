@@ -1,64 +1,95 @@
 
 
-# Plan : Arrière-plan personnalisable (login) + Page Hub "Compte" mobile
+# Plan : Phase 3 — API, Emails & Intégrations + Fix Missions mobile
 
-## 1. Arrière-plan de la page de connexion (Auth.tsx)
+## A. Fix UI — Page Missions (rapide)
 
-**Objectif** : Le superadmin peut choisir soit une couleur uniforme, soit uploader une image comme arrière-plan de la page de connexion.
+**Problème** : Le bouton "Nouvelle Mission" est coincé à droite du titre/sous-titre sur petits écrans.
 
-### Modifications :
-- **`useSiteSettings.tsx`** : Ajouter deux clés : `login_bg_color` (défaut `#FFFFFF`) et `login_bg_image_url` (défaut vide)
-- **`SystemConfigPage.tsx`** : Dans la section Branding, ajouter :
-  - Un color picker "Couleur de fond (page connexion)"
-  - Un champ upload "Image de fond (page connexion)" — taille recommandée 1920x1080, stocké dans le bucket `branding` sous `login-bg.*`
-  - Si une image est uploadée, elle prend la priorité sur la couleur
-- **`Auth.tsx`** : Remplacer `bg-background` par un style dynamique :
-  - Si `login_bg_image_url` existe → `background-image: url(...)` avec `cover` + `center`
-  - Sinon si `login_bg_color` défini → `background-color: <couleur>`
-  - Sinon → blanc par défaut
-  - Ajouter un overlay semi-transparent pour la lisibilité du formulaire si image
-- **`ForgotPasswordPage.tsx`** : Appliquer le même arrière-plan pour cohérence
-- **Insertion données** : Ajouter les settings `login_bg_color` et `login_bg_image_url` dans `site_settings`
+**Correction** (`src/pages/MissionsPage.tsx` lignes 84-91) :
+- Passer le layout en `flex-col` sur mobile (`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`)
+- Le bouton passe en dessous du titre sur mobile, pleine largeur ou aligné à gauche
+- Sur desktop, le layout reste côte à côte comme aujourd'hui
 
-## 2. Page Hub "Compte" mobile (nouvelle page)
+---
 
-**Objectif** : L'onglet "Compte" du bottom nav ne renvoie plus directement vers `/profile` mais vers une page hub `/account` qui liste les fonctionnalités accessibles selon le rôle.
+## B. Phase 3 : API & Intégrations
 
-### Nouvelle page `src/pages/AccountPage.tsx` :
-- Header avec avatar, nom et rôle de l'utilisateur
-- Liste de liens sous forme de cards/lignes cliquables, filtrées par rôle :
+### B1. Emails — Domaine de production `are-app.cloud`
 
-| Élément | Route | Rôles autorisés |
-|---------|-------|-----------------|
-| Tableau de bord | `/` | superadmin, admin, ministre, dircab |
-| Statistiques | `/analytics` | tous sauf reception |
-| Tableau de suivi | `/suivi` | ministre, dircab, superadmin, admin |
-| Profil | `/profile` | tous |
-| Enregistrement | `/mail-entry` | reception, admin, superadmin |
-| Administration | `/admin` | admin (manage_users), superadmin |
-| Workflow | `/workflow` | admin (manage_workflow), superadmin |
-| Configuration système | `/system-config` | superadmin |
-| Archives | `/archive` | tous sauf reception |
+**Objectif** : Les emails de notification (workflow, SLA, réinitialisation) affichent des liens vers `are-app.cloud` et portent une identité visuelle cohérente.
 
-- Section "Préférences" :
-  - Toggle mode sombre/clair (réutilise `ThemeToggle`)
-  - Lien vers changement de mot de passe (ancre vers `/profile#password` ou directement dans la page)
-- Bouton "Se déconnecter" en bas (rouge)
+**Modifications** :
+1. **`src/lib/workflow-notifications.ts`** : Ajouter un lien "Voir le courrier" dans le template HTML pointant vers `https://are-app.cloud/inbox?mail=<id>`. Utiliser une constante `APP_DOMAIN` définie dans un fichier `src/lib/constants.ts`.
+2. **`src/lib/constants.ts`** (nouveau) : Centraliser `APP_DOMAIN = import.meta.env.VITE_APP_DOMAIN || "are-app.cloud"` et `APP_NAME = "ARE App"`. Pour le preview, la variable env `VITE_APP_DOMAIN` peut être définie autrement.
+3. **`supabase/functions/send-notification-email/index.ts`** : Ajouter un header de réponse `X-App-Domain` et logger le domaine utilisé. Le template HTML est déjà fourni côté client, donc le domaine est injecté à la source.
+4. **Emails d'authentification** : Configurer les templates d'emails auth (confirmation, reset) via le système Lovable Cloud Emails pour utiliser le domaine `are-app.cloud` comme expéditeur si le domaine est vérifié.
 
-### Routing :
-- **`App.tsx`** : Ajouter route `/account` → `AccountPage`
-- **`MobileBottomNav.tsx`** : Changer le path du dernier onglet de `/profile` à `/account`
+### B2. API REST publique — Documentation & Endpoints
+
+**Objectif** : Exposer une API documentée pour les intégrations futures (webhooks, systèmes tiers).
+
+**Implémentation** :
+1. **Edge Function `api-public/index.ts`** (nouvelle) : Point d'entrée API REST avec authentification par clé API.
+   - `GET /api-public?action=mails` — Liste les courriers (filtrable par status, step, date)
+   - `GET /api-public?action=mail&id=<uuid>` — Détail d'un courrier
+   - `GET /api-public?action=stats` — KPI résumés (volume, SLA, délai moyen)
+   - `GET /api-public?action=users` — Liste des utilisateurs (admin uniquement)
+   - Authentification : header `X-API-Key` validé contre une table `api_keys`
+2. **Table `api_keys`** (migration SQL) :
+   - `id uuid PK`, `key_hash text`, `label text`, `created_by uuid`, `permissions jsonb`, `is_active boolean`, `created_at`, `last_used_at`
+   - RLS : lecture/écriture superadmin uniquement
+3. **Page admin "Clés API"** dans `SystemConfigPage.tsx` :
+   - Section dédiée pour générer, lister, révoquer des clés API
+   - Affichage de la clé complète uniquement à la création (ensuite masquée)
+   - Copie en un clic de l'URL de base : `https://are-app.cloud/functions/v1/api-public`
+
+### B3. Page Intégrations — Vitrine des modules futurs
+
+**Objectif** : Créer une page `/integrations` visible uniquement par superadmin/admin, listant les modules disponibles et à venir.
+
+**Implémentation** :
+1. **`src/pages/IntegrationsPage.tsx`** (nouvelle) :
+   - Grille de cards pour chaque module :
+     - ✅ **Notifications Email** — Actif (SMTP configuré)
+     - ✅ **Assistant IA** — Actif (Gemini Flash)
+     - ✅ **Missions Officielles** — Actif
+     - ✅ **Réunions & RDV** — Actif
+     - 🔒 **CRM** — Bientôt disponible
+     - 🔒 **Gestion RH** — Bientôt disponible
+     - 🔒 **Comptabilité** — Bientôt disponible
+     - 🔒 **Archivage Légal** — Bientôt disponible
+     - 🔒 **Webhooks Sortants** — Bientôt disponible
+   - Les modules verrouillés affichent un badge "Bientôt" et sont non-cliquables
+   - Chaque card montre : icône, nom, description courte, statut (actif/bientôt)
+2. **Routing** : Ajouter `/integrations` dans `App.tsx`, protégé superadmin/admin
+3. **Navigation** : Ajouter dans `AccountPage.tsx` et `AppSidebar.tsx`
+
+### B4. Préparation Multi-tenant (structure uniquement)
+
+**Objectif** : Poser les bases pour le multi-tenant sans implémentation fonctionnelle.
+
+**Implémentation** :
+1. **Table `tenants`** (migration SQL) :
+   - `id uuid PK`, `name text`, `domain text UNIQUE`, `is_active boolean DEFAULT true`, `settings jsonb DEFAULT '{}'`, `created_at`
+   - Pas de RLS pour l'instant (table de référence interne)
+2. **Colonne `tenant_id`** : Ajoutée à la table `mails` (nullable, `DEFAULT NULL`) — ne casse rien, prépare le partitionnement futur
+3. **Note dans la page Intégrations** : Card "Multi-tenant" avec statut "En préparation"
+
+---
 
 ## Fichiers impactés
 
 | Fichier | Action |
 |---------|--------|
-| `src/pages/AccountPage.tsx` | Nouveau — hub mobile avec menus par rôle |
-| `src/pages/Auth.tsx` | Arrière-plan dynamique (image ou couleur) |
-| `src/pages/ForgotPasswordPage.tsx` | Même arrière-plan |
-| `src/hooks/useSiteSettings.tsx` | Ajouter `login_bg_color`, `login_bg_image_url` |
-| `src/pages/SystemConfigPage.tsx` | Color picker + upload image de fond |
-| `src/components/MobileBottomNav.tsx` | Pointer vers `/account` |
-| `src/App.tsx` | Route `/account` |
-| Insertion données | 2 nouveaux settings |
+| `src/pages/MissionsPage.tsx` | Fix layout boutons mobile |
+| `src/lib/constants.ts` | Nouveau — APP_DOMAIN, APP_NAME |
+| `src/lib/workflow-notifications.ts` | Lien cliquable dans les emails |
+| `src/pages/IntegrationsPage.tsx` | Nouveau — vitrine modules |
+| `src/pages/SystemConfigPage.tsx` | Section "Clés API" |
+| `src/App.tsx` | Route `/integrations` |
+| `src/pages/AccountPage.tsx` | Lien Intégrations |
+| `src/components/AppSidebar.tsx` | Lien Intégrations |
+| `supabase/functions/api-public/index.ts` | Nouveau — API REST publique |
+| Migration SQL | Tables `api_keys`, `tenants`, colonne `tenant_id` sur `mails` |
 
