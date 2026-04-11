@@ -68,4 +68,4 @@ Expert cybersécurité : audit chaque changement, notifier risques avant exécut
 - [Interface Inbox](mem://features/interface-inbox-details-fr) — Deux panneaux, preview docs
 - [RLS profils superadmin](mem://auth/rls-profils-superadmin-fr) — CRUD complet superadmin
 - [Rôles dynamiques](mem://auth/dynamic-role-management-fr) — Ajout rôles à la volée
-- [Workflow dynamique it.1](mem://features/workflow-dynamique-iteration1-fr) — Steps DB, useWorkflowSteps, StepManager, stepper dynamique
+- [Multi-tenant fonctionnel](mem://features/multi-tenant-fonctionnel-fr) — Isolation données par organisation, gestion UI
