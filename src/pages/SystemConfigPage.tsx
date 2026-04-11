@@ -117,6 +117,7 @@ export default function SystemConfigPage() {
 
   useEffect(() => {
     fetchPermissions();
+    fetchApiKeys();
   }, []);
 
   const fetchPermissions = async () => {
@@ -127,6 +128,60 @@ export default function SystemConfigPage() {
     if (error) toast.error(error.message);
     else setPermissions(data || []);
     setLoading(false);
+  };
+
+  const fetchApiKeys = async () => {
+    const { data, error } = await supabase
+      .from("api_keys" as any)
+      .select("id, label, is_active, created_at, last_used_at")
+      .order("created_at", { ascending: false });
+    if (!error && data) setApiKeys(data as any);
+  };
+
+  const generateApiKey = async () => {
+    if (!newKeyLabel.trim()) {
+      toast.error("Veuillez saisir un libellé pour la clé");
+      return;
+    }
+    setGeneratingKey(true);
+    try {
+      // Generate a random key
+      const rawKey = crypto.randomUUID() + "-" + crypto.randomUUID();
+      // Hash it
+      const encoder = new TextEncoder();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const keyHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+      const { error } = await supabase.from("api_keys" as any).insert({
+        key_hash: keyHash,
+        label: newKeyLabel.trim(),
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+        permissions: ["read"],
+      } as any);
+
+      if (error) throw error;
+      setGeneratedKey(rawKey);
+      setNewKeyLabel("");
+      fetchApiKeys();
+      toast.success("Clé API créée");
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la création");
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
+
+  const revokeApiKey = async (id: string) => {
+    const { error } = await supabase
+      .from("api_keys" as any)
+      .update({ is_active: false } as any)
+      .eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Clé révoquée");
+      fetchApiKeys();
+    }
   };
 
   const togglePermission = async (id: string, currentValue: boolean) => {
