@@ -125,6 +125,7 @@ export default function SystemConfigPage() {
   useEffect(() => {
     fetchPermissions();
     fetchApiKeys();
+    fetchTenants();
   }, []);
 
   const fetchPermissions = async () => {
