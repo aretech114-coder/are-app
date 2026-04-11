@@ -1,63 +1,58 @@
 
 
-# Plan révisé : Corrections sécurité + SAFETY_POLICY + Présentation PowerPoint
+# Plan : Compression intelligente des documents avant stockage
 
-## Clarification naming — ARE App
+## Contexte & calcul
 
-ARE = **Autorité de Régulation du Secteur de l'Électricité**. La solution s'appelle **ARE App** — c'est le nom du projet conçu pour eux. On présente naturellement les fonctionnalités de ARE App sans ambiguïté sur la propriété du nom.
+Avec 100 courriers/jour, chaque scan PDF à 150 DPI pesant ~500 Ko à 2 Mo :
+- **Pire cas** : 100 × 2 Mo = 200 Mo/jour → **~6 Go/mois** → **72 Go/an**
+- Avec compression (réduction 60-70%) : **~25 Go/an** — marge confortable sur 100 Go
 
----
+## Approche technique
 
-## A. Mise à jour SAFETY_POLICY.md
+**Compression côté navigateur (client-side)** avant l'upload vers le stockage. Aucun serveur supplémentaire nécessaire.
 
-Ajouter section **D7. Continuité et intégrité des données** :
-- Migrations non-destructives (`IF NOT EXISTS`, jamais de `DROP` sans clause WHERE)
-- Idempotence obligatoire
-- Rollback documenté pour chaque migration critique
+### Logique en 2 étapes :
 
----
+1. **Images (JPEG/PNG)** — Utiliser le Canvas HTML5 :
+   - Redimensionner à max 1500px de large (suffisant pour lisibilité A4)
+   - Ré-encoder en JPEG qualité 0.65-0.75 (réduction ~60-70%)
+   - Un scan de 2 Mo → ~600 Ko
 
-## B. Corrections sécurité (82 → 90+/100)
+2. **PDFs** — Utiliser la bibliothèque `pdf-lib` (déjà compatible browser) :
+   - Extraire les images intégrées, les recompresser via Canvas
+   - Ré-assembler le PDF avec les images optimisées
+   - Alternative plus simple : si le PDF est un scan mono-page, convertir en JPEG compressé puis ré-encapsuler en PDF
 
-### B1. Migration SQL
-- **Avatars bucket** : Restreindre DELETE/UPDATE aux fichiers de l'utilisateur propriétaire
-- **user_roles** : Empêcher l'escalade admin → superadmin dans le WITH CHECK
-- **mail-documents** : Ajouter politique UPDATE explicite
+### Intégration dans le code existant
 
-### B2. Edge Function
-- `impersonate-user/index.ts` : remplacer `mrhe-courrier.cloud` → `are-app.cloud`
+- **Nouveau utilitaire** : `src/lib/file-compressor.ts` — fonctions `compressImage()` et `compressPDF()`
+- **Modification** : `src/pages/MailEntry.tsx` — appeler `compressFile()` dans `handleSubmit` avant `supabase.storage.upload()`
+- **Modification** : `src/components/WorkflowActions.tsx` — même compression pour les pièces jointes ajoutées en cours de workflow
+- **Indicateur UX** : afficher la taille originale vs compressée (ex: "2.1 Mo → 680 Ko") dans un toast de confirmation
 
----
+### Paramètres configurables
 
-## C. Présentation PowerPoint — ARE App (14 slides)
+| Paramètre | Valeur par défaut | Description |
+|-----------|------------------|-------------|
+| Qualité JPEG | 0.70 | Balance lisibilité/poids |
+| Largeur max | 1500px | Résolution suffisante pour A4 |
+| Taille max avant compression | 500 Ko | En dessous, pas de compression |
+| Format de sortie image | JPEG | Plus léger que PNG pour les scans |
 
-| # | Slide | Contenu |
-|---|-------|---------|
-| 1 | Couverture | ARE App — Plateforme de gestion du courrier ministériel |
-| 2 | Le constat | Problèmes actuels : suivi manuel, pertes, délais |
-| 3 | ARE App | Workflow automatisé, traçabilité totale |
-| 4 | Workflow intelligent | 8 étapes, de la réception à l'archivage |
-| 5 | Application mobile | iOS et Android, accès instantané |
-| 6 | Gestion des rôles | 11 niveaux de responsabilité |
-| 7 | Modules intégrés | Missions, Réunions, Assistant IA, Notifications |
-| 8 | Modules à venir | CRM, RH, Comptabilité, Parapheur, Archivage légal |
-| 9 | Sécurité multicouche | Chiffrement, audit trail, isolation, Cloudflare |
-| 10 | Multi-organisation | Données cloisonnées par entité |
-| 11 | API & Intégrations | API REST, connecteurs futurs |
-| 12 | Tableau de bord | KPI temps réel |
-| 13 | Pourquoi ARE App ? | Comparatif papier/Excel vs solution digitale |
-| 14 | Prochaines étapes | Déploiement, formation, accompagnement |
+### Limites et garde-fous
 
-**Design** : Deep Navy (#1E2761) + Teal (#0EA5E9), Georgia/Calibri. Présentation en français.
-
----
+- Les fichiers < 500 Ko ne sont pas recompressés (déjà optimaux)
+- Les fichiers non-image/non-PDF (Word, Excel) restent inchangés
+- La qualité 0.70 en JPEG maintient une lisibilité excellente pour du texte scanné
+- Aucune perte sur les documents texte natifs (non scannés)
 
 ## Fichiers impactés
 
 | Fichier | Action |
 |---------|--------|
-| `SAFETY_POLICY.md` | Section D7 continuité des données |
-| Migration SQL | Fix storage avatars + user_roles + mail-documents |
-| `supabase/functions/impersonate-user/index.ts` | Domaine are-app.cloud |
-| `/mnt/documents/ARE_App_Presentation.pptx` | Présentation 14 slides |
+| `src/lib/file-compressor.ts` | Nouveau — utilitaires compression |
+| `src/pages/MailEntry.tsx` | Compression avant upload |
+| `src/components/WorkflowActions.tsx` | Compression avant upload annotations |
+| `package.json` | Ajout `pdf-lib` |
 
