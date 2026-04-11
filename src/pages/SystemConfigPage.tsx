@@ -59,9 +59,12 @@ export default function SystemConfigPage() {
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
   const [pwaIconUrl, setPwaIconUrl] = useState("");
+  const [loginBgColor, setLoginBgColor] = useState("#FFFFFF");
+  const [loginBgImageUrl, setLoginBgImageUrl] = useState("");
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
+  const [uploadingLoginBg, setUploadingLoginBg] = useState(false);
 
   // Colors & fonts
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
@@ -71,6 +74,7 @@ export default function SystemConfigPage() {
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
+  const loginBgInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -80,6 +84,8 @@ export default function SystemConfigPage() {
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
     setPwaIconUrl((settings as any).pwa_icon_url || "");
+    setLoginBgColor((settings as any).login_bg_color || "#FFFFFF");
+    setLoginBgImageUrl((settings as any).login_bg_image_url || "");
     setColors({
       primary_color: settings.primary_color || COLOR_DEFAULTS.primary_color,
       secondary_color: settings.secondary_color || COLOR_DEFAULTS.secondary_color,
@@ -158,6 +164,8 @@ export default function SystemConfigPage() {
         updateSetting("favicon_url", faviconUrl),
         updateSetting("sidebar_logo_url", sidebarLogoUrl),
         updateSetting("pwa_icon_url", pwaIconUrl),
+        updateSetting("login_bg_color", loginBgColor),
+        updateSetting("login_bg_image_url", loginBgImageUrl),
       ]);
       toast.success("Paramètres de branding sauvegardés");
     } catch {
