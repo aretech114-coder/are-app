@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { Button } from "@/components/ui/button";
@@ -178,7 +179,11 @@ export default function MailEntry() {
     try {
       let attachmentUrl: string | null = null;
       if (files.length > 0) {
-        const file = files[0];
+        const originalFile = files[0];
+        const { file, originalSize, compressedSize, wasCompressed } = await compressFile(originalFile);
+        if (wasCompressed) {
+          toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
+        }
         const sanitizedName = file.name
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
           .replace(/[^a-zA-Z0-9._-]/g, "_")
