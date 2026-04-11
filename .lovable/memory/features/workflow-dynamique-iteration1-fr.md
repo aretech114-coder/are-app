@@ -1,6 +1,6 @@
 ---
-name: Workflow dynamique — Itération 1
-description: Table workflow_steps enrichie avec colonnes dynamiques, hook useWorkflowSteps, composant WorkflowStepManager pour CRUD/réordonnancement, WorkflowStepper dynamique
+name: Workflow dynamique — Itération 1 & 2
+description: Table workflow_steps enrichie, hook useWorkflowSteps, StepManager admin, stepper dynamique, RPC advance_workflow_step dynamique
 type: feature
 ---
 ## Itération 1 — Fondations & UI
@@ -14,13 +14,22 @@ type: feature
 - `useWorkflowSteps()` — toutes les étapes (React Query, clé `workflow_steps`)
 - `useActiveWorkflowSteps()` — filtre `is_active`
 - Mutations : `useUpdateWorkflowStep`, `useCreateWorkflowStep`, `useDeleteWorkflowStep`, `useReorderWorkflowSteps`
-- Réordonnancement via double-pass (valeurs négatives temporaires pour éviter conflits UNIQUE)
 
 ### Composants
-- `WorkflowStepManager` — UI admin complète : réordonnancement up/down, toggle actif, édition (nom, description, rôle, mode assignation, couleur), création, suppression avec confirmation
-- `WorkflowStepper` — utilise désormais `useActiveWorkflowSteps` au lieu du tableau hardcodé
-- `WorkflowPage` — intègre le `WorkflowStepManager` et utilise `useWorkflowSteps` pour la section responsables
+- `WorkflowStepManager` — UI admin complète : réordonnancement, toggle actif, édition, création, suppression
+- `WorkflowStepper` — utilise `useActiveWorkflowSteps` depuis la DB
+- `WorkflowPage` — intègre le `WorkflowStepManager`
 
-### Rétrocompatibilité
-- `workflow-engine.ts` conserve `WORKFLOW_STEPS` statique et `getStepInfo/getStepColor` pour `WorkflowActions.tsx`
-- Itération 2 prévue pour refactorer `advance_workflow_step` RPC vers lecture dynamique de `workflow_steps`
+## Itération 2 — RPC dynamique
+
+### RPC `advance_workflow_step` refactorée
+- Calcul de la prochaine étape via `SELECT MIN/MAX(step_order) FROM workflow_steps WHERE is_active = true`
+- Étape d'archivage = `MAX(step_order)` dynamique (plus hardcodé à 9)
+- Conditions de saut lues depuis `conditions` (jsonb) : `skip_if_ministre_absent`, `skip_if_not_note_technique`
+- Boucle LOOP pour enchaîner les sauts si plusieurs étapes consécutives ont des conditions
+- Logique d'assignation inchangée (étapes 4/7 dynamiques)
+
+### Client `workflow-engine.ts`
+- `getStepInfoFromDB()` — requête DB avec fallback statique
+- `sendStepEmailNotification` utilise désormais les noms d'étapes dynamiques
+- Exports statiques (`WORKFLOW_STEPS`, `getStepInfo`, `getStepColor`, `getStepLabel`) conservés pour rétrocompatibilité UI
