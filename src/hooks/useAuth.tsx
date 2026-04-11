@@ -15,6 +15,7 @@ interface AuthContext {
   profile: any | null;
   permissions: AdminPermission[];
   loading: boolean;
+  tenantId: string | null;
   signOut: () => Promise<void>;
   hasPermission: (key: string) => boolean;
   refreshPermissions: () => Promise<void>;
