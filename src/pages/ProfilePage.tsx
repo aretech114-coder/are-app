@@ -7,14 +7,17 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Camera, Lock, Save } from "lucide-react";
+import { Camera, Lock, Save, LogOut } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 export default function ProfilePage() {
-  const { user, profile, role } = useAuth();
+  const { user, profile, role, signOut } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [saving, setSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const updateProfile = async () => {
     if (!user) return;
@@ -26,6 +29,10 @@ export default function ProfilePage() {
   };
 
   const changePassword = async () => {
+    if (!currentPassword) {
+      toast.error("Veuillez saisir votre mot de passe actuel");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("Les mots de passe ne correspondent pas");
       return;
@@ -34,15 +41,37 @@ export default function ProfilePage() {
       toast.error("Le mot de passe doit contenir au moins 8 caractères, une majuscule, un chiffre et un caractère spécial");
       return;
     }
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Mot de passe mis à jour");
-      if (user) {
-        await supabase.from("profiles").update({ password_changed_at: new Date().toISOString(), first_login: false }).eq("id", user.id);
+
+    setChangingPassword(true);
+    try {
+      // Verify current password
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user?.email || "",
+        password: currentPassword,
+      });
+      if (verifyError) {
+        toast.error("Mot de passe actuel incorrect");
+        setChangingPassword(false);
+        return;
       }
-      setNewPassword("");
-      setConfirmPassword("");
+
+      // Update password
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Mot de passe mis à jour");
+        if (user) {
+          await supabase.from("profiles").update({ password_changed_at: new Date().toISOString(), first_login: false }).eq("id", user.id);
+        }
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      toast.error("Erreur lors du changement de mot de passe");
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -102,20 +131,40 @@ export default function ProfilePage() {
         <CardHeader><CardTitle className="text-lg">Sécurité</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label>Mot de passe actuel</Label>
+            <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+          <div className="space-y-2">
             <Label>Nouveau mot de passe</Label>
             <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" />
           </div>
           <div className="space-y-2">
-            <Label>Confirmer le mot de passe</Label>
+            <Label>Confirmer le nouveau mot de passe</Label>
             <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" />
           </div>
           <p className="text-xs text-muted-foreground">
-            Min. 8 caractères, 1 majuscule, 1 chiffre, 1 caractère spécial. Expiration tous les 30 jours.
+            Min. 8 caractères, 1 majuscule, 1 chiffre, 1 caractère spécial.
           </p>
-          <Button variant="outline" onClick={changePassword}>
+          <Button variant="outline" onClick={changePassword} disabled={changingPassword}>
             <Lock className="h-4 w-4 mr-2" />
-            Changer le mot de passe
+            {changingPassword ? "Vérification..." : "Changer le mot de passe"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Déconnexion */}
+      <Card className="border-destructive/30">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-sm">Se déconnecter</p>
+              <p className="text-xs text-muted-foreground">Fermer votre session sur cet appareil</p>
+            </div>
+            <Button variant="destructive" onClick={signOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Déconnexion
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
