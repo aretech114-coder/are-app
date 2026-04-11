@@ -54,6 +54,7 @@ export default function SystemConfigPage() {
 
   const [siteTitle, setSiteTitle] = useState("");
   const [siteSubtitle, setSiteSubtitle] = useState("");
+  const [siteTagline, setSiteTagline] = useState("");
   const [sidebarInitials, setSidebarInitials] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
@@ -74,6 +75,7 @@ export default function SystemConfigPage() {
   useEffect(() => {
     setSiteTitle(settings.site_title);
     setSiteSubtitle(settings.site_subtitle);
+    setSiteTagline(settings.site_tagline || "");
     setSidebarInitials(settings.sidebar_initials);
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
@@ -151,6 +153,7 @@ export default function SystemConfigPage() {
       await Promise.all([
         updateSetting("site_title", siteTitle),
         updateSetting("site_subtitle", siteSubtitle),
+        updateSetting("site_tagline", siteTagline),
         updateSetting("sidebar_initials", sidebarInitials),
         updateSetting("favicon_url", faviconUrl),
         updateSetting("sidebar_logo_url", sidebarLogoUrl),
