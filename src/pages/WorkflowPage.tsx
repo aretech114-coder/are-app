@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import { Workflow, Clock, Settings2, UserCog, Mail } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
-import { WORKFLOW_STEPS, getStepColor } from "@/lib/workflow-engine";
+import { WorkflowStepManager } from "@/components/WorkflowStepManager";
+import { useWorkflowSteps, getStepColorFromList } from "@/hooks/useWorkflowSteps";
+import { getStepColor } from "@/lib/workflow-engine";
 import {
   fetchWorkflowAssignableUsers,
   fetchWorkflowStepResponsibles,
