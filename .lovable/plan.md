@@ -1,80 +1,50 @@
 
 
-# Plan : Phase 3 — API, Emails & Intégrations + Fix Missions mobile
+# Plan : Phase 4 & 5 — Modules métier (illustratifs) + Multi-tenant fonctionnel
 
-## A. Fix UI — Page Missions (rapide)
+## Phase 4 : Modules métier — structure illustrative uniquement
 
-**Problème** : Le bouton "Nouvelle Mission" est coincé à droite du titre/sous-titre sur petits écrans.
+**Objectif** : Enrichir la page Intégrations avec des cards dédiées aux modules métier futurs. Aucune logique fonctionnelle — juste un catalogue visuel.
 
-**Correction** (`src/pages/MissionsPage.tsx` lignes 84-91) :
-- Passer le layout en `flex-col` sur mobile (`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`)
-- Le bouton passe en dessous du titre sur mobile, pleine largeur ou aligné à gauche
-- Sur desktop, le layout reste côte à côte comme aujourd'hui
+### Modifications :
+- **`src/pages/IntegrationsPage.tsx`** : Réorganiser en deux sections distinctes :
+  - **"Modules actifs"** — les 5 modules existants (Email, IA, Missions, Réunions, API)
+  - **"Modules métier"** — nouvelles cards illustratives avec statut "Bientôt" :
+    - CRM (déjà présent)
+    - Gestion RH (déjà présent)
+    - Comptabilité (déjà présent)
+    - Archivage Légal (déjà présent)
+    - Webhooks Sortants (déjà présent)
+    - **Nouveaux** : Gestion documentaire, Parapheur électronique, Tableau de bord décisionnel
+  - Chaque card : icône, nom, description courte, badge "Bientôt" verrouillé
+
+Pas de nouvelles routes, pas de nouvelles tables. Juste du contenu visuel.
 
 ---
 
-## B. Phase 3 : API & Intégrations
+## Phase 5 : Multi-tenant fonctionnel
 
-### B1. Emails — Domaine de production `are-app.cloud`
+**Objectif** : Rendre le multi-tenant opérationnel — chaque organisation (tenant) a ses données isolées.
 
-**Objectif** : Les emails de notification (workflow, SLA, réinitialisation) affichent des liens vers `are-app.cloud` et portent une identité visuelle cohérente.
+### 5.1 Migration SQL
+- Ajouter `tenant_id` aux tables qui n'en ont pas encore : `profiles`, `user_roles`, `notifications`, `mail_assignments`, `workflow_transitions`, `missions`, `calendar_events` (toutes nullable, DEFAULT NULL pour compatibilité)
+- Créer une fonction `get_user_tenant_id(uuid)` SECURITY DEFINER qui retourne le `tenant_id` du profil
+- Ajouter des politiques RLS complémentaires sur `mails` et les autres tables pour filtrer par `tenant_id` quand celui-ci est défini (les politiques existantes restent, on ajoute une couche tenant)
 
-**Modifications** :
-1. **`src/lib/workflow-notifications.ts`** : Ajouter un lien "Voir le courrier" dans le template HTML pointant vers `https://are-app.cloud/inbox?mail=<id>`. Utiliser une constante `APP_DOMAIN` définie dans un fichier `src/lib/constants.ts`.
-2. **`src/lib/constants.ts`** (nouveau) : Centraliser `APP_DOMAIN = import.meta.env.VITE_APP_DOMAIN || "are-app.cloud"` et `APP_NAME = "ARE App"`. Pour le preview, la variable env `VITE_APP_DOMAIN` peut être définie autrement.
-3. **`supabase/functions/send-notification-email/index.ts`** : Ajouter un header de réponse `X-App-Domain` et logger le domaine utilisé. Le template HTML est déjà fourni côté client, donc le domaine est injecté à la source.
-4. **Emails d'authentification** : Configurer les templates d'emails auth (confirmation, reset) via le système Lovable Cloud Emails pour utiliser le domaine `are-app.cloud` comme expéditeur si le domaine est vérifié.
+### 5.2 Gestion des tenants — UI Admin
+- **`src/pages/SystemConfigPage.tsx`** : Nouvelle section "Organisations" (superadmin uniquement) :
+  - Liste des tenants avec nom, domaine, statut actif/inactif
+  - Formulaire d'ajout : nom, domaine (optionnel), settings JSON
+  - Toggle activer/désactiver
+  - Assigner un tenant à un utilisateur (dropdown dans la page Admin)
 
-### B2. API REST publique — Documentation & Endpoints
+### 5.3 Propagation du tenant dans le contexte
+- **`src/hooks/useAuth.tsx`** : Charger le `tenant_id` du profil connecté et l'exposer dans le contexte
+- **`src/hooks/useTenant.tsx`** (nouveau) : Hook utilitaire pour accéder au tenant courant et filtrer les requêtes
+- Les requêtes Supabase dans les pages existantes ajoutent `.eq('tenant_id', tenantId)` quand le tenant est défini (filtrage côté client en complément du RLS)
 
-**Objectif** : Exposer une API documentée pour les intégrations futures (webhooks, systèmes tiers).
-
-**Implémentation** :
-1. **Edge Function `api-public/index.ts`** (nouvelle) : Point d'entrée API REST avec authentification par clé API.
-   - `GET /api-public?action=mails` — Liste les courriers (filtrable par status, step, date)
-   - `GET /api-public?action=mail&id=<uuid>` — Détail d'un courrier
-   - `GET /api-public?action=stats` — KPI résumés (volume, SLA, délai moyen)
-   - `GET /api-public?action=users` — Liste des utilisateurs (admin uniquement)
-   - Authentification : header `X-API-Key` validé contre une table `api_keys`
-2. **Table `api_keys`** (migration SQL) :
-   - `id uuid PK`, `key_hash text`, `label text`, `created_by uuid`, `permissions jsonb`, `is_active boolean`, `created_at`, `last_used_at`
-   - RLS : lecture/écriture superadmin uniquement
-3. **Page admin "Clés API"** dans `SystemConfigPage.tsx` :
-   - Section dédiée pour générer, lister, révoquer des clés API
-   - Affichage de la clé complète uniquement à la création (ensuite masquée)
-   - Copie en un clic de l'URL de base : `https://are-app.cloud/functions/v1/api-public`
-
-### B3. Page Intégrations — Vitrine des modules futurs
-
-**Objectif** : Créer une page `/integrations` visible uniquement par superadmin/admin, listant les modules disponibles et à venir.
-
-**Implémentation** :
-1. **`src/pages/IntegrationsPage.tsx`** (nouvelle) :
-   - Grille de cards pour chaque module :
-     - ✅ **Notifications Email** — Actif (SMTP configuré)
-     - ✅ **Assistant IA** — Actif (Gemini Flash)
-     - ✅ **Missions Officielles** — Actif
-     - ✅ **Réunions & RDV** — Actif
-     - 🔒 **CRM** — Bientôt disponible
-     - 🔒 **Gestion RH** — Bientôt disponible
-     - 🔒 **Comptabilité** — Bientôt disponible
-     - 🔒 **Archivage Légal** — Bientôt disponible
-     - 🔒 **Webhooks Sortants** — Bientôt disponible
-   - Les modules verrouillés affichent un badge "Bientôt" et sont non-cliquables
-   - Chaque card montre : icône, nom, description courte, statut (actif/bientôt)
-2. **Routing** : Ajouter `/integrations` dans `App.tsx`, protégé superadmin/admin
-3. **Navigation** : Ajouter dans `AccountPage.tsx` et `AppSidebar.tsx`
-
-### B4. Préparation Multi-tenant (structure uniquement)
-
-**Objectif** : Poser les bases pour le multi-tenant sans implémentation fonctionnelle.
-
-**Implémentation** :
-1. **Table `tenants`** (migration SQL) :
-   - `id uuid PK`, `name text`, `domain text UNIQUE`, `is_active boolean DEFAULT true`, `settings jsonb DEFAULT '{}'`, `created_at`
-   - Pas de RLS pour l'instant (table de référence interne)
-2. **Colonne `tenant_id`** : Ajoutée à la table `mails` (nullable, `DEFAULT NULL`) — ne casse rien, prépare le partitionnement futur
-3. **Note dans la page Intégrations** : Card "Multi-tenant" avec statut "En préparation"
+### 5.4 Mise à jour page Intégrations
+- Passer le module "Multi-tenant" de "En préparation" à "Actif"
 
 ---
 
@@ -82,14 +52,10 @@
 
 | Fichier | Action |
 |---------|--------|
-| `src/pages/MissionsPage.tsx` | Fix layout boutons mobile |
-| `src/lib/constants.ts` | Nouveau — APP_DOMAIN, APP_NAME |
-| `src/lib/workflow-notifications.ts` | Lien cliquable dans les emails |
-| `src/pages/IntegrationsPage.tsx` | Nouveau — vitrine modules |
-| `src/pages/SystemConfigPage.tsx` | Section "Clés API" |
-| `src/App.tsx` | Route `/integrations` |
-| `src/pages/AccountPage.tsx` | Lien Intégrations |
-| `src/components/AppSidebar.tsx` | Lien Intégrations |
-| `supabase/functions/api-public/index.ts` | Nouveau — API REST publique |
-| Migration SQL | Tables `api_keys`, `tenants`, colonne `tenant_id` sur `mails` |
+| `src/pages/IntegrationsPage.tsx` | Réorganisation sections + nouveaux modules illustratifs |
+| Migration SQL | `tenant_id` sur 6 tables, fonction `get_user_tenant_id`, RLS tenant |
+| `src/pages/SystemConfigPage.tsx` | Section gestion des tenants |
+| `src/hooks/useAuth.tsx` | Exposer `tenant_id` |
+| `src/hooks/useTenant.tsx` | Nouveau — hook tenant courant |
+| `src/pages/AdminPage.tsx` | Dropdown assignation tenant par utilisateur |
 
