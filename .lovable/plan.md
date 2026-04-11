@@ -1,81 +1,61 @@
 
 
-# Phase 2 — Mobile-First, Bottom Navigation & Responsivité PWA
+# Plan : PWA Native Experience, Logo Admin, Sécurité Mot de Passe & Guide Installation
 
 ## Objectif
-Transformer l'expérience mobile en une interface type application native : barre de navigation fixe en bas (footer), sidebar masquée sur mobile, contenu adaptatif style boîte email.
+Rendre l'application PWA indistinguable d'une app native sur mobile : header coloré avec primary color, barre d'état fusionnée, guide d'installation, gestion du logo PWA par l'admin, changement de mot de passe sécurisé avec ancien mot de passe, et bouton de déconnexion sur la page Compte.
 
-## Architecture
+## Travail en 6 blocs
 
-```text
-Desktop (≥768px)                    Mobile (<768px)
-┌──────┬────────────────┐           ┌────────────────────┐
-│      │                │           │  Header (titre)    │
-│ Side │   Content      │           ├────────────────────┤
-│ bar  │                │           │                    │
-│      │                │           │   Content          │
-│      │                │           │   (full width)     │
-│      │                │           │                    │
-└──────┴────────────────┘           ├────────────────────┤
-                                    │ 📥  📋  🕐  ✈️  👤 │
-                                    │ Inbox Réu. Hist Mis Cpt│
-                                    └────────────────────┘
-```
+### 1. Header mobile natif avec primary color
+- **`AppLayout.tsx`** : sur mobile, le header utilise `bg-primary text-primary-foreground` au lieu de `bg-card`. Le titre du site est tiré de `useSiteSettings()`.
+- **`index.html`** : ajouter `<meta name="theme-color" content="#0EA5E9">` pour colorer la barre d'état du navigateur/PWA.
+- **`useSiteSettings.tsx`** : dans l'effet `useEffect`, mettre à jour dynamiquement le `meta[name="theme-color"]` avec la valeur `primary_color` du CMS. Cela garantit que la barre d'état iOS/Android prend la couleur définie par l'admin.
+- **`manifest.json`** : le `theme_color` sera aussi mis à jour dynamiquement via JS.
 
-**5 onglets du footer mobile (gauche → droite) :**
-1. **Boîte de réception** (`/inbox`) — Inbox
-2. **Réunions** (`/reunions`) — CalendarDays
-3. **Historique** (`/history`) — History
-4. **Missions** (`/missions`) — Plane
-5. **Compte** (`/profile`) — User
+### 2. Logo PWA administrable
+- **`SystemConfigPage.tsx`** : ajouter un champ d'upload pour "Icône PWA" (stocké dans le bucket `branding` sous `pwa-icon.png`). L'admin uploade une image carrée 512x512 qui sert d'icône pour le PWA.
+- **`site_settings`** : ajouter une clé `pwa_icon_url` (via insert data, pas migration).
+- **`useSiteSettings.tsx`** : mettre à jour `manifest.json` dynamiquement via un `<link rel="manifest">` et/ou `<link rel="apple-touch-icon">` pointant vers l'icône uploadée.
 
-## Plan d'implémentation
+### 3. Guide d'installation PWA
+- **Créer `src/components/InstallGuide.tsx`** : composant modal/dialog avec :
+  - Détection iOS (Safari) : instructions "Partager → Ajouter à l'écran d'accueil" avec captures illustratives textuelles
+  - Détection Android/Chrome : bouton "Installer l'application" utilisant l'API `beforeinstallprompt`
+  - Affichage automatique si l'app n'est pas en mode standalone et que l'utilisateur ne l'a pas déjà fermé (localStorage flag)
+- **Intégrer dans `AppLayout.tsx`** : afficher le guide une seule fois après la première connexion sur mobile
 
-### 1. Créer `MobileBottomNav.tsx`
-- Composant avec 5 boutons fixes en `fixed bottom-0`, `h-16`, `z-50`, `bg-card border-t`
-- Utilise `useLocation` pour highlight actif (primary color + label bold)
-- Icônes Lucide + label sous chaque icône (texte 10px)
-- Visible uniquement sur mobile (`md:hidden`)
-- Espace de sécurité iOS (`pb-safe` / `env(safe-area-inset-bottom)`)
+### 4. Changement de mot de passe sécurisé (ancien mot de passe requis)
+- **`ProfilePage.tsx`** : ajouter un champ "Mot de passe actuel" avant les champs nouveau/confirmation
+- Avant d'appeler `updateUser`, vérifier l'ancien mot de passe via `supabase.auth.signInWithPassword({ email, password: currentPassword })` — si échec, bloquer le changement
+- Afficher les messages d'erreur appropriés
 
-### 2. Modifier `AppLayout.tsx`
-- Importer `useIsMobile` et `MobileBottomNav`
-- Sur mobile : masquer la sidebar, masquer le header dropdown avatar (remplacé par l'onglet Compte)
-- Ajouter `pb-20` au contenu sur mobile pour ne pas être caché par le footer
-- Le `SidebarTrigger` reste accessible via un menu hamburger simplifié en mobile si nécessaire pour accéder aux pages admin
+### 5. Bouton de déconnexion sur la page Compte (mobile)
+- **`ProfilePage.tsx`** : ajouter en bas de page une section avec un bouton rouge "Se déconnecter" qui appelle `signOut()` de `useAuth()`
+- Visible sur toutes les tailles d'écran mais particulièrement important sur mobile (le dropdown avatar n'est pas accessible)
 
-### 3. Modifier `AppSidebar.tsx`
-- Ajouter classe `hidden md:flex` pour masquer complètement la sidebar sur mobile
-- La sidebar reste identique sur desktop
-
-### 4. Responsivité Inbox (style email mobile)
-- Sur mobile : la liste de courriers prend toute la largeur, cards compactes
-- Au clic sur un courrier : navigation vers un écran de détail plein écran avec bouton retour
-- Utiliser un state conditionnel ou un sous-routage visuel (pas de split panel sur mobile)
-- Padding réduit (`p-3` au lieu de `p-6`) sur mobile
-
-### 5. Ajustements globaux CSS
-- Ajouter `safe-area-inset` dans `index.css` pour les appareils avec notch
-- `viewport-fit=cover` dans le meta viewport de `index.html`
-- Réduire les paddings/margins sur mobile pour toutes les pages
-
-### 6. Mémoire projet
-- Mettre à jour `mem://design/mobile-first-pwa-fr` avec les détails du bottom nav
+### 6. Notification admin pour demandes de mot de passe oublié
+- **`ForgotPasswordPage.tsx`** : après l'envoi du lien de réinitialisation, insérer une notification dans la table `notifications` pour tous les admin/superadmin avec le titre "Demande de réinitialisation" et l'email de l'utilisateur
+- Utiliser une requête côté client pour récupérer les user_ids des admins via `user_roles` puis insérer les notifications (la RLS permet l'insertion par les rôles autorisés)
+- **Alternative plus robuste** : créer une RPC `notify_password_reset_request(email)` SECURITY DEFINER qui insère les notifications pour tous les admins sans exposer la liste des admins au client non authentifié
 
 ## Fichiers impactés
 
 | Fichier | Action |
 |---------|--------|
-| `src/components/MobileBottomNav.tsx` | Nouveau — barre de navigation footer |
-| `src/components/AppLayout.tsx` | Modifier — intégrer bottom nav, masquer sidebar mobile |
-| `src/components/AppSidebar.tsx` | Modifier — `hidden md:flex` |
-| `src/pages/InboxPage.tsx` | Modifier — vue liste/détail conditionnelle mobile |
-| `src/index.css` | Modifier — safe-area, paddings mobiles |
-| `index.html` | Modifier — `viewport-fit=cover` |
-| `mem://design/mobile-first-pwa-fr` | Mettre à jour |
+| `src/components/AppLayout.tsx` | Header primary color sur mobile |
+| `index.html` | Meta theme-color |
+| `src/hooks/useSiteSettings.tsx` | Sync theme-color + apple-touch-icon dynamiques |
+| `src/pages/SystemConfigPage.tsx` | Upload icône PWA |
+| `src/components/InstallGuide.tsx` | Nouveau — guide installation iOS/Android |
+| `src/pages/ProfilePage.tsx` | Ancien mot de passe + bouton déconnexion |
+| `public/manifest.json` | Mise à jour |
+| Migration SQL | RPC `notify_password_reset_request` |
+| `src/pages/ForgotPasswordPage.tsx` | Appel RPC notification admin |
+| `mem://design/mobile-first-pwa-fr` | Mise à jour |
 
-## Notes techniques
-- Pas de nouvelle dépendance nécessaire
-- `useIsMobile()` existe déjà dans le projet
-- Le bottom nav n'affiche que les 5 routes universelles — les pages admin/workflow restent accessibles via un menu hamburger ou la sidebar desktop
+## Notes
+- Pas de `vite-plugin-pwa` : on reste sur un manifest statique + enregistrement manuel du service worker en production uniquement (conformément aux règles projet).
+- Le `meta theme-color` est la clé pour que la barre d'état iOS/Android prenne la couleur primary — c'est ce qui donne l'effet "natif".
+- La vérification de l'ancien mot de passe via `signInWithPassword` est la seule méthode disponible avec Supabase Auth (pas de endpoint dédié "verify password").
 
