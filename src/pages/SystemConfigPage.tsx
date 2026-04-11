@@ -146,7 +146,50 @@ export default function SystemConfigPage() {
     if (!error && data) setApiKeys(data as any);
   };
 
-  const generateApiKey = async () => {
+  const fetchTenants = async () => {
+    setTenantsLoading(true);
+    const { data, error } = await supabase
+      .from("tenants")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) setTenants(data);
+    setTenantsLoading(false);
+  };
+
+  const createTenant = async () => {
+    if (!newTenantName.trim()) {
+      toast.error("Le nom de l'organisation est requis");
+      return;
+    }
+    setCreatingTenant(true);
+    const { error } = await supabase.from("tenants").insert({
+      name: newTenantName.trim(),
+      domain: newTenantDomain.trim() || null,
+    } as any);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Organisation créée");
+      setNewTenantName("");
+      setNewTenantDomain("");
+      fetchTenants();
+    }
+    setCreatingTenant(false);
+  };
+
+  const toggleTenantActive = async (id: string, currentValue: boolean) => {
+    const { error } = await supabase
+      .from("tenants")
+      .update({ is_active: !currentValue } as any)
+      .eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(!currentValue ? "Organisation activée" : "Organisation désactivée");
+      fetchTenants();
+    }
+  };
+
+
     if (!newKeyLabel.trim()) {
       toast.error("Veuillez saisir un libellé pour la clé");
       return;
