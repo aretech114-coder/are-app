@@ -545,6 +545,74 @@ export default function SystemConfigPage() {
             </p>
           </div>
 
+          {/* Login background */}
+          <Separator className="my-2" />
+          <p className="text-sm font-medium">Arrière-plan de la page de connexion</p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Couleur de fond</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={loginBgColor}
+                  onChange={(e) => setLoginBgColor(e.target.value)}
+                  className="w-10 h-10 rounded-lg border cursor-pointer p-0.5"
+                />
+                <Input
+                  value={loginBgColor}
+                  onChange={(e) => setLoginBgColor(e.target.value)}
+                  placeholder="#FFFFFF"
+                  className="font-mono text-xs h-10 flex-1"
+                  maxLength={7}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Utilisé si aucune image n'est définie</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Image de fond (1920×1080)</Label>
+              <div className="flex items-center gap-2">
+                {loginBgImageUrl ? (
+                  <div className="relative">
+                    <img src={loginBgImageUrl} alt="BG" className="w-10 h-10 rounded-lg object-cover border" />
+                    <button
+                      onClick={() => setLoginBgImageUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingLoginBg}
+                  onClick={() => loginBgInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {uploadingLoginBg ? "Upload..." : "Uploader"}
+                </Button>
+                <input
+                  ref={loginBgInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFile(file, "login-bg", setUploadingLoginBg, setLoginBgImageUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Prioritaire sur la couleur si définie</p>
+            </div>
+          </div>
+
           {/* Preview */}
           <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/20">
             <span className="text-xs text-muted-foreground uppercase tracking-wider">Aperçu :</span>
