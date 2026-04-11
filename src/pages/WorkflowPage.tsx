@@ -48,6 +48,7 @@ const MANAGED_DEFAULT_STEPS = [2, 3, 5, 6, 8, 9];
 
 export default function WorkflowPage() {
   const { role, hasPermission, user } = useAuth();
+  const { data: workflowSteps = [] } = useWorkflowSteps();
   const [slaConfigs, setSlaConfigs] = useState<SlaConfig[]>([]);
   const [responsibles, setResponsibles] = useState<WorkflowStepResponsible[]>([]);
   const [users, setUsers] = useState<AssignableUser[]>([]);
