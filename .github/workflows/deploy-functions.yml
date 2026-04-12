@@ -7,62 +7,44 @@ on:
       - 'supabase/functions/**'
 
 jobs:
-  deploy-staging:
-    if: github.ref == 'refs/heads/develop'
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-      - uses: supabase/setup-cli@v1
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - name: Link staging project
-        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Deploy functions to staging
+      - name: Link & Deploy Functions
         run: |
-          supabase functions deploy create-user --no-verify-jwt
-          supabase functions deploy update-user --no-verify-jwt
-          supabase functions deploy delete-user --no-verify-jwt
-          supabase functions deploy manage-roles --no-verify-jwt
-          supabase functions deploy sla-checker --no-verify-jwt
-          supabase functions deploy ai-assistant --no-verify-jwt
-          supabase functions deploy sync-users --no-verify-jwt
-          supabase functions deploy impersonate-user --no-verify-jwt
-          supabase functions deploy send-notification-email --no-verify-jwt
-          supabase functions deploy api-public --no-verify-jwt
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # 1. Sélection de l'ID selon la branche
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            PROJECT_ID=${{ secrets.PRODUCTION_PROJECT_ID }}
+            echo "Cible détectée : PRODUCTION"
+          else
+            PROJECT_ID=${{ secrets.SUPABASE_PROJECT_ID }}
+            echo "Cible détectée : SUPABASE (Staging)"
+          fi
 
-  deploy-production:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          # 2. Vérification du Secret
+          if [ -z "$PROJECT_ID" ]; then
+            echo "ERREUR : Le Secret Project ID est vide."
+            exit 1
+          fi
 
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Link production project
-        run: supabase link --project-ref ${{ secrets.PRODUCTION_PROJECT_ID }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Deploy functions to production
-        run: |
-          supabase functions deploy create-user --no-verify-jwt
-          supabase functions deploy update-user --no-verify-jwt
-          supabase functions deploy delete-user --no-verify-jwt
-          supabase functions deploy manage-roles --no-verify-jwt
-          supabase functions deploy sla-checker --no-verify-jwt
-          supabase functions deploy ai-assistant --no-verify-jwt
-          supabase functions deploy sync-users --no-verify-jwt
-          supabase functions deploy impersonate-user --no-verify-jwt
-          supabase functions deploy send-notification-email --no-verify-jwt
-          supabase functions deploy api-public --no-verify-jwt
+          # 3. Liaison au projet
+          supabase link --project-ref $PROJECT_ID
+          
+          # 4. Déploiement automatique
+          for f in supabase/functions/*/; do
+            if [ -f "${f}index.ts" ]; then
+              func_name=$(basename $f)
+              echo "Déploiement de la fonction : $func_name"
+              supabase functions deploy "$func_name" --no-verify-jwt
+            fi
+          done
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
