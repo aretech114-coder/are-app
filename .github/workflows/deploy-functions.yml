@@ -20,26 +20,25 @@ jobs:
 
       - name: Link & Deploy Functions
         run: |
-          # 1. Sélection de l'ID selon votre nomenclature exacte
+          # 1. Sélection de l'ID selon la branche
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             PROJECT_ID=${{ secrets.PRODUCTION_PROJECT_ID }}
             echo "Cible détectée : PRODUCTION"
           else
-            # Pour la branche develop, on utilise le projet nommé 'Supabase'
             PROJECT_ID=${{ secrets.SUPABASE_PROJECT_ID }}
-            echo "Cible détectée : SUPABASE (Staging/Develop)"
+            echo "Cible détectée : SUPABASE (Staging)"
           fi
 
-          # 2. Vérification que le secret n'est pas vide
+          # 2. Vérification du Secret
           if [ -z "$PROJECT_ID" ]; then
-            echo "ERREUR : Le Secret Project ID est vide. Vérifiez vos GitHub Secrets."
+            echo "ERREUR : Le Secret Project ID est vide."
             exit 1
           fi
 
-          # 3. Liaison au projet spécifique
+          # 3. Liaison au projet
           supabase link --project-ref $PROJECT_ID
           
-          # 4. Déploiement automatique de toutes les fonctions
+          # 4. Déploiement automatique
           for f in supabase/functions/*/; do
             if [ -f "${f}index.ts" ]; then
               func_name=$(basename $f)
