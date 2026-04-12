@@ -1,3 +1,4 @@
+// Git flow verify: ce commit doit apparaître dans develop uniquement
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";

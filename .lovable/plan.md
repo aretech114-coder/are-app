@@ -1,76 +1,69 @@
 
 
-# Audit sécurité complet — Score actuel + État compression
+# Plan : CI/CD dual-environment (Staging → Production)
 
-## A. Score sécurité actuel : **87/100** (avant : 82)
+## Architecture cible
 
-### Grille d'évaluation mise à jour
+```text
+Lovable push
+     │
+     ▼
+  develop ──► GitHub Actions ──► Supabase STAGING (SUPABASE_PROJECT_ID)
+     │                            + Vercel Preview
+     │
+  PR merge
+     │
+     ▼
+   main ────► GitHub Actions ──► Supabase PRODUCTION (PRODUCTION_PROJECT_ID)
+                                  + Vercel Production
+```
 
-| Catégorie | Points max | Score | Détail |
-|-----------|-----------|-------|--------|
-| **RLS (Row-Level Security)** | 25 | 23 | 17/17 tables avec RLS. Linter : 0 issue. **-2 pts** : politique UPDATE `user_roles` — un admin pourrait théoriquement modifier ses propres rôles (scan finding PRIVILEGE_ESCALATION) |
-| **Edge Functions (auth & validation)** | 20 | 19 | JWT validé partout. Domaine corrigé (are-app.cloud). **-1 pt** : CORS `*` encore présent (à restreindre via Cloudflare en prod) |
-| **Storage (buckets)** | 10 | 8 | Politiques DELETE/UPDATE avatars corrigées. **-1 pt** : bucket `avatars` public = avatars lisibles sans auth (scan warning). **-1 pt** : `mail_processing_history` INSERT sans vérification d'assignation au mail |
-| **Frontend (XSS, secrets, logs)** | 15 | 15 | Aucun secret exposé, sanitisation IA en place |
-| **Architecture & isolation** | 15 | 12 | Multi-tenant en place, `get_user_tenant_id` SECURITY DEFINER. **-3 pts** : RLS ne filtre pas encore par `tenant_id` (filtrage client-side uniquement) |
-| **Auth & session** | 10 | 10 | Inscription publique désactivée, impersonation protégée, sessions persistantes |
-| **Conformité SAFETY_POLICY** | 5 | 5 | Conforme (D7 continuité ajouté) |
-| **TOTAL** | **100** | **87** | +5 pts vs dernier audit |
+## Secrets GitHub — État actuel ✅
 
-### 3 findings du scan automatisé
+Vos secrets sont bien configurés :
+| Secret | Usage |
+|--------|-------|
+| `SUPABASE_PROJECT_ID` | Projet staging (develop) |
+| `SUPABASE_DB_PASSWORD` | DB staging |
+| `SUPABASE_ACCESS_TOKEN` | Auth CLI (partagé) |
+| `PRODUCTION_PROJECT_ID` | Projet production (main) |
+| `PRODUCTION_DB_PASSWORD` | DB production |
 
-| # | Niveau | Finding | Remédiation |
-|---|--------|---------|-------------|
-| 1 | **ERROR** | `user_roles` UPDATE : un admin peut potentiellement modifier son propre rôle ou cross-tenant | Ajouter `AND user_id <> auth.uid()` dans le USING + vérifier `tenant_id` dans WITH CHECK |
-| 2 | **WARN** | Bucket `avatars` public : avatars lisibles sans authentification | Acceptable pour un SaaS (URLs partagées dans l'UI). À rendre privé si données sensibles. |
-| 3 | **WARN** | `mail_processing_history` INSERT : un agent peut insérer un historique pour n'importe quel mail | Ajouter une vérification que `agent_id` est assigné au `mail_id` référencé |
+**Note** : Le même `SUPABASE_ACCESS_TOKEN` fonctionne pour les deux projets si les deux sont sous le même compte Supabase.
 
-### Gains depuis le dernier audit (82 → 87)
-- Politiques storage avatars DELETE/UPDATE corrigées (+2)
-- Domaine impersonate-user corrigé (+1)
-- SAFETY_POLICY D7 continuité des données (+1)
-- user_roles WITH CHECK admin→superadmin bloqué (+1)
+## Modifications à effectuer
 
-### Pour atteindre 92-95/100 (sans Cloudflare)
-1. **Fix ERROR** : Empêcher un admin de modifier son propre rôle (`user_id <> auth.uid()`)
-2. **Fix WARN** : Ajouter vérification d'assignation sur `mail_processing_history` INSERT
-3. **RLS tenant** : Ajouter filtrage `tenant_id` via `get_user_tenant_id()` sur les tables principales (mails, mail_assignments, notifications, workflow_transitions)
-4. **CORS prod** : Restreindre `Access-Control-Allow-Origin` (fait via Cloudflare)
+### 1. Refonte du workflow GitHub Actions
 
----
+Remplacer le fichier unique `.github/workflows/deploy-functions.yml` par **deux jobs** :
 
-## B. État de la compression intelligente : ✓ Opérationnelle
+- **Job "deploy-staging"** : déclenché sur `push` vers `develop`, déploie les 10 Edge Functions (incluant `api-public` manquante) vers `SUPABASE_PROJECT_ID`
+- **Job "deploy-production"** : déclenché sur `push` vers `main` (via PR merge), déploie vers `PRODUCTION_PROJECT_ID`
 
-### Vérification complète
+Les 10 fonctions à déployer :
+`create-user`, `update-user`, `delete-user`, `manage-roles`, `sla-checker`, `ai-assistant`, `sync-users`, `impersonate-user`, `send-notification-email`, `api-public`
 
-| Élément | Statut | Détail |
-|---------|--------|--------|
-| `src/lib/file-compressor.ts` | ✓ OK | 153 lignes, fonctions `compressFile`, `compressImage`, `compressPDF`, `formatFileSize` |
-| Seuil minimum | ✓ OK | 500 Ko — fichiers plus petits ignorés |
-| Images (JPEG/PNG/WEBP/BMP) | ✓ OK | Canvas API, 1500px max, JPEG qualité 0.70 |
-| PDFs | ✓ OK | pdf-lib re-save avec fallback si échec (PDF chiffré) |
-| Garde-fou taille | ✓ OK | Si compression augmente la taille → retourne l'original |
-| `MailEntry.tsx` | ✓ Intégré | `compressFile()` appelé avant upload, toast info affiché |
-| `WorkflowActions.tsx` | ✓ Intégré | `compressFile()` appelé sur les pièces jointes d'annotation |
-| Dépendance `pdf-lib` | ✓ OK | Installé dans `package.json` |
+### 2. Ajout workflow migrations DB (optionnel mais recommandé)
 
-La compression est correctement intégrée aux deux points d'upload du système.
+Un second workflow `.github/workflows/deploy-migrations.yml` pour appliquer les migrations SQL :
+- `develop` → staging DB via `SUPABASE_DB_PASSWORD`
+- `main` → production DB via `PRODUCTION_DB_PASSWORD`
 
----
+### 3. Mise à jour mémoire CI/CD
 
-## C. Plan de remédiation proposé (87 → 93+)
+Mettre à jour `mem://infrastructure/ci-cd-edge-functions-fr` pour refléter le dual-environment.
 
-### Corrections à implémenter
-
-1. **Migration SQL** : `user_roles` UPDATE — ajouter `AND user_id <> auth.uid()` pour empêcher l'auto-modification
-2. **Migration SQL** : `mail_processing_history` INSERT — ajouter vérification que l'agent est assigné au mail
-3. **Migration SQL** : Ajouter filtrage RLS par `tenant_id` sur `mails`, `mail_assignments`, `notifications`, `workflow_transitions` (politiques complémentaires, non destructif)
-
-### Fichiers impactés
+## Fichiers impactés
 
 | Fichier | Action |
 |---------|--------|
-| Migration SQL | 3 corrections RLS (user_roles, mail_processing_history, tenant filtering) |
+| `.github/workflows/deploy-functions.yml` | Refonte : 2 jobs (staging + production) |
+| `.github/workflows/deploy-migrations.yml` | Nouveau : migrations DB dual-env |
+| `.lovable/memory/infrastructure/ci-cd-edge-functions-fr.md` | Mise à jour |
 
-Souhaitez-vous que j'implémente ces 3 corrections pour monter le score à 93+ ?
+## Points de vigilance
+
+- La fonction `api-public` n'est pas dans le workflow actuel — elle sera ajoutée.
+- Les secrets Edge Functions (SMTP, etc.) doivent être configurés **sur les deux projets Supabase** indépendamment (via le dashboard de chaque projet).
+- Vercel gère automatiquement le déploiement frontend : preview sur `develop`, production sur `main` — aucune configuration GitHub Actions nécessaire pour le frontend.
 
