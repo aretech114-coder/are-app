@@ -10,29 +10,43 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-      - uses: supabase/setup-cli@v1
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      # LOGIQUE DE LIEN DYNAMIQUE : On choisit le projet selon la branche
-      - name: Link Supabase Project
+      - name: Link & Deploy Functions
         run: |
+          # Sélection de l'ID selon votre nomenclature exacte
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            supabase link --project-ref ${{ secrets.PRODUCTION_PROJECT_ID }}
+            PROJECT_ID=${{ secrets.PRODUCTION_PROJECT_ID }}
+            echo "Cible détectée : PRODUCTION"
           else
-            supabase link --project-ref ${{ secrets.STAGING_PROJECT_ID }}
+            # Pour la branche develop, on utilise le projet nommé 'Supabase'
+            PROJECT_ID=${{ secrets.SUPABASE_PROJECT_ID }}
+            echo "Cible détectée : SUPABASE (Staging/Develop)"
           fi
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Deploy all functions
-        run: |
+          # Vérification que le secret n'est pas vide
+          if [ -z "$PROJECT_ID" ]; then
+            echo "ERREUR : Le Secret Project ID est vide. Vérifiez vos GitHub Secrets."
+            exit 1
+          fi
+
+          # Liaison au projet spécifique
+          supabase link --project-ref $PROJECT_ID
+          
+          # Déploiement automatique de toutes les fonctions
+          # On déploie chaque dossier trouvé dans supabase/functions
           for f in supabase/functions/*/; do
-            name=$(basename $f)
-            echo "Deploying function: $name"
-            supabase functions deploy "$name" --no-verify-jwt
+            if [ -f "${f}index.ts" ]; then
+              func_name=$(basename $f)
+              echo "Déploiement de la fonction : $func_name"
+              supabase functions deploy "$func_name" --no-verify-jwt
+            fi
           done
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
