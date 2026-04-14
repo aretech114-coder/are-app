@@ -1,69 +1,52 @@
 
 
-# Plan : CI/CD dual-environment (Staging → Production)
+# Plan de correction sécurité — ARE Platform
 
-## Architecture cible
+## Contexte
+L'audit révèle 4 failles critiques RLS et des erreurs de build dans les Edge Functions. Toutes les corrections sont **non-destructives** : elles resserrent les accès sans casser la structure existante.
 
-```text
-Lovable push
-     │
-     ▼
-  develop ──► GitHub Actions ──► Supabase STAGING (SUPABASE_PROJECT_ID)
-     │                            + Vercel Preview
-     │
-  PR merge
-     │
-     ▼
-   main ────► GitHub Actions ──► Supabase PRODUCTION (PRODUCTION_PROJECT_ID)
-                                  + Vercel Production
+## Étape 1 — Corriger les erreurs de build des Edge Functions
+
+Fichiers concernés (8 fonctions) :
+
+- `ai-assistant/index.ts` : supprimer la redéclaration `const supabaseUrl` ligne 60, remplacer `getClaims(token)` par `getUser(token)`
+- `create-user`, `delete-user`, `impersonate-user`, `manage-roles`, `sla-checker`, `sync-users`, `update-user` : remplacer `err.message` par `(err as Error).message` dans les blocs catch
+
+## Étape 2 — Corriger les policies tenant isolation (migration SQL)
+
+Modifier les 4 policies de tenant isolation sur `mails`, `mail_assignments`, `workflow_transitions`, `notifications` :
+
+**Avant :**
+```sql
+(tenant_id IS NULL) OR (get_user_tenant_id(auth.uid()) IS NULL) OR (tenant_id = get_user_tenant_id(auth.uid()))
 ```
 
-## Secrets GitHub — État actuel ✅
+**Après :**
+```sql
+(tenant_id IS NULL) OR (tenant_id = get_user_tenant_id(auth.uid()))
+```
 
-Vos secrets sont bien configurés :
-| Secret | Usage |
-|--------|-------|
-| `SUPABASE_PROJECT_ID` | Projet staging (develop) |
-| `SUPABASE_DB_PASSWORD` | DB staging |
-| `SUPABASE_ACCESS_TOKEN` | Auth CLI (partagé) |
-| `PRODUCTION_PROJECT_ID` | Projet production (main) |
-| `PRODUCTION_DB_PASSWORD` | DB production |
+Cela empêche un utilisateur sans tenant de voir toutes les données.
 
-**Note** : Le même `SUPABASE_ACCESS_TOKEN` fonctionne pour les deux projets si les deux sont sous le même compte Supabase.
+## Étape 3 — Resserrer la policy notifications
 
-## Modifications à effectuer
+Supprimer la policy `Tenant isolation notifications` redondante (le scope `user_id = auth.uid()` des autres policies suffit).
 
-### 1. Refonte du workflow GitHub Actions
+## Étape 4 — Protéger user_roles contre l'escalade admin
 
-Remplacer le fichier unique `.github/workflows/deploy-functions.yml` par **deux jobs** :
+Modifier la policy DELETE admin sur `user_roles` pour interdire la suppression de rôles `admin` :
 
-- **Job "deploy-staging"** : déclenché sur `push` vers `develop`, déploie les 10 Edge Functions (incluant `api-public` manquante) vers `SUPABASE_PROJECT_ID`
-- **Job "deploy-production"** : déclenché sur `push` vers `main` (via PR merge), déploie vers `PRODUCTION_PROJECT_ID`
+```sql
+has_role(auth.uid(), 'admin') AND role <> 'superadmin' AND role <> 'admin'
+```
 
-Les 10 fonctions à déployer :
-`create-user`, `update-user`, `delete-user`, `manage-roles`, `sla-checker`, `ai-assistant`, `sync-users`, `impersonate-user`, `send-notification-email`, `api-public`
+## Ce qui n'est PAS touché (avertissements à traiter plus tard)
+- Listing des buckets publics (cosmétique, pas critique)
+- Profils lisibles par tous les rôles (fonctionnel pour le workflow)
+- Documents mail-documents sans scope par document (nécessite refonte storage policies)
 
-### 2. Ajout workflow migrations DB (optionnel mais recommandé)
-
-Un second workflow `.github/workflows/deploy-migrations.yml` pour appliquer les migrations SQL :
-- `develop` → staging DB via `SUPABASE_DB_PASSWORD`
-- `main` → production DB via `PRODUCTION_DB_PASSWORD`
-
-### 3. Mise à jour mémoire CI/CD
-
-Mettre à jour `mem://infrastructure/ci-cd-edge-functions-fr` pour refléter le dual-environment.
-
-## Fichiers impactés
-
-| Fichier | Action |
-|---------|--------|
-| `.github/workflows/deploy-functions.yml` | Refonte : 2 jobs (staging + production) |
-| `.github/workflows/deploy-migrations.yml` | Nouveau : migrations DB dual-env |
-| `.lovable/memory/infrastructure/ci-cd-edge-functions-fr.md` | Mise à jour |
-
-## Points de vigilance
-
-- La fonction `api-public` n'est pas dans le workflow actuel — elle sera ajoutée.
-- Les secrets Edge Functions (SMTP, etc.) doivent être configurés **sur les deux projets Supabase** indépendamment (via le dashboard de chaque projet).
-- Vercel gère automatiquement le déploiement frontend : preview sur `develop`, production sur `main` — aucune configuration GitHub Actions nécessaire pour le frontend.
+## Résultat attendu
+- Score sécurité passera de **6.5/10** à environ **8.5/10**
+- Build des Edge Functions corrigé (les 14 erreurs TypeScript disparaissent)
+- Aucun impact sur le fonctionnement existant
 
