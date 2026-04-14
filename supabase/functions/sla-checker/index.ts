@@ -28,14 +28,14 @@ Deno.serve(async (req) => {
         global: { headers: { Authorization: authHeader } },
       });
       const token = authHeader.replace("Bearer ", "");
-      const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
-      if (claimsError || !claimsData?.claims) {
+      const { data: userData, error: userError } = await callerClient.auth.getUser(token);
+      if (userError || !userData?.user) {
         return new Response(JSON.stringify({ error: "Non autorisé" }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-      const userId = claimsData.claims.sub;
+      const userId = userData.user.id;
       const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", userId).single();
       if (!roleData || !["superadmin", "admin"].includes(roleData.role)) {
         return new Response(JSON.stringify({ error: "Accès réservé aux administrateurs" }), {
