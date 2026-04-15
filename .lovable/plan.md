@@ -1,52 +1,78 @@
 
 
-# Plan de correction sécurité — ARE Platform
+# Impact du renommage des rôles + Nouveau PowerPoint
 
-## Contexte
-L'audit révèle 4 failles critiques RLS et des erreurs de build dans les Edge Functions. Toutes les corrections sont **non-destructives** : elles resserrent les accès sans casser la structure existante.
+## 1. Analyse d'impact — Renommage des rôles
 
-## Étape 1 — Corriger les erreurs de build des Edge Functions
+Le renommage des rôles touche **massivement** le système. Voici le bilan :
 
-Fichiers concernés (8 fonctions) :
+| Zone | Fichiers impactés | Exemples |
+|------|-------------------|----------|
+| **Enum PostgreSQL `app_role`** | 1 (migration SQL) | Ajout des nouvelles valeurs, conservation des anciennes |
+| **Policies RLS** | ~50 policies sur 12 tables | Toutes les `has_role(... 'ministre')` etc. |
+| **Edge Functions** | 8 fonctions | `sla-checker`, `ai-assistant`, etc. |
+| **Frontend (src/)** | 11 fichiers | `workflow-engine.ts`, `AppSidebar.tsx`, `Dashboard.tsx`, `WorkflowActions.tsx`, `AccountPage.tsx`, etc. |
+| **Workflow engine** | 2 fichiers clés | `workflow-engine.ts`, `workflow-assignment.ts` |
 
-- `ai-assistant/index.ts` : supprimer la redéclaration `const supabaseUrl` ligne 60, remplacer `getClaims(token)` par `getUser(token)`
-- `create-user`, `delete-user`, `impersonate-user`, `manage-roles`, `sla-checker`, `sync-users`, `update-user` : remplacer `err.message` par `(err as Error).message` dans les blocs catch
+### Stratégie sûre (non-destructive)
 
-## Étape 2 — Corriger les policies tenant isolation (migration SQL)
+**Ne PAS renommer les rôles existants.** À la place :
+1. **Ajouter** les nouveaux rôles à l'enum (`autorité_1`, `autorité_2`, `autorité_3`, `autorité_4`, `directeur`, `chef_departement`, `secretaire_direction`, `collaborateur`)
+2. Créer une **table de mapping** ou constante `ROLE_LABELS` pour l'affichage (ex: `autorité_1` → "Autorité 1 (DG/Ministre)")
+3. Mettre à jour les **labels d'affichage** sans toucher la logique métier
+4. Les anciens rôles restent fonctionnels — migration progressive ultérieure
 
-Modifier les 4 policies de tenant isolation sur `mails`, `mail_assignments`, `workflow_transitions`, `notifications` :
+### Nouvelle hiérarchie proposée
 
-**Avant :**
-```sql
-(tenant_id IS NULL) OR (get_user_tenant_id(auth.uid()) IS NULL) OR (tenant_id = get_user_tenant_id(auth.uid()))
+```text
+┌─────────────────────────────────────────────┐
+│              ADMINISTRATION                 │
+│  superadmin ─── admin ─── supervisor        │
+├─────────────────────────────────────────────┤
+│              HIÉRARCHIE                     │
+│                                             │
+│  Autorité 1 (DG / Ministre)                │
+│      │                                      │
+│  Autorité 2 (DGA / DirCab)                 │
+│      │                                      │
+│  Autorité 3 (Assistant DG / DirCabA)       │
+│      │                                      │
+│  Autorité 4 (Conseiller Juridique)         │
+│      │                                      │
+│  ┌───┴──────────────────────────────┐       │
+│  │  Direction 1..6                  │       │
+│  │   ├── Directeur                  │       │
+│  │   ├── Chef de département        │       │
+│  │   ├── Secrétaire de direction    │       │
+│  │   └── Collaborateur              │       │
+│  └──────────────────────────────────┘       │
+│                                             │
+│  Conseiller (transversal)                   │
+├─────────────────────────────────────────────┤
+│  Réception ─── Secrétariat                  │
+└─────────────────────────────────────────────┘
 ```
 
-**Après :**
-```sql
-(tenant_id IS NULL) OR (tenant_id = get_user_tenant_id(auth.uid()))
-```
+## 2. Plan d'exécution
 
-Cela empêche un utilisateur sans tenant de voir toutes les données.
+### Étape A — Diagramme Mermaid de la hiérarchie
+Générer un diagramme visuel de la nouvelle structure organisationnelle.
 
-## Étape 3 — Resserrer la policy notifications
+### Étape B — Ajouter les rôles à l'enum (migration SQL)
+Ajouter les 5 nouveaux rôles (`autorité_1` à `autorité_4`, `directeur`, `chef_departement`, `secretaire_direction`, `collaborateur`) à l'enum `app_role` **sans supprimer les anciens**. Aucun impact sur le code existant.
 
-Supprimer la policy `Tenant isolation notifications` redondante (le scope `user_id = auth.uid()` des autres policies suffit).
+### Étape C — Mettre à jour les labels d'affichage
+Ajouter les labels français dans les constantes `ROLE_LABELS` de `workflow-engine.ts`, `AccountPage.tsx`, `WorkflowActions.tsx`, `AppSidebar.tsx`.
 
-## Étape 4 — Protéger user_roles contre l'escalade admin
+### Étape D — Générer le PowerPoint mis à jour
+Créer un `.pptx` éditable basé sur la présentation existante (`ARE_App_Presentation.pptx`), mis à jour avec :
+- La nouvelle hiérarchie de rôles
+- Les fonctionnalités ajoutées depuis (sécurité, SLA, audit QR, assistant IA, missions, etc.)
+- Design professionnel adapté pour présentation demain
 
-Modifier la policy DELETE admin sur `user_roles` pour interdire la suppression de rôles `admin` :
-
-```sql
-has_role(auth.uid(), 'admin') AND role <> 'superadmin' AND role <> 'admin'
-```
-
-## Ce qui n'est PAS touché (avertissements à traiter plus tard)
-- Listing des buckets publics (cosmétique, pas critique)
-- Profils lisibles par tous les rôles (fonctionnel pour le workflow)
-- Documents mail-documents sans scope par document (nécessite refonte storage policies)
-
-## Résultat attendu
-- Score sécurité passera de **6.5/10** à environ **8.5/10**
-- Build des Edge Functions corrigé (les 14 erreurs TypeScript disparaissent)
-- Aucun impact sur le fonctionnement existant
+## Ce qui ne sera PAS touché
+- La logique du workflow (étapes 1-8) reste identique
+- Les RLS policies existantes restent fonctionnelles
+- Les Edge Functions ne changent pas
+- Les utilisateurs actuels conservent leurs rôles
 
