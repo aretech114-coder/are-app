@@ -876,6 +876,14 @@ export type Database = {
         | "secretariat"
         | "conseiller"
         | "reception"
+        | "autorite_1"
+        | "autorite_2"
+        | "autorite_3"
+        | "autorite_4"
+        | "directeur"
+        | "chef_departement"
+        | "secretaire_direction"
+        | "collaborateur"
       mail_priority: "low" | "normal" | "high" | "urgent"
       mail_status: "pending" | "in_progress" | "processed" | "archived"
       mail_type:
@@ -1029,6 +1037,14 @@ export const Constants = {
         "secretariat",
         "conseiller",
         "reception",
+        "autorite_1",
+        "autorite_2",
+        "autorite_3",
+        "autorite_4",
+        "directeur",
+        "chef_departement",
+        "secretaire_direction",
+        "collaborateur",
       ],
       mail_priority: ["low", "normal", "high", "urgent"],
       mail_status: ["pending", "in_progress", "processed", "archived"],
