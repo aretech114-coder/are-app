@@ -1,6 +1,7 @@
 import {
   Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList, Puzzle,
 } from "lucide-react";
+import { getRoleLabel } from "@/lib/workflow-engine";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
@@ -234,8 +235,8 @@ export function AppSidebar() {
               <span className="text-xs font-medium text-sidebar-accent-foreground truncate">
                 {profile?.full_name || "Agent"}
               </span>
-              <span className="text-[10px] text-sidebar-foreground truncate capitalize">
-                {role === "superadmin" ? "Super Admin" : role === "dircab" ? "Dir. Cabinet" : role === "ministre" ? "Ministre" : role === "secretariat" ? "Secrétariat" : role === "reception" ? "Réception" : role || "agent"}
+              <span className="text-[10px] text-sidebar-foreground truncate">
+                {getRoleLabel(role || "agent")}
               </span>
             </div>
           </div>
