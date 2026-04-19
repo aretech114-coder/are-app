@@ -1,78 +1,62 @@
 
 
-# Impact du renommage des rôles + Nouveau PowerPoint
+# Plan — Fond image translucide + œil mot de passe
 
-## 1. Analyse d'impact — Renommage des rôles
+## Diagnostic du problème de fond blanc
 
-Le renommage des rôles touche **massivement** le système. Voici le bilan :
+La page `Auth.tsx` lit `login_bg_image_url` depuis la table `site_settings` via `useSiteSettings`. Cependant, d'après la mémoire `rls-site-settings-restriction-fr`, **la lecture (SELECT) sur `site_settings` est restreinte aux rôles admin/superadmin**. Sur la page de connexion, l'utilisateur n'est **pas authentifié** → la requête renvoie `[]` → `login_bg_image_url` reste vide → fond blanc.
 
-| Zone | Fichiers impactés | Exemples |
-|------|-------------------|----------|
-| **Enum PostgreSQL `app_role`** | 1 (migration SQL) | Ajout des nouvelles valeurs, conservation des anciennes |
-| **Policies RLS** | ~50 policies sur 12 tables | Toutes les `has_role(... 'ministre')` etc. |
-| **Edge Functions** | 8 fonctions | `sla-checker`, `ai-assistant`, etc. |
-| **Frontend (src/)** | 11 fichiers | `workflow-engine.ts`, `AppSidebar.tsx`, `Dashboard.tsx`, `WorkflowActions.tsx`, `AccountPage.tsx`, etc. |
-| **Workflow engine** | 2 fichiers clés | `workflow-engine.ts`, `workflow-assignment.ts` |
+Ce n'est donc **pas un problème de cache Vercel**, mais un problème RLS qui se manifeste uniquement pour les visiteurs anonymes.
 
-### Stratégie sûre (non-destructive)
+## Étape 1 — Autoriser la lecture publique des settings d'apparence (migration SQL)
 
-**Ne PAS renommer les rôles existants.** À la place :
-1. **Ajouter** les nouveaux rôles à l'enum (`autorité_1`, `autorité_2`, `autorité_3`, `autorité_4`, `directeur`, `chef_departement`, `secretaire_direction`, `collaborateur`)
-2. Créer une **table de mapping** ou constante `ROLE_LABELS` pour l'affichage (ex: `autorité_1` → "Autorité 1 (DG/Ministre)")
-3. Mettre à jour les **labels d'affichage** sans toucher la logique métier
-4. Les anciens rôles restent fonctionnels — migration progressive ultérieure
+Ajouter une policy RLS qui permet aux utilisateurs **anonymes** de lire uniquement les clés d'apparence publique nécessaires à la page de connexion :
 
-### Nouvelle hiérarchie proposée
-
-```text
-┌─────────────────────────────────────────────┐
-│              ADMINISTRATION                 │
-│  superadmin ─── admin ─── supervisor        │
-├─────────────────────────────────────────────┤
-│              HIÉRARCHIE                     │
-│                                             │
-│  Autorité 1 (DG / Ministre)                │
-│      │                                      │
-│  Autorité 2 (DGA / DirCab)                 │
-│      │                                      │
-│  Autorité 3 (Assistant DG / DirCabA)       │
-│      │                                      │
-│  Autorité 4 (Conseiller Juridique)         │
-│      │                                      │
-│  ┌───┴──────────────────────────────┐       │
-│  │  Direction 1..6                  │       │
-│  │   ├── Directeur                  │       │
-│  │   ├── Chef de département        │       │
-│  │   ├── Secrétaire de direction    │       │
-│  │   └── Collaborateur              │       │
-│  └──────────────────────────────────┘       │
-│                                             │
-│  Conseiller (transversal)                   │
-├─────────────────────────────────────────────┤
-│  Réception ─── Secrétariat                  │
-└─────────────────────────────────────────────┘
+```sql
+CREATE POLICY "Public can read login appearance settings"
+ON public.site_settings
+FOR SELECT
+TO anon, authenticated
+USING (setting_key IN (
+  'site_title','site_subtitle','sidebar_initials','sidebar_logo_url',
+  'favicon_url','primary_color','login_bg_color','login_bg_image_url',
+  'show_remember_me','show_forgot_password'
+));
 ```
 
-## 2. Plan d'exécution
+Cela ne révèle aucune donnée sensible (uniquement le branding visible sur la page de connexion) et conserve la restriction admin pour les autres clés.
 
-### Étape A — Diagramme Mermaid de la hiérarchie
-Générer un diagramme visuel de la nouvelle structure organisationnelle.
+## Étape 2 — Effet glassmorphism sur la carte de connexion
 
-### Étape B — Ajouter les rôles à l'enum (migration SQL)
-Ajouter les 5 nouveaux rôles (`autorité_1` à `autorité_4`, `directeur`, `chef_departement`, `secretaire_direction`, `collaborateur`) à l'enum `app_role` **sans supprimer les anciens**. Aucun impact sur le code existant.
+Modifier `src/pages/Auth.tsx` pour appliquer un fond translucide flouté à la `Card` quand une image de fond est présente :
 
-### Étape C — Mettre à jour les labels d'affichage
-Ajouter les labels français dans les constantes `ROLE_LABELS` de `workflow-engine.ts`, `AccountPage.tsx`, `WorkflowActions.tsx`, `AppSidebar.tsx`.
+- Remplacer l'overlay sombre `bg-black/40` par un dégradé plus léger
+- Ajouter à `<Card>` les classes : `bg-card/60 backdrop-blur-xl border-white/20 shadow-2xl` (uniquement si `hasBgImage`)
+- Garder texte/inputs bien lisibles
 
-### Étape D — Générer le PowerPoint mis à jour
-Créer un `.pptx` éditable basé sur la présentation existante (`ARE_App_Presentation.pptx`), mis à jour avec :
-- La nouvelle hiérarchie de rôles
-- Les fonctionnalités ajoutées depuis (sécurité, SLA, audit QR, assistant IA, missions, etc.)
-- Design professionnel adapté pour présentation demain
+## Étape 3 — Icône œil pour afficher/masquer le mot de passe
 
-## Ce qui ne sera PAS touché
-- La logique du workflow (étapes 1-8) reste identique
-- Les RLS policies existantes restent fonctionnelles
-- Les Edge Functions ne changent pas
-- Les utilisateurs actuels conservent leurs rôles
+Dans `Auth.tsx` :
+- Ajouter un état `showPassword`
+- Importer `Eye`/`EyeOff` depuis `lucide-react`
+- Rendre un bouton positionné à droite de l'input mot de passe qui bascule `type="password"` ↔ `type="text"`
+- Ajuster le padding droit de l'input (`pr-10`)
+
+## Étape 4 — Appliquer la même amélioration aux pages liées
+
+Pour cohérence, appliquer le même traitement (fond + glassmorphism) aux pages :
+- `ForgotPasswordPage.tsx`
+- `ResetPasswordPage.tsx` (avec aussi l'œil sur les champs mot de passe)
+
+## Ce qui n'est PAS touché
+
+- Logique d'authentification inchangée
+- Aucun autre RLS modifié
+- Aucun composant UI partagé modifié
+
+## Résultat attendu
+
+- L'image de fond définie dans Configuration Système s'affiche immédiatement sur la page de connexion (même non connecté, en production Vercel)
+- La carte du formulaire devient translucide avec effet flou (glassmorphism)
+- Œil cliquable pour afficher/masquer le mot de passe sur Auth + Reset
 
