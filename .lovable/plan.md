@@ -2,40 +2,63 @@
 
 ## Diagnostic
 
-Lovable Cloud (preview `*.lovable.app`) montre les changements car il build directement depuis l'éditeur Lovable. Vercel, lui, déploie depuis votre repo GitHub — il faut donc que :
+L'erreur survient dans le workflow GitHub Actions `deploy-migrations.yml` qui tente de rejouer **toutes** les migrations sur la base Supabase. L'une des anciennes migrations contient :
 
-1. Les changements Lovable soient **poussés vers GitHub** (branche `develop` selon votre git flow)
-2. Une **PR `develop` → `main`** soit mergée (car Vercel production déploie depuis `main`)
-3. Vercel détecte le push et lance un nouveau build
+```sql
+CREATE TYPE public.app_role AS ENUM ('admin', 'supervisor', 'agent');
+```
 
-## Vérifications à faire (côté utilisateur, je ne peux pas le faire à votre place)
+Or ce type existe déjà en production (SQLSTATE 42710). Le déploiement échoue donc à cette étape et **aucune migration suivante n'est appliquée** — y compris celle de la policy `Public can read login appearance settings` (qui de toute façon est déjà appliquée puisque visible dans le schéma actuel).
 
-1. **GitHub** : ouvrir le repo, vérifier que la branche `develop` contient bien les derniers commits avec les modifs de `Auth.tsx` (logo intégré dans la carte, glassmorphism, œil mot de passe) et la migration `site_settings`.
-2. **Vercel Dashboard** :
-   - Vérifier quelle branche est configurée comme "Production Branch" (probablement `main`)
-   - Voir l'onglet "Deployments" : y a-t-il un build récent ? A-t-il réussi ou échoué ?
-3. **Si rien n'arrive sur Vercel** :
-   - Soit la PR `develop → main` n'a pas été mergée → la merger
-   - Soit l'intégration GitHub ↔ Vercel est cassée → la reconnecter dans Vercel Settings
+## Cause racine
 
-## Causes possibles côté code
+Les migrations historiques utilisent des `CREATE TYPE` / `CREATE TABLE` sans `IF NOT EXISTS`. Quand `supabase db push` (ou équivalent CLI) rejoue le dossier complet sur une base où ces objets existent déjà, ça casse.
 
-Aucune. Le code Lovable est correct, l'image de fond fonctionne déjà sur le preview Lovable (visible sur votre capture). Le problème est purement **pipeline de déploiement Git → Vercel**.
+Deux scénarios possibles :
+1. **La table `supabase_migrations.schema_migrations` n'est pas synchronisée** avec ce qui est réellement déployé → la CLI croit devoir rejouer une migration ancienne.
+2. **Le workflow force un replay complet** (ex: `supabase db reset` ou push sans tracking).
 
-## Actions que je peux faire (si vous approuvez)
+## Solution recommandée
 
-Aucune action code n'est nécessaire — le code est bon. Il s'agit d'une opération Git/Vercel à faire manuellement de votre côté.
+### Option A — Rendre la migration fautive idempotente (simple, sûr)
 
-**Marche à suivre recommandée :**
+Modifier le fichier de migration historique qui crée `app_role` pour utiliser un bloc `DO` conditionnel :
 
-1. Allez sur GitHub → vérifiez que la branche `develop` contient les derniers commits Lovable.
-2. Créez (ou mergez si elle existe déjà) une PR **`develop` → `main`**.
-3. Une fois mergée, Vercel devrait automatiquement déclencher un build sur `main` en 1-2 min.
-4. Forcez un Ctrl+Shift+R sur `https://are-app.cloud` pour vider le cache navigateur.
+```sql
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
+    CREATE TYPE public.app_role AS ENUM ('admin', 'supervisor', 'agent');
+  END IF;
+END $$;
+```
 
-Si après ces étapes Vercel ne se met toujours pas à jour, partagez-moi :
-- Une capture de l'onglet **Deployments** de Vercel
-- Le nom exact de votre branche de production Vercel
+Puis identifier et patcher de la même façon les autres `CREATE TYPE` / `CREATE TABLE` / `CREATE POLICY` qui ne sont pas idempotents dans les anciennes migrations.
 
-Je pourrai alors diagnostiquer plus précisément (cache Vercel, branche mal configurée, build échoué, etc.).
+### Option B — Marquer les migrations comme déjà appliquées (recommandée pour la prod)
+
+Plutôt que modifier l'historique, indiquer à Supabase CLI que ces migrations sont déjà jouées :
+
+```bash
+supabase migration repair --status applied <timestamp>
+```
+
+Cela nécessite un accès au workflow GitHub Actions et au CLI — **action manuelle de votre part**, pas de code à changer.
+
+## Étapes du plan
+
+1. **Lister les migrations dans `supabase/migrations/`** pour identifier le fichier qui crée `app_role` (et tout autre `CREATE TYPE`/`CREATE TABLE` non idempotent).
+2. **Patcher chaque migration historique** avec des gardes `IF NOT EXISTS` ou blocs `DO $$ ... $$` conditionnels — sans changer la logique métier.
+3. **Vérifier que `deploy-migrations.yml`** n'utilise pas `db reset` (sinon le corriger pour faire un push incrémental uniquement).
+4. **Re-déclencher le workflow** sur `develop` puis merger vers `main`.
+
+## Ce qui ne sera PAS touché
+
+- Aucune logique applicative
+- Aucune RLS active modifiée (la policy login est déjà en place)
+- Aucune donnée
+
+## Résultat attendu
+
+Le workflow GitHub Actions s'exécute jusqu'au bout sans erreur, Vercel redéploie, et la prod `are-app.cloud` reflète tous les changements (image de fond, glassmorphism, œil mot de passe, branding intégré dans la carte).
 
