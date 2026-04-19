@@ -2,63 +2,56 @@
 
 ## Diagnostic
 
-L'erreur survient dans le workflow GitHub Actions `deploy-migrations.yml` qui tente de rejouer **toutes** les migrations sur la base Supabase. L'une des anciennes migrations contient :
+Le workflow GitHub Actions échoue car la table `supabase_migrations.schema_migrations` (qui tracke les migrations déjà appliquées) est désynchronisée avec l'état réel de la base. Résultat : la CLI tente de rejouer une migration ancienne qui crée `app_role`, alors que ce type existe déjà → erreur `42710`.
 
-```sql
-CREATE TYPE public.app_role AS ENUM ('admin', 'supervisor', 'agent');
-```
+**Il ne s'agit PAS d'une nouvelle migration métier à exécuter.** Il s'agit de **réparer la table de tracking** sur Staging ET Production pour dire à Supabase "ces migrations sont déjà appliquées, ne les rejoue pas".
 
-Or ce type existe déjà en production (SQLSTATE 42710). Le déploiement échoue donc à cette étape et **aucune migration suivante n'est appliquée** — y compris celle de la policy `Public can read login appearance settings` (qui de toute façon est déjà appliquée puisque visible dans le schéma actuel).
+## Que faire avec ce fichier ?
 
-## Cause racine
+Le fichier `.sql` que je vais générer doit être exécuté **manuellement dans le SQL Editor du dashboard Supabase**, sur les deux projets :
 
-Les migrations historiques utilisent des `CREATE TYPE` / `CREATE TABLE` sans `IF NOT EXISTS`. Quand `supabase db push` (ou équivalent CLI) rejoue le dossier complet sur une base où ces objets existent déjà, ça casse.
+1. **Staging** (projet `kqdcsbrsrlufnpvithcg`) → SQL Editor → coller → Run
+2. **Production** (votre projet prod, ref différente) → SQL Editor → coller → Run
 
-Deux scénarios possibles :
-1. **La table `supabase_migrations.schema_migrations` n'est pas synchronisée** avec ce qui est réellement déployé → la CLI croit devoir rejouer une migration ancienne.
-2. **Le workflow force un replay complet** (ex: `supabase db reset` ou push sans tracking).
+Ce script :
+- Lit la liste de **tous les fichiers** présents dans `supabase/migrations/`
+- Insère leurs timestamps dans `supabase_migrations.schema_migrations` avec `ON CONFLICT DO NOTHING`
+- Effet : le prochain `supabase db push` ne rejouera **aucune** migration historique, et n'appliquera que les **nouvelles** à venir
 
-## Solution recommandée
+**Aucun objet métier n'est créé/modifié/supprimé.** Seule la table de tracking est mise à jour. Opération non-destructive, conforme à SAFETY_POLICY D7.
 
-### Option A — Rendre la migration fautive idempotente (simple, sûr)
+## Étapes de mon implémentation
 
-Modifier le fichier de migration historique qui crée `app_role` pour utiliser un bloc `DO` conditionnel :
+1. **Lister** tous les fichiers `supabase/migrations/*.sql` pour extraire leurs timestamps (format `YYYYMMDDHHMMSS`)
+2. **Générer** un fichier SQL `/mnt/documents/migrations/2026-04-19_repair-schema-migrations.sql` avec :
+   ```sql
+   INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
+   VALUES
+     ('20260101120000', 'init', ARRAY[]::text[]),
+     ('20260212125037', '414826fb-...', ARRAY[]::text[]),
+     -- ... toutes les autres
+   ON CONFLICT (version) DO NOTHING;
+   ```
+3. **Fournir** un tag `<lov-artifact>` pour téléchargement direct
+4. **Documenter** la procédure d'exécution (Staging d'abord, vérifier, puis Production)
 
-```sql
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
-    CREATE TYPE public.app_role AS ENUM ('admin', 'supervisor', 'agent');
-  END IF;
-END $$;
-```
+## Ce qui n'est PAS touché
 
-Puis identifier et patcher de la même façon les autres `CREATE TYPE` / `CREATE TABLE` / `CREATE POLICY` qui ne sont pas idempotents dans les anciennes migrations.
+- Aucune table métier
+- Aucune RLS, aucune fonction, aucun type
+- Aucune donnée applicative
+- Aucun fichier de migration historique (intacts)
 
-### Option B — Marquer les migrations comme déjà appliquées (recommandée pour la prod)
+## Procédure post-exécution
 
-Plutôt que modifier l'historique, indiquer à Supabase CLI que ces migrations sont déjà jouées :
+1. Exécuter le SQL sur **Staging** via dashboard → vérifier 0 erreur
+2. Re-déclencher le workflow GitHub Actions sur `develop` → doit passer ✅
+3. Exécuter le **même** SQL sur **Production** via dashboard
+4. Merger PR `develop → main` → workflow Production passe ✅
+5. Vercel redéploie automatiquement → `are-app.cloud` à jour
 
-```bash
-supabase migration repair --status applied <timestamp>
-```
+## Risques et mitigation
 
-Cela nécessite un accès au workflow GitHub Actions et au CLI — **action manuelle de votre part**, pas de code à changer.
-
-## Étapes du plan
-
-1. **Lister les migrations dans `supabase/migrations/`** pour identifier le fichier qui crée `app_role` (et tout autre `CREATE TYPE`/`CREATE TABLE` non idempotent).
-2. **Patcher chaque migration historique** avec des gardes `IF NOT EXISTS` ou blocs `DO $$ ... $$` conditionnels — sans changer la logique métier.
-3. **Vérifier que `deploy-migrations.yml`** n'utilise pas `db reset` (sinon le corriger pour faire un push incrémental uniquement).
-4. **Re-déclencher le workflow** sur `develop` puis merger vers `main`.
-
-## Ce qui ne sera PAS touché
-
-- Aucune logique applicative
-- Aucune RLS active modifiée (la policy login est déjà en place)
-- Aucune donnée
-
-## Résultat attendu
-
-Le workflow GitHub Actions s'exécute jusqu'au bout sans erreur, Vercel redéploie, et la prod `are-app.cloud` reflète tous les changements (image de fond, glassmorphism, œil mot de passe, branding intégré dans la carte).
+- **Risque** : insérer un timestamp pour une migration qui n'a vraiment pas été appliquée → Postgres ignorerait silencieusement la création réelle plus tard. **Mitigation** : votre base contient déjà tous les objets (preuve : `app_role` existe, `site_settings` existe avec la policy login). Donc marquer tout comme "appliqué" reflète la réalité.
+- **Rollback** : si besoin, `DELETE FROM supabase_migrations.schema_migrations WHERE version IN (...)` pour rétablir l'état antérieur. Sera documenté en commentaire dans le fichier SQL.
 
