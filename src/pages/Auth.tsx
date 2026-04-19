@@ -53,7 +53,7 @@ export default function Auth() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
       )}
       <div className="w-full max-w-md animate-fade-in relative z-10">
-        <Card className={hasBgImage ? "bg-card/70 backdrop-blur-xl border-white/20 shadow-2xl" : ""}>
+        <Card className={hasBgImage ? "bg-card/30 backdrop-blur-3xl backdrop-saturate-150 border-white/10 shadow-2xl" : ""}>
           <CardHeader className="text-center items-center">
             {settings.sidebar_logo_url ? (
               <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-3 object-cover" />
