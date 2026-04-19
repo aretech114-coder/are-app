@@ -72,6 +72,8 @@ export default function SystemConfigPage() {
   const [pwaIconUrl, setPwaIconUrl] = useState("");
   const [loginBgColor, setLoginBgColor] = useState("#FFFFFF");
   const [loginBgImageUrl, setLoginBgImageUrl] = useState("");
+  const [loginLogoUrl, setLoginLogoUrl] = useState("");
+  const [uploadingLoginLogo, setUploadingLoginLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
@@ -99,6 +101,7 @@ export default function SystemConfigPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
   const loginBgInputRef = useRef<HTMLInputElement>(null);
+  const loginLogoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -110,6 +113,7 @@ export default function SystemConfigPage() {
     setPwaIconUrl((settings as any).pwa_icon_url || "");
     setLoginBgColor((settings as any).login_bg_color || "#FFFFFF");
     setLoginBgImageUrl((settings as any).login_bg_image_url || "");
+    setLoginLogoUrl((settings as any).login_logo_url || "");
     setColors({
       primary_color: settings.primary_color || COLOR_DEFAULTS.primary_color,
       secondary_color: settings.secondary_color || COLOR_DEFAULTS.secondary_color,
@@ -289,6 +293,7 @@ export default function SystemConfigPage() {
         updateSetting("pwa_icon_url", pwaIconUrl),
         updateSetting("login_bg_color", loginBgColor),
         updateSetting("login_bg_image_url", loginBgImageUrl),
+        updateSetting("login_logo_url", loginLogoUrl),
       ]);
       toast.success("Paramètres de branding sauvegardés");
     } catch {
