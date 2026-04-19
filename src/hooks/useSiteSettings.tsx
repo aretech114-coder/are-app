@@ -22,6 +22,8 @@ interface SiteSettings {
   font_body: string;
   login_bg_color: string;
   login_bg_image_url: string;
+  login_logo_url: string;
+  show_login_title: string;
 }
 
 const defaults: SiteSettings = {
@@ -45,6 +47,8 @@ const defaults: SiteSettings = {
   font_body: "Inter",
   login_bg_color: "#FFFFFF",
   login_bg_image_url: "",
+  login_logo_url: "",
+  show_login_title: "true",
 };
 
 function hexToHsl(hex: string): string | null {

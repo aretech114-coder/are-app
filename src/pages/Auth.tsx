@@ -55,18 +55,30 @@ export default function Auth() {
       <div className="w-full max-w-md animate-fade-in relative z-10">
         <Card className={hasBgImage ? "bg-card/30 backdrop-blur-3xl backdrop-saturate-150 border-white/10 shadow-2xl" : ""}>
           <CardHeader className="text-center items-center">
-            {settings.sidebar_logo_url ? (
+            {settings.login_logo_url ? (
+              <img src={settings.login_logo_url} alt="Logo" className="w-16 h-16 rounded-2xl mx-auto mb-3 object-contain" />
+            ) : settings.sidebar_logo_url ? (
               <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-3 object-cover" />
             ) : (
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mx-auto mb-3">
                 {settings.sidebar_initials || "ARE"}
               </div>
             )}
-            <h1 className="text-xl font-bold text-foreground">{settings.site_title || "ARE App"}</h1>
-            <p className="text-xs text-muted-foreground -mt-1">Système de Gestion Électronique du Courrier</p>
-            <div className="w-12 h-px bg-border my-2" />
-            <CardTitle className="text-lg">Connexion</CardTitle>
-            <CardDescription>Accédez à votre espace de travail</CardDescription>
+            {settings.show_login_title !== "false" && (
+              <>
+                <h1 className={`text-xl font-bold ${hasBgImage ? "text-white drop-shadow-lg" : "text-foreground"}`}>
+                  {settings.site_title || "ARE App"}
+                </h1>
+                <p className={`text-xs -mt-1 ${hasBgImage ? "text-white/90 drop-shadow-md" : "text-muted-foreground"}`}>
+                  Système de Gestion Électronique du Courrier
+                </p>
+                <div className={`w-12 h-px my-2 ${hasBgImage ? "bg-white/40" : "bg-border"}`} />
+              </>
+            )}
+            <CardTitle className={`text-lg ${hasBgImage ? "text-white drop-shadow-lg" : ""}`}>Connexion</CardTitle>
+            <CardDescription className={hasBgImage ? "text-white/90 drop-shadow-md" : ""}>
+              Accédez à votre espace de travail
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
