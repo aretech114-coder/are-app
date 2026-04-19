@@ -1,62 +1,41 @@
 
 
-# Plan — Fond image translucide + œil mot de passe
+## Diagnostic
 
-## Diagnostic du problème de fond blanc
+Lovable Cloud (preview `*.lovable.app`) montre les changements car il build directement depuis l'éditeur Lovable. Vercel, lui, déploie depuis votre repo GitHub — il faut donc que :
 
-La page `Auth.tsx` lit `login_bg_image_url` depuis la table `site_settings` via `useSiteSettings`. Cependant, d'après la mémoire `rls-site-settings-restriction-fr`, **la lecture (SELECT) sur `site_settings` est restreinte aux rôles admin/superadmin**. Sur la page de connexion, l'utilisateur n'est **pas authentifié** → la requête renvoie `[]` → `login_bg_image_url` reste vide → fond blanc.
+1. Les changements Lovable soient **poussés vers GitHub** (branche `develop` selon votre git flow)
+2. Une **PR `develop` → `main`** soit mergée (car Vercel production déploie depuis `main`)
+3. Vercel détecte le push et lance un nouveau build
 
-Ce n'est donc **pas un problème de cache Vercel**, mais un problème RLS qui se manifeste uniquement pour les visiteurs anonymes.
+## Vérifications à faire (côté utilisateur, je ne peux pas le faire à votre place)
 
-## Étape 1 — Autoriser la lecture publique des settings d'apparence (migration SQL)
+1. **GitHub** : ouvrir le repo, vérifier que la branche `develop` contient bien les derniers commits avec les modifs de `Auth.tsx` (logo intégré dans la carte, glassmorphism, œil mot de passe) et la migration `site_settings`.
+2. **Vercel Dashboard** :
+   - Vérifier quelle branche est configurée comme "Production Branch" (probablement `main`)
+   - Voir l'onglet "Deployments" : y a-t-il un build récent ? A-t-il réussi ou échoué ?
+3. **Si rien n'arrive sur Vercel** :
+   - Soit la PR `develop → main` n'a pas été mergée → la merger
+   - Soit l'intégration GitHub ↔ Vercel est cassée → la reconnecter dans Vercel Settings
 
-Ajouter une policy RLS qui permet aux utilisateurs **anonymes** de lire uniquement les clés d'apparence publique nécessaires à la page de connexion :
+## Causes possibles côté code
 
-```sql
-CREATE POLICY "Public can read login appearance settings"
-ON public.site_settings
-FOR SELECT
-TO anon, authenticated
-USING (setting_key IN (
-  'site_title','site_subtitle','sidebar_initials','sidebar_logo_url',
-  'favicon_url','primary_color','login_bg_color','login_bg_image_url',
-  'show_remember_me','show_forgot_password'
-));
-```
+Aucune. Le code Lovable est correct, l'image de fond fonctionne déjà sur le preview Lovable (visible sur votre capture). Le problème est purement **pipeline de déploiement Git → Vercel**.
 
-Cela ne révèle aucune donnée sensible (uniquement le branding visible sur la page de connexion) et conserve la restriction admin pour les autres clés.
+## Actions que je peux faire (si vous approuvez)
 
-## Étape 2 — Effet glassmorphism sur la carte de connexion
+Aucune action code n'est nécessaire — le code est bon. Il s'agit d'une opération Git/Vercel à faire manuellement de votre côté.
 
-Modifier `src/pages/Auth.tsx` pour appliquer un fond translucide flouté à la `Card` quand une image de fond est présente :
+**Marche à suivre recommandée :**
 
-- Remplacer l'overlay sombre `bg-black/40` par un dégradé plus léger
-- Ajouter à `<Card>` les classes : `bg-card/60 backdrop-blur-xl border-white/20 shadow-2xl` (uniquement si `hasBgImage`)
-- Garder texte/inputs bien lisibles
+1. Allez sur GitHub → vérifiez que la branche `develop` contient les derniers commits Lovable.
+2. Créez (ou mergez si elle existe déjà) une PR **`develop` → `main`**.
+3. Une fois mergée, Vercel devrait automatiquement déclencher un build sur `main` en 1-2 min.
+4. Forcez un Ctrl+Shift+R sur `https://are-app.cloud` pour vider le cache navigateur.
 
-## Étape 3 — Icône œil pour afficher/masquer le mot de passe
+Si après ces étapes Vercel ne se met toujours pas à jour, partagez-moi :
+- Une capture de l'onglet **Deployments** de Vercel
+- Le nom exact de votre branche de production Vercel
 
-Dans `Auth.tsx` :
-- Ajouter un état `showPassword`
-- Importer `Eye`/`EyeOff` depuis `lucide-react`
-- Rendre un bouton positionné à droite de l'input mot de passe qui bascule `type="password"` ↔ `type="text"`
-- Ajuster le padding droit de l'input (`pr-10`)
-
-## Étape 4 — Appliquer la même amélioration aux pages liées
-
-Pour cohérence, appliquer le même traitement (fond + glassmorphism) aux pages :
-- `ForgotPasswordPage.tsx`
-- `ResetPasswordPage.tsx` (avec aussi l'œil sur les champs mot de passe)
-
-## Ce qui n'est PAS touché
-
-- Logique d'authentification inchangée
-- Aucun autre RLS modifié
-- Aucun composant UI partagé modifié
-
-## Résultat attendu
-
-- L'image de fond définie dans Configuration Système s'affiche immédiatement sur la page de connexion (même non connecté, en production Vercel)
-- La carte du formulaire devient translucide avec effet flou (glassmorphism)
-- Œil cliquable pour afficher/masquer le mot de passe sur Auth + Reset
+Je pourrai alors diagnostiquer plus précisément (cache Vercel, branche mal configurée, build échoué, etc.).
 
