@@ -174,8 +174,8 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
 
 const PUBLIC_SETTING_KEYS = Object.keys(defaults) as SiteSettingKey[];
 
-function mapSettingsRows(rows: Array<{ setting_key: string; setting_value: string | null }>) {
-  const mapped = { ...defaults } as Record<string, string>;
+function mapSettingsRows(rows: Array<{ setting_key: string; setting_value: string | null }>): SiteSettings {
+  const mapped = { ...defaults } as Record<SiteSettingKey, string>;
 
   rows.forEach((row) => {
     if (row.setting_key in mapped) {
@@ -183,7 +183,7 @@ function mapSettingsRows(rows: Array<{ setting_key: string; setting_value: strin
     }
   });
 
-  return mapped as SiteSettings;
+  return mapped;
 }
 
 function hexToHsl(hex: string): string | null {
