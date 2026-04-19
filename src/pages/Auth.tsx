@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative" style={bgStyle}>
       {hasBgImage && (
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
       )}
       <div className="w-full max-w-md animate-fade-in relative z-10">
         <div className="text-center mb-8">
@@ -64,7 +65,7 @@ export default function Auth() {
           <p className={`text-sm mt-1 ${hasBgImage ? "text-white/80" : "text-muted-foreground"}`}>Système de Gestion Électronique du Courrier</p>
         </div>
 
-        <Card>
+        <Card className={hasBgImage ? "bg-card/60 backdrop-blur-xl border-white/20 shadow-2xl" : ""}>
           <CardHeader>
             <CardTitle>Connexion</CardTitle>
             <CardDescription>Accédez à votre espace de travail</CardDescription>
@@ -95,14 +96,23 @@ export default function Auth() {
                   <Input
                     id="password"
                     name="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 pr-10"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               {settings.show_remember_me !== "false" && (
