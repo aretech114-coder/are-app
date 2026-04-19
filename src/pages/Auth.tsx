@@ -56,9 +56,9 @@ export default function Auth() {
         <Card className={hasBgImage ? "bg-card/30 backdrop-blur-3xl backdrop-saturate-150 border-white/10 shadow-2xl" : ""}>
           <CardHeader className="text-center items-center">
             {settings.login_logo_url ? (
-              <img src={settings.login_logo_url} alt="Logo" className="w-16 h-16 rounded-2xl mx-auto mb-3 object-contain" />
+              <img src={settings.login_logo_url} alt="Logo" className="w-16 h-16 mx-auto mb-3 object-contain" />
             ) : settings.sidebar_logo_url ? (
-              <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-3 object-cover" />
+              <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 mx-auto mb-3 object-contain" />
             ) : (
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mx-auto mb-3">
                 {settings.sidebar_initials || "ARE"}
