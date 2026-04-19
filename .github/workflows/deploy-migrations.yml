@@ -1,14 +1,23 @@
-name: Deploy Migrations
+name: Deploy Migrations (manual only)
 
+# Désactivé en automatique : la base de production est gérée via SQL Editor manuel.
+# Ce workflow reste disponible en déclenchement manuel (workflow_dispatch) pour usage futur,
+# mais ne se lance plus sur push afin de ne pas bloquer les déploiements Vercel.
 on:
-  push:
-    branches: [develop, main]
-    paths:
-      - 'supabase/migrations/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Cible de déploiement'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
 
 jobs:
   migrate-staging:
-    if: github.ref == 'refs/heads/develop'
+    if: github.event.inputs.environment == 'staging'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +38,7 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
   migrate-production:
-    if: github.ref == 'refs/heads/main'
+    if: github.event.inputs.environment == 'production'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
