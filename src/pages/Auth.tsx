@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -49,24 +50,22 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative" style={bgStyle}>
       {hasBgImage && (
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
       )}
       <div className="w-full max-w-md animate-fade-in relative z-10">
-        <div className="text-center mb-8">
-          {settings.sidebar_logo_url ? (
-            <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-4 object-cover" />
-          ) : (
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mb-4">
-              {settings.sidebar_initials || "ARE"}
-            </div>
-          )}
-          <h1 className={`text-2xl font-bold ${hasBgImage ? "text-white" : ""}`}>{settings.site_title || "ARE App"}</h1>
-          <p className={`text-sm mt-1 ${hasBgImage ? "text-white/80" : "text-muted-foreground"}`}>Système de Gestion Électronique du Courrier</p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Connexion</CardTitle>
+        <Card className={hasBgImage ? "bg-card/70 backdrop-blur-xl border-white/20 shadow-2xl" : ""}>
+          <CardHeader className="text-center items-center">
+            {settings.sidebar_logo_url ? (
+              <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-3 object-cover" />
+            ) : (
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mx-auto mb-3">
+                {settings.sidebar_initials || "ARE"}
+              </div>
+            )}
+            <h1 className="text-xl font-bold text-foreground">{settings.site_title || "ARE App"}</h1>
+            <p className="text-xs text-muted-foreground -mt-1">Système de Gestion Électronique du Courrier</p>
+            <div className="w-12 h-px bg-border my-2" />
+            <CardTitle className="text-lg">Connexion</CardTitle>
             <CardDescription>Accédez à votre espace de travail</CardDescription>
           </CardHeader>
           <CardContent>
@@ -95,14 +94,23 @@ export default function Auth() {
                   <Input
                     id="password"
                     name="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 pr-10"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               {settings.show_remember_me !== "false" && (

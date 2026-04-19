@@ -163,17 +163,28 @@ async function sendStepEmailNotification(
   }
 }
 
+export const ROLE_LABELS: Record<string, string> = {
+  superadmin: "Super Admin",
+  admin: "Administrateur",
+  supervisor: "Superviseur",
+  agent: "Agent",
+  ministre: "Ministre",
+  dircab: "Directeur de Cabinet",
+  dircaba: "Directeur de Cabinet Adjoint",
+  conseiller_juridique: "Conseiller Juridique",
+  secretariat: "Secrétariat",
+  conseiller: "Conseiller",
+  reception: "Réception",
+  autorite_1: "Autorité 1 (DG / Ministre)",
+  autorite_2: "Autorité 2 (DGA / DirCab)",
+  autorite_3: "Autorité 3 (Assistant DG / DirCabA)",
+  autorite_4: "Autorité 4 (Conseiller Juridique)",
+  directeur: "Directeur",
+  chef_departement: "Chef de Département",
+  secretaire_direction: "Secrétaire de Direction",
+  collaborateur: "Collaborateur",
+};
+
 export function getRoleLabel(role: string): string {
-  const labels: Record<string, string> = {
-    superadmin: "Super Admin",
-    admin: "Administrateur",
-    supervisor: "Superviseur",
-    agent: "Agent",
-    ministre: "Ministre",
-    dircab: "Directeur de Cabinet",
-    dircaba: "Directeur de Cabinet Adjoint",
-    conseiller_juridique: "Conseiller Juridique",
-    secretariat: "Secrétariat",
-  };
-  return labels[role] || role;
+  return ROLE_LABELS[role] || role;
 }

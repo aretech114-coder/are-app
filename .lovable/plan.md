@@ -1,69 +1,50 @@
 
 
-# Plan : CI/CD dual-environment (Staging → Production)
+## Compréhension
 
-## Architecture cible
+1. **Supprimer** `.github/workflows/deploy-migrations.yml` — les migrations SQL passent **toujours** manuellement via SQL Editor sur Staging puis Production
+2. **Conserver** `.github/workflows/deploy-functions.yml` — Edge Functions restent en CI/CD automatique
+3. **Vérifier** qu'aucun autre fichier du repo ne référence `deploy-migrations.yml`
+4. **Mettre à jour SAFETY_POLICY.md** : règle explicite que toute migration SQL doit être notifiée et fournie en fichier `.sql` téléchargeable dans `/mnt/documents/migrations/`
+5. **Mettre à jour la mémoire** correspondante pour refléter la nouvelle règle
 
-```text
-Lovable push
-     │
-     ▼
-  develop ──► GitHub Actions ──► Supabase STAGING (SUPABASE_PROJECT_ID)
-     │                            + Vercel Preview
-     │
-  PR merge
-     │
-     ▼
-   main ────► GitHub Actions ──► Supabase PRODUCTION (PRODUCTION_PROJECT_ID)
-                                  + Vercel Production
-```
+## Plan d'implémentation
 
-## Secrets GitHub — État actuel ✅
+### 1. Suppression du workflow
+- Supprimer `.github/workflows/deploy-migrations.yml`
 
-Vos secrets sont bien configurés :
-| Secret | Usage |
-|--------|-------|
-| `SUPABASE_PROJECT_ID` | Projet staging (develop) |
-| `SUPABASE_DB_PASSWORD` | DB staging |
-| `SUPABASE_ACCESS_TOKEN` | Auth CLI (partagé) |
-| `PRODUCTION_PROJECT_ID` | Projet production (main) |
-| `PRODUCTION_DB_PASSWORD` | DB production |
+### 2. Vérification des références
+- Rechercher dans tout le repo (`README.md`, `GUIDE_MIGRATION.md`, `.lovable/`, `SAFETY_POLICY.md`, autres `.yml`) toute mention de `deploy-migrations` et nettoyer/ajuster si trouvé
 
-**Note** : Le même `SUPABASE_ACCESS_TOKEN` fonctionne pour les deux projets si les deux sont sous le même compte Supabase.
+### 3. Mise à jour SAFETY_POLICY.md
+Ajouter/renforcer la section **D6 — Migrations SQL contrôlées** avec :
+- Règle absolue : **aucune** migration SQL n'est jouée par GitHub Actions
+- Procédure obligatoire à chaque migration :
+  1. Lovable génère un fichier `.sql` dans `/mnt/documents/migrations/YYYY-MM-DD_description.sql`
+  2. Lovable **notifie explicitement** l'utilisateur avec : nom du fichier, résumé de l'impact, ordre d'exécution Staging → Production
+  3. L'utilisateur exécute manuellement via SQL Editor sur les deux bases
+- Aucune migration ne doit être considérée comme appliquée tant que l'utilisateur n'a pas confirmé l'exécution sur les deux environnements
 
-## Modifications à effectuer
+### 4. Mise à jour mémoire
+- Mettre à jour `mem://governance/safety-policy-ref` pour refléter D6 renforcé
+- Créer/mettre à jour `mem://infrastructure/migrations-manuelles-sql-editor-fr` documentant la procédure
 
-### 1. Refonte du workflow GitHub Actions
+## Ce qui n'est PAS touché
 
-Remplacer le fichier unique `.github/workflows/deploy-functions.yml` par **deux jobs** :
+- `.github/workflows/deploy-functions.yml` — intact
+- Dossier `supabase/migrations/` — intact (référence historique)
+- Aucun code applicatif, aucune table, aucune RLS, aucune donnée
+- Vercel continue de déployer le frontend automatiquement sur push `main`
 
-- **Job "deploy-staging"** : déclenché sur `push` vers `develop`, déploie les 10 Edge Functions (incluant `api-public` manquante) vers `SUPABASE_PROJECT_ID`
-- **Job "deploy-production"** : déclenché sur `push` vers `main` (via PR merge), déploie vers `PRODUCTION_PROJECT_ID`
+## Effets attendus
 
-Les 10 fonctions à déployer :
-`create-user`, `update-user`, `delete-user`, `manage-roles`, `sla-checker`, `ai-assistant`, `sync-users`, `impersonate-user`, `send-notification-email`, `api-public`
+- Plus aucun blocage GitHub Actions sur les déploiements
+- Ruleset `main` ne checke plus de workflow de migration
+- Lovable push librement sur `develop` → PR → merge → Vercel déploie
+- Les migrations SQL restent sous votre contrôle total via SQL Editor
+- Règle gravée dans SAFETY_POLICY pour toutes les sessions futures
 
-### 2. Ajout workflow migrations DB (optionnel mais recommandé)
+## Risques
 
-Un second workflow `.github/workflows/deploy-migrations.yml` pour appliquer les migrations SQL :
-- `develop` → staging DB via `SUPABASE_DB_PASSWORD`
-- `main` → production DB via `PRODUCTION_DB_PASSWORD`
-
-### 3. Mise à jour mémoire CI/CD
-
-Mettre à jour `mem://infrastructure/ci-cd-edge-functions-fr` pour refléter le dual-environment.
-
-## Fichiers impactés
-
-| Fichier | Action |
-|---------|--------|
-| `.github/workflows/deploy-functions.yml` | Refonte : 2 jobs (staging + production) |
-| `.github/workflows/deploy-migrations.yml` | Nouveau : migrations DB dual-env |
-| `.lovable/memory/infrastructure/ci-cd-edge-functions-fr.md` | Mise à jour |
-
-## Points de vigilance
-
-- La fonction `api-public` n'est pas dans le workflow actuel — elle sera ajoutée.
-- Les secrets Edge Functions (SMTP, etc.) doivent être configurés **sur les deux projets Supabase** indépendamment (via le dashboard de chaque projet).
-- Vercel gère automatiquement le déploiement frontend : preview sur `develop`, production sur `main` — aucune configuration GitHub Actions nécessaire pour le frontend.
+Aucun. Suppression réversible (historique Git), aucune action sur la base.
 

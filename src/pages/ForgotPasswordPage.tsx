@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative" style={bgStyle}>
       {hasBgImage && (
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
       )}
       <div className="w-full max-w-md animate-fade-in relative z-10">
         <div className="text-center mb-8">
@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
           <h1 className={`text-2xl font-bold ${hasBgImage ? "text-white" : ""}`}>{settings.site_title || "ARE App"}</h1>
         </div>
 
-        <Card>
+        <Card className={hasBgImage ? "bg-card/60 backdrop-blur-xl border-white/20 shadow-2xl" : ""}>
           <CardHeader>
             <CardTitle>Mot de passe oublié</CardTitle>
             <CardDescription>

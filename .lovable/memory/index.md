@@ -14,6 +14,7 @@ Expert cybersécurité : audit chaque changement, notifier risques avant exécut
 - [Git Flow develop-first](mem://preference/git-flow-develop) — Tout push vers develop, production via PR uniquement
 - [Domaine production](mem://infrastructure/domaine-production-fr) — are-app.cloud (ancien mrhe-courrier.cloud)
 - [CI/CD Edge Functions](mem://infrastructure/ci-cd-edge-functions-fr) — Déploiement des 9 fonctions Edge
+- [Migrations SQL manuelles](mem://infrastructure/migrations-manuelles-sql-editor-fr) — SQL Editor uniquement, fichier .sql livré dans /mnt/documents/migrations/
 - [Workflow ministériel](mem://features/workflow-ministeriel-details-fr) — Responsabilités hybrides statiques/dynamiques
 - [Panneau contexte conseiller](mem://features/panneau-contexte-conseiller-fr) — TreatmentsList pour contributions
 - [Routage ministre absent](mem://features/routage-ministre-absent-fr) — Bypass étape 2 si ministre absent

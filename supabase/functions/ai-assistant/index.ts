@@ -47,8 +47,8 @@ serve(async (req) => {
     });
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: "Non autorisé" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -57,7 +57,6 @@ serve(async (req) => {
     const { type, subject, description, senderName, attachmentUrl, workflowHistory, aiDraft } = await req.json();
 
     // SSRF protection: only allow fetching from our own Supabase storage
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     if (attachmentUrl && !attachmentUrl.startsWith(supabaseUrl + "/storage/")) {
       return new Response(JSON.stringify({ error: "URL de pièce jointe non autorisée" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -99,7 +98,6 @@ Génère le document demandé en tenant compte de tout le contexte ci-dessus.`;
         const supportedDocTypes = ["application/pdf"];
         
         if (supportedImageTypes.includes(attachment.mimeType)) {
-          // Image: send as image_url
           userMessage = {
             role: "user",
             content: [
@@ -113,7 +111,6 @@ Génère le document demandé en tenant compte de tout le contexte ci-dessus.`;
             ],
           };
         } else if (supportedDocTypes.includes(attachment.mimeType)) {
-          // PDF: send as image_url with PDF mime type (Gemini supports this)
           userMessage = {
             role: "user",
             content: [
@@ -127,7 +124,6 @@ Génère le document demandé en tenant compte de tout le contexte ci-dessus.`;
             ],
           };
         } else {
-          // Unsupported type: text only with note
           userMessage = {
             role: "user",
             content: textContent + "\n\n(Note: le document joint est dans un format non analysable automatiquement.)",
