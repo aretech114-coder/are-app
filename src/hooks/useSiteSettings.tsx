@@ -273,7 +273,17 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
       link.rel = "icon";
       document.head.appendChild(link);
     }
-    link.href = settings.favicon_url || "/favicon.png";
+    link.href =
+      settings.favicon_url ||
+      settings.pwa_icon_url ||
+      settings.login_logo_url ||
+      settings.sidebar_logo_url ||
+      "/favicon.png";
+    link.type = link.href.endsWith(".webp")
+      ? "image/webp"
+      : link.href.endsWith(".svg")
+      ? "image/svg+xml"
+      : "image/png";
 
     // Meta robots
     let meta = document.querySelector("meta[name='robots']") as HTMLMetaElement | null;
