@@ -53,21 +53,19 @@ export default function Auth() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
       )}
       <div className="w-full max-w-md animate-fade-in relative z-10">
-        <div className="text-center mb-8">
-          {settings.sidebar_logo_url ? (
-            <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-4 object-cover" />
-          ) : (
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mb-4">
-              {settings.sidebar_initials || "ARE"}
-            </div>
-          )}
-          <h1 className={`text-2xl font-bold ${hasBgImage ? "text-white" : ""}`}>{settings.site_title || "ARE App"}</h1>
-          <p className={`text-sm mt-1 ${hasBgImage ? "text-white/80" : "text-muted-foreground"}`}>Système de Gestion Électronique du Courrier</p>
-        </div>
-
-        <Card className={hasBgImage ? "bg-card/60 backdrop-blur-xl border-white/20 shadow-2xl" : ""}>
-          <CardHeader>
-            <CardTitle>Connexion</CardTitle>
+        <Card className={hasBgImage ? "bg-card/70 backdrop-blur-xl border-white/20 shadow-2xl" : ""}>
+          <CardHeader className="text-center items-center">
+            {settings.sidebar_logo_url ? (
+              <img src={settings.sidebar_logo_url} alt="Logo" className="w-14 h-14 rounded-2xl mx-auto mb-3 object-cover" />
+            ) : (
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground font-bold text-xl mx-auto mb-3">
+                {settings.sidebar_initials || "ARE"}
+              </div>
+            )}
+            <h1 className="text-xl font-bold text-foreground">{settings.site_title || "ARE App"}</h1>
+            <p className="text-xs text-muted-foreground -mt-1">Système de Gestion Électronique du Courrier</p>
+            <div className="w-12 h-px bg-border my-2" />
+            <CardTitle className="text-lg">Connexion</CardTitle>
             <CardDescription>Accédez à votre espace de travail</CardDescription>
           </CardHeader>
           <CardContent>
