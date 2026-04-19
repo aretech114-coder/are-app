@@ -443,6 +443,24 @@ export default function SystemConfigPage() {
               onCheckedChange={toggleRememberMe}
             />
           </div>
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30 mt-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Afficher le titre sur la page de connexion</Label>
+              <p className="text-xs text-muted-foreground">
+                {settings.show_login_title !== "false"
+                  ? "Le titre et le sous-titre sont visibles dans le formulaire"
+                  : "Le titre et le sous-titre sont masqués dans le formulaire"}
+              </p>
+            </div>
+            <Switch
+              checked={settings.show_login_title !== "false"}
+              onCheckedChange={async () => {
+                const newValue = settings.show_login_title === "false" ? "true" : "false";
+                await updateSetting("show_login_title", newValue);
+                toast.success(newValue === "true" ? "Titre affiché" : "Titre masqué");
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -738,6 +756,48 @@ export default function SystemConfigPage() {
                 />
               </div>
               <p className="text-xs text-muted-foreground">Prioritaire sur la couleur si définie</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Logo de la page de connexion</Label>
+              <div className="flex items-center gap-2">
+                {loginLogoUrl ? (
+                  <div className="relative">
+                    <img src={loginLogoUrl} alt="Logo connexion" className="w-10 h-10 rounded-lg object-contain border bg-background" />
+                    <button
+                      onClick={() => setLoginLogoUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingLoginLogo}
+                  onClick={() => loginLogoInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {uploadingLoginLogo ? "Upload..." : "Uploader"}
+                </Button>
+                <input
+                  ref={loginLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFile(file, "login-logo", setUploadingLoginLogo, setLoginLogoUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Affiché dans le formulaire de connexion. Si vide, le logo de la sidebar est utilisé.</p>
             </div>
           </div>
 
