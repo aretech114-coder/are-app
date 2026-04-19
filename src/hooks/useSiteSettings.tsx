@@ -26,6 +26,14 @@ interface SiteSettings {
   show_login_title: string;
 }
 
+type SiteSettingKey = keyof SiteSettings;
+
+type SettingMetadata = {
+  description: string;
+  label: string;
+  setting_type: string;
+};
+
 const defaults: SiteSettings = {
   site_title: "ARE App",
   site_subtitle: "Gestion Courrier",
@@ -50,6 +58,133 @@ const defaults: SiteSettings = {
   login_logo_url: "",
   show_login_title: "true",
 };
+
+const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
+  site_title: {
+    label: "Titre de la plateforme",
+    setting_type: "text",
+    description: "Nom principal affiché dans l'application",
+  },
+  site_subtitle: {
+    label: "Sous-titre",
+    setting_type: "text",
+    description: "Sous-titre affiché sous le nom de la plateforme",
+  },
+  site_tagline: {
+    label: "Description courte",
+    setting_type: "text",
+    description: "Tagline mobile affichée dans l'en-tête",
+  },
+  sidebar_initials: {
+    label: "Initiales du logo",
+    setting_type: "text",
+    description: "Initiales utilisées si aucun logo n'est défini",
+  },
+  favicon_url: {
+    label: "Favicon",
+    setting_type: "image",
+    description: "Icône du navigateur",
+  },
+  sidebar_logo_url: {
+    label: "Logo de la barre latérale",
+    setting_type: "image",
+    description: "Logo affiché dans la navigation principale",
+  },
+  pwa_icon_url: {
+    label: "Icône PWA",
+    setting_type: "image",
+    description: "Icône utilisée pour l'installation mobile",
+  },
+  allow_indexing: {
+    label: "Autoriser l'indexation",
+    setting_type: "boolean",
+    description: "Autorise ou bloque l'indexation SEO",
+  },
+  show_forgot_password: {
+    label: "Afficher mot de passe oublié",
+    setting_type: "boolean",
+    description: "Affiche le lien mot de passe oublié sur la page de connexion",
+  },
+  show_remember_me: {
+    label: "Afficher se souvenir de moi",
+    setting_type: "boolean",
+    description: "Affiche la case se souvenir de moi sur la page de connexion",
+  },
+  primary_color: {
+    label: "Couleur primaire",
+    setting_type: "color",
+    description: "Couleur principale de l'interface",
+  },
+  secondary_color: {
+    label: "Couleur secondaire",
+    setting_type: "color",
+    description: "Couleur secondaire de l'interface",
+  },
+  accent_color: {
+    label: "Couleur d'accentuation",
+    setting_type: "color",
+    description: "Couleur d'accentuation de l'interface",
+  },
+  sidebar_bg_color: {
+    label: "Fond de la sidebar",
+    setting_type: "color",
+    description: "Couleur d'arrière-plan de la barre latérale",
+  },
+  background_color: {
+    label: "Fond de page",
+    setting_type: "color",
+    description: "Couleur de fond principale",
+  },
+  link_color: {
+    label: "Couleur des liens",
+    setting_type: "color",
+    description: "Couleur utilisée pour les liens",
+  },
+  font_heading: {
+    label: "Police des titres",
+    setting_type: "select",
+    description: "Police utilisée pour les titres",
+  },
+  font_body: {
+    label: "Police du texte",
+    setting_type: "select",
+    description: "Police utilisée pour le texte courant",
+  },
+  login_bg_color: {
+    label: "Couleur de fond connexion",
+    setting_type: "color",
+    description: "Couleur de fond de la page de connexion",
+  },
+  login_bg_image_url: {
+    label: "Image de fond connexion",
+    setting_type: "image",
+    description: "Image de fond de la page de connexion",
+  },
+  login_logo_url: {
+    label: "Logo de la page de connexion",
+    setting_type: "image",
+    description: "Logo affiché dans le formulaire de connexion",
+  },
+  show_login_title: {
+    label: "Afficher le titre de connexion",
+    setting_type: "boolean",
+    description: "Affiche le titre et le sous-titre dans le formulaire de connexion",
+  },
+};
+
+const PUBLIC_SETTING_KEYS = Object.keys(defaults) as SiteSettingKey[];
+
+function mapSettingsRows(rows: Array<{ setting_key: string; setting_value: string | null }>): SiteSettings {
+  const mapped = { ...defaults } as Record<SiteSettingKey, string>;
+
+  rows.forEach((row) => {
+    if (row.setting_key in mapped) {
+      mapped[row.setting_key] = row.setting_value ?? "";
+    }
+  });
+
+  return mapped;
+}
 
 function hexToHsl(hex: string): string | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -91,19 +226,36 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
-    const { data } = await supabase
-      .from("site_settings")
-      .select("setting_key, setting_value");
-    if (data) {
-      const map = { ...defaults } as Record<string, string>;
-      data.forEach((row: any) => {
-        if (row.setting_key in map) {
-          map[row.setting_key] = row.setting_value;
+    setLoading(true);
+
+    try {
+      const { data: authData } = await supabase.auth.getSession();
+      const hasSession = !!authData.session?.user;
+
+      if (hasSession) {
+        const { data, error } = await supabase
+          .from("site_settings")
+          .select("setting_key, setting_value");
+
+        if (!error && data) {
+          setSettings(mapSettingsRows(data));
+          return;
         }
+      }
+
+      const { data, error } = await supabase.functions.invoke("public-site-settings", {
+        body: { keys: PUBLIC_SETTING_KEYS },
       });
-      setSettings(map as unknown as SiteSettings);
+
+      if (error) throw error;
+
+      const publicSettings = Array.isArray(data?.settings) ? data.settings : [];
+      setSettings(mapSettingsRows(publicSettings));
+    } catch {
+      setSettings(defaults);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -190,10 +342,25 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   const updateSetting = async (key: string, value: string) => {
-    await supabase
+    const typedKey = key as SiteSettingKey;
+    const metadata = SETTING_METADATA[typedKey];
+
+    const { error } = await supabase
       .from("site_settings")
-      .update({ setting_value: value, updated_at: new Date().toISOString() })
-      .eq("setting_key", key);
+      .upsert(
+        {
+          setting_key: key,
+          setting_value: value,
+          setting_type: metadata?.setting_type ?? "text",
+          label: metadata?.label ?? key,
+          description: metadata?.description ?? key,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "setting_key" }
+      );
+
+    if (error) throw error;
+
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 

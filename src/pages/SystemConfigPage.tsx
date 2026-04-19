@@ -61,7 +61,7 @@ const isValidHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
 export default function SystemConfigPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
-  const { settings, updateSetting } = useSiteSettings();
+  const { settings, updateSetting, refresh } = useSiteSettings();
 
   const [siteTitle, setSiteTitle] = useState("");
   const [siteSubtitle, setSiteSubtitle] = useState("");
@@ -257,6 +257,7 @@ export default function SystemConfigPage() {
   const uploadFile = async (
     file: File,
     folder: string,
+    settingKey: string,
     setUploading: (v: boolean) => void,
     setUrl: (url: string) => void
   ) => {
@@ -273,6 +274,8 @@ export default function SystemConfigPage() {
         .from("branding")
         .getPublicUrl(filePath);
       setUrl(urlData.publicUrl);
+      await updateSetting(settingKey, urlData.publicUrl);
+      await refresh();
       toast.success("Image uploadée avec succès");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de l'upload");
@@ -573,7 +576,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "favicon", setUploadingFavicon, setFaviconUrl);
+                     if (file) uploadFile(file, "favicon", "favicon_url", setUploadingFavicon, setFaviconUrl);
                     e.target.value = "";
                   }}
                 />
@@ -625,7 +628,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "logo", setUploadingLogo, setSidebarLogoUrl);
+                     if (file) uploadFile(file, "logo", "sidebar_logo_url", setUploadingLogo, setSidebarLogoUrl);
                     e.target.value = "";
                   }}
                 />
@@ -680,7 +683,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "pwa-icon", setUploadingPwaIcon, setPwaIconUrl);
+                     if (file) uploadFile(file, "pwa-icon", "pwa_icon_url", setUploadingPwaIcon, setPwaIconUrl);
                     e.target.value = "";
                   }}
                 />
@@ -750,7 +753,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "login-bg", setUploadingLoginBg, setLoginBgImageUrl);
+                     if (file) uploadFile(file, "login-bg", "login_bg_image_url", setUploadingLoginBg, setLoginBgImageUrl);
                     e.target.value = "";
                   }}
                 />
@@ -792,7 +795,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "login-logo", setUploadingLoginLogo, setLoginLogoUrl);
+                     if (file) uploadFile(file, "login-logo", "login_logo_url", setUploadingLoginLogo, setLoginLogoUrl);
                     e.target.value = "";
                   }}
                 />
