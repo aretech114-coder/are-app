@@ -1,4 +1,4 @@
-// Auto-deployed via GitHub Actions
+// Auto-deployed via GitHub Actions 94
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -40,11 +40,7 @@ Deno.serve(async (req) => {
     const callerId = userData.user.id;
 
     // Check caller role and fine-grained permissions
-    const { data: roleData } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .single();
+    const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", callerId).single();
 
     const callerRole = roleData?.role;
     const isSuperAdmin = callerRole === "superadmin";
@@ -108,10 +104,7 @@ Deno.serve(async (req) => {
     if (createError) {
       const msg = createError.message?.toLowerCase() || "";
       const alreadyExists =
-        msg.includes("already") ||
-        msg.includes("registered") ||
-        msg.includes("exists") ||
-        msg.includes("duplicate");
+        msg.includes("already") || msg.includes("registered") || msg.includes("exists") || msg.includes("duplicate");
 
       if (!alreadyExists) {
         console.error("Create user error:", createError.message);
@@ -128,21 +121,25 @@ Deno.serve(async (req) => {
       });
 
       if (listError) {
-        return new Response(JSON.stringify({ error: `Utilisateur déjà existant, impossible de synchroniser: ${listError.message}` }), {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: `Utilisateur déjà existant, impossible de synchroniser: ${listError.message}` }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
 
-      const existingUser = (listedUsers.users || []).find(
-        (u) => (u.email || "").toLowerCase() === email.toLowerCase()
-      );
+      const existingUser = (listedUsers.users || []).find((u) => (u.email || "").toLowerCase() === email.toLowerCase());
 
       if (!existingUser?.id) {
-        return new Response(JSON.stringify({ error: "Le compte existe déjà, mais il est introuvable côté authentification" }), {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Le compte existe déjà, mais il est introuvable côté authentification" }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
 
       userId = existingUser.id;
@@ -152,39 +149,31 @@ Deno.serve(async (req) => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Upsert profile to ensure it exists (trigger may have already created it)
-    await adminClient
-      .from("profiles")
-      .upsert({
+    await adminClient.from("profiles").upsert(
+      {
         id: userId,
         email,
         full_name,
-      }, { onConflict: "id" });
+      },
+      { onConflict: "id" },
+    );
 
     // Upsert role to ensure correct role is set
-    const { data: existingRole } = await adminClient
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", userId)
-      .single();
+    const { data: existingRole } = await adminClient.from("user_roles").select("id").eq("user_id", userId).single();
 
     if (existingRole) {
-      await adminClient
-        .from("user_roles")
-        .update({ role })
-        .eq("user_id", userId);
+      await adminClient.from("user_roles").update({ role }).eq("user_id", userId);
     } else {
-      await adminClient
-        .from("user_roles")
-        .insert({ user_id: userId, role });
+      await adminClient.from("user_roles").insert({ user_id: userId, role });
     }
 
-    return new Response(
-      JSON.stringify({ success: true, user_id: userId }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ success: true, user_id: userId }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (err) {
-    console.error("Unexpected error:", (err as Error).message);
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    console.error("Unexpected error:", err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
