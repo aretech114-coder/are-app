@@ -17,6 +17,7 @@ import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
 import { MailDetailFields } from "@/components/MailDetailFields";
+import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -212,6 +213,7 @@ export default function InboxPage() {
           {selected.current_step >= 3 && selected.current_step <= 9 && (
             <Step4ContextPanel mailId={selected.id} />
           )}
+          <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
         </div>
         <div className="pt-3 border-t mt-2">
           <WorkflowActions mailId={selected.id} currentStep={selected.current_step || 1} onAdvanced={fetchMails} />
@@ -345,6 +347,8 @@ export default function InboxPage() {
                 {(selected.current_step >= 3 && selected.current_step <= 9) && (
                   <Step4ContextPanel mailId={selected.id} />
                 )}
+
+                <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
 
                 {/* Workflow Timeline toggle */}
                 <div>
