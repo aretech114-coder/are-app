@@ -28,6 +28,10 @@ const DEFAULT_ROLE_LABELS: Record<string, string> = {
   dircaba: "Dir. Cabinet Adjoint",
   conseiller_juridique: "Conseiller Juridique",
   secretariat: "Secrétariat",
+  dg: "Directeur Général",
+  dga: "Directeur Général Adjoint",
+  daf: "Directeur Administratif & Financier",
+  dt: "Directeur Technique",
 };
 
 const roleBadgeVariant = (role: string) => {
@@ -35,7 +39,11 @@ const roleBadgeVariant = (role: string) => {
     case "superadmin": return "destructive";
     case "admin": return "default";
     case "ministre":
+    case "dg":
     case "dircab": return "secondary";
+    case "dga":
+    case "daf":
+    case "dt": return "secondary";
     default: return "outline";
   }
 };
