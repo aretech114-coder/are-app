@@ -18,6 +18,7 @@ import { TreatmentsList } from "@/components/TreatmentsList";
 import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
 import { MailDetailFields } from "@/components/MailDetailFields";
 import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
+import { RecoverMailButton } from "@/components/RecoverMailButton";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -217,6 +218,14 @@ export default function InboxPage() {
         </div>
         <div className="pt-3 border-t mt-2">
           <WorkflowActions mailId={selected.id} currentStep={selected.current_step || 1} onAdvanced={fetchMails} />
+          <div className="mt-2">
+            <RecoverMailButton
+              mailId={selected.id}
+              currentStep={selected.current_step || 1}
+              deadlineAt={selected.deadline_at}
+              onRecovered={fetchMails}
+            />
+          </div>
         </div>
         {renderAiDialog()}
         {renderDocDialog()}
@@ -374,7 +383,13 @@ export default function InboxPage() {
                   currentStep={selected.current_step || 1}
                   onAdvanced={fetchMails}
                 />
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap items-center">
+                  <RecoverMailButton
+                    mailId={selected.id}
+                    currentStep={selected.current_step || 1}
+                    deadlineAt={selected.deadline_at}
+                    onRecovered={fetchMails}
+                  />
                   <Select
                     onValueChange={async (type) => {
                       if (!selected) return;
