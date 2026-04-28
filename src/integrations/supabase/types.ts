@@ -913,6 +913,10 @@ export type Database = {
         Args: { _mail_id?: string; _step_number: number }
         Returns: string
       }
+      revert_mail_to_dispatcher: {
+        Args: { _mail_id: string; _notes?: string; _performed_by: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role:
