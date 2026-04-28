@@ -277,6 +277,54 @@ export type Database = {
           },
         ]
       }
+      mail_sub_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          mail_id: string
+          parent_assignment_id: string
+          parent_deadline_at: string | null
+          status: string
+          sub_assigned_by: string
+          sub_assigned_to: string
+          submission_notes: string | null
+          submitted_at: string | null
+          updated_at: string
+          validated_at: string | null
+          validation_notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mail_id: string
+          parent_assignment_id: string
+          parent_deadline_at?: string | null
+          status?: string
+          sub_assigned_by: string
+          sub_assigned_to: string
+          submission_notes?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validation_notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mail_id?: string
+          parent_assignment_id?: string
+          parent_deadline_at?: string | null
+          status?: string
+          sub_assigned_by?: string
+          sub_assigned_to?: string
+          submission_notes?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validation_notes?: string | null
+        }
+        Relationships: []
+      }
       mails: {
         Row: {
           addressed_to: string | null
@@ -718,6 +766,7 @@ export type Database = {
       workflow_steps: {
         Row: {
           action_labels: Json | null
+          allow_sub_assignment: boolean
           assignment_mode: string | null
           color_class: string | null
           conditions: Json | null
@@ -732,6 +781,7 @@ export type Database = {
         }
         Insert: {
           action_labels?: Json | null
+          allow_sub_assignment?: boolean
           assignment_mode?: string | null
           color_class?: string | null
           conditions?: Json | null
@@ -746,6 +796,7 @@ export type Database = {
         }
         Update: {
           action_labels?: Json | null
+          allow_sub_assignment?: boolean
           assignment_mode?: string | null
           color_class?: string | null
           conditions?: Json | null
