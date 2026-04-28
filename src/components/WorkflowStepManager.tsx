@@ -7,6 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   useWorkflowSteps,
@@ -16,19 +20,30 @@ import {
   useReorderWorkflowSteps,
   type WorkflowStep,
 } from "@/hooks/useWorkflowSteps";
-import { getRoleLabel } from "@/lib/workflow-engine";
-import { GripVertical, Plus, Trash2, Pencil, ArrowUp, ArrowDown, Power, Layers } from "lucide-react";
+import { getRoleLabel, ROLE_LABELS } from "@/lib/workflow-engine";
+import { fetchWorkflowAssignableUsers, type AssignableUser } from "@/lib/workflow-assignment";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
+import { GripVertical, Plus, Trash2, Pencil, ArrowUp, ArrowDown, Power, Layers, Check, X, Users, ShieldCheck, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const ROLE_OPTIONS = [
-  "secretariat", "ministre", "dircab", "dircaba",
-  "conseiller_juridique", "conseiller", "supervisor", "agent",
-];
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MODE_OPTIONS = [
-  { value: "default_user", label: "Responsable par défaut" },
-  { value: "default_user_with_fallback", label: "Responsable avec fallback" },
-  { value: "dynamic_by_previous_step", label: "Dynamique (étape précédente)" },
+  {
+    value: "default_user",
+    label: "Responsable par défaut",
+    help: "Une personne (ou un rôle) toujours désignée pour cette étape. Chaque courrier qui arrive ici lui est assigné automatiquement.",
+  },
+  {
+    value: "default_user_with_fallback",
+    label: "Responsable avec fallback",
+    help: "Comme « par défaut », mais si aucun responsable n'est trouvé, le système se rabat sur l'assigné d'une étape antérieure.",
+  },
+  {
+    value: "dynamic_by_previous_step",
+    label: "Dynamique (assignation à l'exécution)",
+    help: "Aucun responsable fixe. L'assigné est choisi au moment où la transition est validée (ex. conseillers proposés à l'étape 2 puis traités à l'étape 4).",
+  },
 ];
 
 const COLOR_OPTIONS = [
@@ -47,10 +62,22 @@ const COLOR_OPTIONS = [
 interface EditForm {
   name: string;
   description: string;
-  responsible_role: string;
   assignment_mode: string;
   color_class: string;
+  assignment_target: "roles" | "users" | "mixed";
+  responsible_roles: string[];
+  responsible_user_ids: string[];
 }
+
+const DEFAULT_FORM: EditForm = {
+  name: "",
+  description: "",
+  assignment_mode: "default_user",
+  color_class: "",
+  assignment_target: "roles",
+  responsible_roles: [],
+  responsible_user_ids: [],
+};
 
 export function WorkflowStepManager() {
   const { data: steps = [], isLoading } = useWorkflowSteps();
@@ -60,25 +87,57 @@ export function WorkflowStepManager() {
   const reorderSteps = useReorderWorkflowSteps();
 
   const [editingStep, setEditingStep] = useState<WorkflowStep | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: "", description: "", responsible_role: "", assignment_mode: "default_user", color_class: "" });
+  const [editForm, setEditForm] = useState<EditForm>(DEFAULT_FORM);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [allRoles, setAllRoles] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<AssignableUser[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [{ data: enumRows }, users] = await Promise.all([
+          supabase.rpc("get_enum_values" as any),
+          fetchWorkflowAssignableUsers(),
+        ]);
+        const enumValues = ((enumRows || []) as Array<{ value: string }>).map((r) => r.value);
+        const merged = enumValues.length > 0 ? enumValues : Object.keys(ROLE_LABELS);
+        setAllRoles(merged.filter((r) => r !== "superadmin"));
+        setAllUsers(users);
+      } catch (e) {
+        // fallback: at least the static labels
+        setAllRoles(Object.keys(ROLE_LABELS).filter((r) => r !== "superadmin"));
+      }
+    })();
+  }, []);
 
   const openEdit = (step: WorkflowStep) => {
     setEditingStep(step);
     setEditForm({
       name: step.name,
       description: step.description || "",
-      responsible_role: step.responsible_role || "",
       assignment_mode: step.assignment_mode || "default_user",
       color_class: step.color_class || "",
+      assignment_target: (step.assignment_target as any) || "roles",
+      responsible_roles: step.responsible_roles || (step.responsible_role ? [step.responsible_role] : []),
+      responsible_user_ids: step.responsible_user_ids || [],
     });
   };
 
   const saveEdit = async () => {
     if (!editingStep) return;
     try {
-      await updateStep.mutateAsync({ id: editingStep.id, ...editForm });
+      await updateStep.mutateAsync({
+        id: editingStep.id,
+        name: editForm.name,
+        description: editForm.description,
+        assignment_mode: editForm.assignment_mode,
+        color_class: editForm.color_class,
+        assignment_target: editForm.assignment_target,
+        responsible_roles: editForm.responsible_roles,
+        responsible_user_ids: editForm.responsible_user_ids,
+        responsible_role: editForm.responsible_roles[0] || null,
+      });
       toast.success("Étape mise à jour");
       setEditingStep(null);
     } catch (e: any) {
@@ -93,13 +152,16 @@ export function WorkflowStepManager() {
         step_order: maxOrder + 1,
         name: editForm.name || "Nouvelle étape",
         description: editForm.description || undefined,
-        responsible_role: editForm.responsible_role || undefined,
+        responsible_role: editForm.responsible_roles[0] || undefined,
+        responsible_roles: editForm.responsible_roles,
+        responsible_user_ids: editForm.responsible_user_ids,
+        assignment_target: editForm.assignment_target,
         assignment_mode: editForm.assignment_mode || "default_user",
         color_class: editForm.color_class || COLOR_OPTIONS[0].value,
       });
       toast.success("Étape créée");
       setShowCreate(false);
-      setEditForm({ name: "", description: "", responsible_role: "", assignment_mode: "default_user", color_class: "" });
+      setEditForm(DEFAULT_FORM);
     } catch (e: any) {
       toast.error(e.message || "Erreur");
     }
@@ -160,7 +222,7 @@ export function WorkflowStepManager() {
               Réorganisez, activez/désactivez, modifiez ou ajoutez des étapes. Les changements sont appliqués immédiatement.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => { setShowCreate(true); setEditForm({ name: "", description: "", responsible_role: "", assignment_mode: "default_user", color_class: COLOR_OPTIONS[0].value }); }}>
+          <Button size="sm" onClick={() => { setShowCreate(true); setEditForm({ ...DEFAULT_FORM, color_class: COLOR_OPTIONS[0].value }); }}>
             <Plus className="h-4 w-4 mr-1" /> Ajouter
           </Button>
         </div>
@@ -192,7 +254,7 @@ export function WorkflowStepManager() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{step.name}</p>
               <p className="text-xs text-muted-foreground truncate">
-                {getRoleLabel(step.responsible_role || "")} · {MODE_OPTIONS.find(m => m.value === step.assignment_mode)?.label || step.assignment_mode}
+                {summarizeAssignment(step, allUsers)} · {MODE_OPTIONS.find(m => m.value === step.assignment_mode)?.label || step.assignment_mode}
               </p>
             </div>
 
@@ -213,11 +275,11 @@ export function WorkflowStepManager() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingStep} onOpenChange={(open) => !open && setEditingStep(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Modifier l'étape {editingStep?.step_order}</DialogTitle>
           </DialogHeader>
-          <StepFormFields form={editForm} setForm={setEditForm} />
+          <StepFormFields form={editForm} setForm={setEditForm} allRoles={allRoles} allUsers={allUsers} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingStep(null)}>Annuler</Button>
             <Button onClick={saveEdit} disabled={updateStep.isPending}>
@@ -229,11 +291,11 @@ export function WorkflowStepManager() {
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nouvelle étape</DialogTitle>
           </DialogHeader>
-          <StepFormFields form={editForm} setForm={setEditForm} />
+          <StepFormFields form={editForm} setForm={setEditForm} allRoles={allRoles} allUsers={allUsers} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Annuler</Button>
             <Button onClick={handleCreate} disabled={createStep.isPending}>
@@ -264,9 +326,31 @@ export function WorkflowStepManager() {
   );
 }
 
-function StepFormFields({ form, setForm }: { form: EditForm; setForm: (f: EditForm) => void }) {
+function summarizeAssignment(step: WorkflowStep, users: AssignableUser[]): string {
+  const roles = step.responsible_roles?.length ? step.responsible_roles : (step.responsible_role ? [step.responsible_role] : []);
+  const userIds = step.responsible_user_ids || [];
+  const parts: string[] = [];
+  if (roles.length > 0) parts.push(`Rôles: ${roles.map(getRoleLabel).join(", ")}`);
+  if (userIds.length > 0) {
+    const names = userIds.map((id) => users.find((u) => u.id === id)?.full_name || "Utilisateur").join(", ");
+    parts.push(`Users: ${names}`);
+  }
+  return parts.length ? parts.join(" + ") : "Non configuré";
+}
+
+function StepFormFields({
+  form,
+  setForm,
+  allRoles,
+  allUsers,
+}: {
+  form: EditForm;
+  setForm: (f: EditForm) => void;
+  allRoles: string[];
+  allUsers: AssignableUser[];
+}) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="space-y-2">
         <Label>Nom de l'étape</Label>
         <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Validation DirCab" />
@@ -275,30 +359,110 @@ function StepFormFields({ form, setForm }: { form: EditForm; setForm: (f: EditFo
         <Label>Description</Label>
         <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description de l'étape..." rows={2} />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Rôle responsable</Label>
-          <Select value={form.responsible_role} onValueChange={(v) => setForm({ ...form, responsible_role: v })}>
-            <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
-            <SelectContent>
-              {ROLE_OPTIONS.map((r) => (
-                <SelectItem key={r} value={r}>{getRoleLabel(r)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+      {/* Mode de désignation */}
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+        <div>
+          <Label className="text-base">Mode de désignation</Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Choisissez comment les utilisateurs seront sélectionnés pour cette étape.
+          </p>
         </div>
-        <div className="space-y-2">
-          <Label>Mode d'assignation</Label>
-          <Select value={form.assignment_mode} onValueChange={(v) => setForm({ ...form, assignment_mode: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MODE_OPTIONS.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <RadioGroup
+          value={form.assignment_target}
+          onValueChange={(v) => setForm({ ...form, assignment_target: v as EditForm["assignment_target"] })}
+          className="grid gap-2 sm:grid-cols-3"
+        >
+          {[
+            { v: "roles", label: "Par rôle(s)", icon: ShieldCheck, help: "Tout porteur du rôle peut traiter" },
+            { v: "users", label: "Par utilisateur(s)", icon: Users, help: "Personnes nominatives uniquement" },
+            { v: "mixed", label: "Mixte", icon: Layers, help: "Combine rôles ET utilisateurs" },
+          ].map((opt) => {
+            const Icon = opt.icon;
+            const checked = form.assignment_target === opt.v;
+            return (
+              <Label
+                key={opt.v}
+                htmlFor={`target-${opt.v}`}
+                className={cn(
+                  "flex flex-col gap-1.5 rounded-md border bg-background p-3 cursor-pointer transition-all",
+                  checked ? "border-primary ring-2 ring-primary/20" : "hover:bg-muted/40"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id={`target-${opt.v}`} value={opt.v} />
+                  <Icon className="h-4 w-4" />
+                  <span className="text-sm font-medium">{opt.label}</span>
+                </div>
+                <span className="text-xs text-muted-foreground pl-6">{opt.help}</span>
+              </Label>
+            );
+          })}
+        </RadioGroup>
+
+        {(form.assignment_target === "roles" || form.assignment_target === "mixed") && (
+          <div className="space-y-2">
+            <Label>Rôles autorisés</Label>
+            <MultiSelectCombo
+              placeholder="Sélectionner un ou plusieurs rôles..."
+              options={allRoles.map((r) => ({ value: r, label: getRoleLabel(r) }))}
+              selected={form.responsible_roles}
+              onChange={(values) => setForm({ ...form, responsible_roles: values })}
+              emptyText="Aucun rôle disponible"
+            />
+          </div>
+        )}
+
+        {(form.assignment_target === "users" || form.assignment_target === "mixed") && (
+          <div className="space-y-2">
+            <Label>Utilisateurs spécifiques</Label>
+            <MultiSelectCombo
+              placeholder="Sélectionner un ou plusieurs utilisateurs..."
+              options={allUsers.map((u) => ({
+                value: u.id,
+                label: u.full_name || u.email,
+                hint: getRoleLabel(u.role),
+              }))}
+              selected={form.responsible_user_ids}
+              onChange={(values) => setForm({ ...form, responsible_user_ids: values })}
+              emptyText="Aucun utilisateur trouvé"
+              searchable
+            />
+          </div>
+        )}
       </div>
+
+      <div className="space-y-2">
+        <Label className="flex items-center gap-1.5">
+          Mode d'assignation
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-xs">
+                  Détermine quand le responsable est résolu : à la création de la transition (par défaut / fallback) ou à l'exécution (dynamique).
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </Label>
+        <Select value={form.assignment_mode} onValueChange={(v) => setForm({ ...form, assignment_mode: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {MODE_OPTIONS.map((m) => (
+              <SelectItem key={m.value} value={m.value}>
+                <div className="flex flex-col">
+                  <span>{m.label}</span>
+                  <span className="text-xs text-muted-foreground">{m.help}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-2">
         <Label>Couleur</Label>
         <div className="flex flex-wrap gap-2">
@@ -318,6 +482,85 @@ function StepFormFields({ form, setForm }: { form: EditForm; setForm: (f: EditFo
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+interface MultiOption {
+  value: string;
+  label: string;
+  hint?: string;
+}
+
+function MultiSelectCombo({
+  placeholder,
+  options,
+  selected,
+  onChange,
+  emptyText,
+  searchable = false,
+}: {
+  placeholder: string;
+  options: MultiOption[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  emptyText: string;
+  searchable?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const toggle = (value: string) => {
+    if (selected.includes(value)) onChange(selected.filter((v) => v !== value));
+    else onChange([...selected, value]);
+  };
+  const remove = (value: string) => onChange(selected.filter((v) => v !== value));
+
+  return (
+    <div className="space-y-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+            <span className="text-muted-foreground">
+              {selected.length === 0 ? placeholder : `${selected.length} sélectionné(s)`}
+            </span>
+            <Plus className="h-4 w-4 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            {searchable && <CommandInput placeholder="Rechercher..." />}
+            <CommandList>
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup>
+                {options.map((opt) => {
+                  const isSelected = selected.includes(opt.value);
+                  return (
+                    <CommandItem key={opt.value} value={opt.label} onSelect={() => toggle(opt.value)}>
+                      <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                      <span className="flex-1">{opt.label}</span>
+                      {opt.hint && <span className="text-xs text-muted-foreground ml-2">{opt.hint}</span>}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((v) => {
+            const opt = options.find((o) => o.value === v);
+            return (
+              <Badge key={v} variant="secondary" className="gap-1 pr-1">
+                {opt?.label || v}
+                <button type="button" onClick={() => remove(v)} className="ml-1 rounded hover:bg-background/40">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

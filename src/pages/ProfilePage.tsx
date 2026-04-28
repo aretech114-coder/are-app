@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Camera, Lock, Save, LogOut } from "lucide-react";
+import { Camera, Lock, Save, LogOut, UserCheck, UserX } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 export default function ProfilePage() {
   const { user, profile, role, signOut } = useAuth();
@@ -18,6 +19,39 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [isAvailable, setIsAvailable] = useState<boolean>(true);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("is_available")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data && (data as any).is_available !== undefined) {
+          setIsAvailable(((data as any).is_available as boolean) ?? true);
+        }
+      });
+  }, [user]);
+
+  const toggleAvailability = async (next: boolean) => {
+    if (!user) return;
+    setSavingAvailability(true);
+    setIsAvailable(next);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_available: next } as any)
+      .eq("id", user.id);
+    if (error) {
+      toast.error(error.message);
+      setIsAvailable(!next);
+    } else {
+      toast.success(next ? "Vous êtes maintenant disponible" : "Vous êtes marqué comme absent");
+    }
+    setSavingAvailability(false);
+  };
 
   const updateProfile = async () => {
     if (!user) return;
@@ -124,6 +158,28 @@ export default function ProfilePage() {
             <Save className="h-4 w-4 mr-2" />
             {saving ? "Enregistrement..." : "Enregistrer"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            {isAvailable ? <UserCheck className="h-5 w-5 text-success" /> : <UserX className="h-5 w-5 text-destructive" />}
+            Disponibilité
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">
+                {isAvailable ? "Disponible" : "Absent / Indisponible"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Quand vous êtes marqué absent, le workflow bascule automatiquement vers le suppléant configuré (si existant).
+              </p>
+            </div>
+            <Switch checked={isAvailable} onCheckedChange={toggleAvailability} disabled={savingAvailability} />
+          </div>
         </CardContent>
       </Card>
 
