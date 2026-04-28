@@ -7,6 +7,7 @@ import { Workflow, Clock, Settings2, UserCog, Mail } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WorkflowStepManager } from "@/components/WorkflowStepManager";
+import { WorkflowFallbackManager } from "@/components/WorkflowFallbackManager";
 import { useWorkflowSteps, getStepColorFromList } from "@/hooks/useWorkflowSteps";
 import { getStepColor } from "@/lib/workflow-engine";
 import {
@@ -216,6 +217,9 @@ export default function WorkflowPage() {
 
       {/* Dynamic Step Manager */}
       <WorkflowStepManager />
+
+      {/* Routage conditionnel & cascade de suppléants */}
+      <WorkflowFallbackManager />
 
       <Card>
         <CardHeader>
