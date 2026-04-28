@@ -551,8 +551,10 @@ export type Database = {
           first_login: boolean | null
           full_name: string
           id: string
+          is_available: boolean
           password_changed_at: string | null
           tenant_id: string | null
+          unavailable_until: string | null
           updated_at: string | null
         }
         Insert: {
@@ -562,8 +564,10 @@ export type Database = {
           first_login?: boolean | null
           full_name?: string
           id: string
+          is_available?: boolean
           password_changed_at?: string | null
           tenant_id?: string | null
+          unavailable_until?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -573,8 +577,10 @@ export type Database = {
           first_login?: boolean | null
           full_name?: string
           id?: string
+          is_available?: boolean
           password_changed_at?: string | null
           tenant_id?: string | null
+          unavailable_until?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -706,6 +712,47 @@ export type Database = {
           },
         ]
       }
+      workflow_step_fallbacks: {
+        Row: {
+          condition_key: string
+          created_at: string
+          created_by: string | null
+          fallback_user_ids: string[]
+          id: string
+          is_active: boolean
+          step_id: string
+          updated_at: string
+        }
+        Insert: {
+          condition_key: string
+          created_at?: string
+          created_by?: string | null
+          fallback_user_ids?: string[]
+          id?: string
+          is_active?: boolean
+          step_id: string
+          updated_at?: string
+        }
+        Update: {
+          condition_key?: string
+          created_at?: string
+          created_by?: string | null
+          fallback_user_ids?: string[]
+          id?: string
+          is_active?: boolean
+          step_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_step_fallbacks_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_step_responsibles: {
         Row: {
           assignment_mode: string
@@ -768,6 +815,7 @@ export type Database = {
           action_labels: Json | null
           allow_sub_assignment: boolean
           assignment_mode: string | null
+          assignment_target: string
           color_class: string | null
           conditions: Json | null
           created_at: string | null
@@ -776,6 +824,8 @@ export type Database = {
           is_active: boolean
           name: string
           responsible_role: string | null
+          responsible_roles: string[]
+          responsible_user_ids: string[]
           step_order: number
           updated_at: string | null
         }
@@ -783,6 +833,7 @@ export type Database = {
           action_labels?: Json | null
           allow_sub_assignment?: boolean
           assignment_mode?: string | null
+          assignment_target?: string
           color_class?: string | null
           conditions?: Json | null
           created_at?: string | null
@@ -791,6 +842,8 @@ export type Database = {
           is_active?: boolean
           name: string
           responsible_role?: string | null
+          responsible_roles?: string[]
+          responsible_user_ids?: string[]
           step_order: number
           updated_at?: string | null
         }
@@ -798,6 +851,7 @@ export type Database = {
           action_labels?: Json | null
           allow_sub_assignment?: boolean
           assignment_mode?: string | null
+          assignment_target?: string
           color_class?: string | null
           conditions?: Json | null
           created_at?: string | null
@@ -806,6 +860,8 @@ export type Database = {
           is_active?: boolean
           name?: string
           responsible_role?: string | null
+          responsible_roles?: string[]
+          responsible_user_ids?: string[]
           step_order?: number
           updated_at?: string | null
         }
@@ -908,6 +964,10 @@ export type Database = {
       notify_password_reset_request: {
         Args: { _email: string }
         Returns: undefined
+      }
+      resolve_fallback_user: {
+        Args: { _condition_key: string; _step_id: string }
+        Returns: string
       }
       resolve_step_assignee: {
         Args: { _mail_id?: string; _step_number: number }
