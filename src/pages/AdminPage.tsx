@@ -329,6 +329,8 @@ export default function AdminPage() {
     setEditPassword("");
     setEditRole(userRole);
     setEditTenantId(u.tenant_id || "");
+    setEditProvinceCode(u.province_code || "");
+    setEditHabilitationSpeciale(!!u.habilitation_speciale);
     setEditOpen(true);
   };
 
