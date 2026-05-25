@@ -105,6 +105,8 @@ export default function AdminPage() {
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editTenantId, setEditTenantId] = useState<string>("");
+  const [editProvinceCode, setEditProvinceCode] = useState<string>("");
+  const [editHabilitationSpeciale, setEditHabilitationSpeciale] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
