@@ -370,6 +370,21 @@ export default function AdminPage() {
         await supabase.from("profiles").update({ tenant_id: newTenantId } as any).eq("id", editUser.id);
       }
 
+      // Persist province_code & habilitation_speciale on profile (admin/superadmin only)
+      const newProvince = editProvinceCode || null;
+      const currentProvince = editUser.province_code || null;
+      const newHabilitation = !!editHabilitationSpeciale;
+      const currentHabilitation = !!editUser.habilitation_speciale;
+      if (newProvince !== currentProvince || newHabilitation !== currentHabilitation) {
+        const { error: profErr } = await supabase
+          .from("profiles")
+          .update({ province_code: newProvince, habilitation_speciale: newHabilitation } as any)
+          .eq("id", editUser.id);
+        if (profErr) {
+          toast.error("Erreur enregistrement province/habilitation : " + profErr.message);
+        }
+      }
+
       if (Object.keys(body).length === 1 && newTenantId === currentTenantId) {
         toast.error("Aucune modification autorisée à enregistrer");
         setSaving(false);
