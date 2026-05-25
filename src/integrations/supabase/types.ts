@@ -325,6 +325,39 @@ export type Database = {
         }
         Relationships: []
       }
+      mail_types: {
+        Row: {
+          code: string
+          created_at: string
+          default_workflow_step: number | null
+          direction: string
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          default_workflow_step?: number | null
+          direction?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          default_workflow_step?: number | null
+          direction?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mails: {
         Row: {
           addressed_to: string | null
@@ -337,13 +370,16 @@ export type Database = {
           deadline_at: string | null
           deposit_time: string | null
           description: string | null
+          direction: string
           document_summary: string | null
           id: string
           is_read: boolean | null
+          locked_for_edit: boolean
           mail_type: string | null
           mail_type_other: string | null
           ministre_absent: boolean
           priority: Database["public"]["Enums"]["mail_priority"]
+          province_code: string | null
           qr_code_data: string
           reception_date: string | null
           reference_number: string
@@ -357,6 +393,7 @@ export type Database = {
           sender_phone: string | null
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
+          target_service_id: string | null
           tenant_id: string | null
           updated_at: string | null
           workflow_completed_at: string | null
@@ -373,13 +410,16 @@ export type Database = {
           deadline_at?: string | null
           deposit_time?: string | null
           description?: string | null
+          direction?: string
           document_summary?: string | null
           id?: string
           is_read?: boolean | null
+          locked_for_edit?: boolean
           mail_type?: string | null
           mail_type_other?: string | null
           ministre_absent?: boolean
           priority?: Database["public"]["Enums"]["mail_priority"]
+          province_code?: string | null
           qr_code_data: string
           reception_date?: string | null
           reference_number: string
@@ -393,6 +433,7 @@ export type Database = {
           sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
+          target_service_id?: string | null
           tenant_id?: string | null
           updated_at?: string | null
           workflow_completed_at?: string | null
@@ -409,13 +450,16 @@ export type Database = {
           deadline_at?: string | null
           deposit_time?: string | null
           description?: string | null
+          direction?: string
           document_summary?: string | null
           id?: string
           is_read?: boolean | null
+          locked_for_edit?: boolean
           mail_type?: string | null
           mail_type_other?: string | null
           ministre_absent?: boolean
           priority?: Database["public"]["Enums"]["mail_priority"]
+          province_code?: string | null
           qr_code_data?: string
           reception_date?: string | null
           reference_number?: string
@@ -429,12 +473,21 @@ export type Database = {
           sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
+          target_service_id?: string | null
           tenant_id?: string | null
           updated_at?: string | null
           workflow_completed_at?: string | null
           workflow_started_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mails_target_service_fk"
+            columns: ["target_service_id"]
+            isOneToOne: false
+            referencedRelation: "services_concernes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       missions: {
         Row: {
@@ -550,9 +603,11 @@ export type Database = {
           email: string
           first_login: boolean | null
           full_name: string
+          habilitation_speciale: boolean
           id: string
           is_available: boolean
           password_changed_at: string | null
+          province_code: string | null
           tenant_id: string | null
           unavailable_until: string | null
           updated_at: string | null
@@ -563,9 +618,11 @@ export type Database = {
           email: string
           first_login?: boolean | null
           full_name?: string
+          habilitation_speciale?: boolean
           id: string
           is_available?: boolean
           password_changed_at?: string | null
+          province_code?: string | null
           tenant_id?: string | null
           unavailable_until?: string | null
           updated_at?: string | null
@@ -576,9 +633,11 @@ export type Database = {
           email?: string
           first_login?: boolean | null
           full_name?: string
+          habilitation_speciale?: boolean
           id?: string
           is_available?: boolean
           password_changed_at?: string | null
+          province_code?: string | null
           tenant_id?: string | null
           unavailable_until?: string | null
           updated_at?: string | null
@@ -589,6 +648,44 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services_concernes: {
+        Row: {
+          code: string
+          created_at: string
+          default_handler_user_id: string | null
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          default_handler_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          default_handler_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_concernes_default_handler_user_id_fkey"
+            columns: ["default_handler_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -949,7 +1046,9 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_province: { Args: { _uid: string }; Returns: string }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
+      has_habilitation_speciale: { Args: { _uid: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
