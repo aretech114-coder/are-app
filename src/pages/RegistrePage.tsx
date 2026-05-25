@@ -104,15 +104,14 @@ export default function RegistrePage() {
   const { data: mails = [], isLoading, refetch } = useQuery({
     queryKey: ["registre-mails", direction],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("mails")
+      const res: any = await (supabase.from("mails") as any)
         .select(
           "id, reference_number, subject, sender_name, sender_organization, mail_type, priority, status, created_at, reception_date, addressed_to, current_step, deadline_at, locked_for_edit, direction, target_service_id, registered_by, province_code"
         )
-        .eq("direction" as any, direction)
+        .eq("direction", direction)
         .order("created_at", { ascending: false })
         .limit(500);
-      return data ?? [];
+      return (res.data ?? []) as any[];
     },
     enabled: !!user,
   });
