@@ -18,6 +18,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const RDC_PROVINCES: { code: string; label: string }[] = [
+  { code: "KN", label: "Kinshasa" },
+  { code: "KC", label: "Kongo-Central" },
+  { code: "KW", label: "Kwango" },
+  { code: "KL", label: "Kwilu" },
+  { code: "MN", label: "Mai-Ndombe" },
+  { code: "KS", label: "Kasaï" },
+  { code: "KE", label: "Kasaï-Central" },
+  { code: "KO", label: "Kasaï-Oriental" },
+  { code: "LO", label: "Lomami" },
+  { code: "SA", label: "Sankuru" },
+  { code: "MA", label: "Maniema" },
+  { code: "SK", label: "Sud-Kivu" },
+  { code: "NK", label: "Nord-Kivu" },
+  { code: "IT", label: "Ituri" },
+  { code: "HU", label: "Haut-Uele" },
+  { code: "TS", label: "Tshopo" },
+  { code: "BU", label: "Bas-Uele" },
+  { code: "MO", label: "Mongala" },
+  { code: "NU", label: "Nord-Ubangi" },
+  { code: "SU", label: "Sud-Ubangi" },
+  { code: "EQ", label: "Équateur" },
+  { code: "TU", label: "Tshuapa" },
+  { code: "TA", label: "Tanganyika" },
+  { code: "HL", label: "Haut-Lomami" },
+  { code: "LU", label: "Lualaba" },
+  { code: "HK", label: "Haut-Katanga" },
+];
+
 const DEFAULT_ROLE_LABELS: Record<string, string> = {
   superadmin: "Super Admin",
   admin: "Admin",
