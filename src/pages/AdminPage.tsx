@@ -949,6 +949,38 @@ export default function AdminPage() {
                 </Select>
               </div>
             )}
+            <div className="space-y-2">
+              <Label>Province (RDC)</Label>
+              <Select
+                value={editProvinceCode || "__none__"}
+                onValueChange={(v) => setEditProvinceCode(v === "__none__" ? "" : v)}
+                disabled={saving || !canEditUsers}
+              >
+                <SelectTrigger><SelectValue placeholder="Aucune province" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Aucune (national)</SelectItem>
+                  {RDC_PROVINCES.map((p) => (
+                    <SelectItem key={p.code} value={p.code}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Détermine la portée d'accès au registre. Laisser vide pour un utilisateur national.
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Habilitation spéciale</Label>
+                <p className="text-xs text-muted-foreground">
+                  Permet l'accès aux courriers de toutes les provinces.
+                </p>
+              </div>
+              <Switch
+                checked={editHabilitationSpeciale}
+                onCheckedChange={setEditHabilitationSpeciale}
+                disabled={saving || !canEditUsers}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>Annuler</Button>
