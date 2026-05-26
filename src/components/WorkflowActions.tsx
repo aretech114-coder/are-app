@@ -1057,6 +1057,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canCreateReply && (
+        <MailRegistrationSheet
+          open={showReplySheet}
+          onOpenChange={setShowReplySheet}
+          direction="sortant"
+          parentMail={replyParentMail}
+          onCreated={() => {
+            setShowReplySheet(false);
+            onAdvanced();
+          }}
+        />
+      )}
     </>
   );
 }
