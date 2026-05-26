@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { useMemo } from "react";
 
 export interface WorkflowFallback {
   id: string;
@@ -29,6 +31,36 @@ export const FALLBACK_CONDITIONS = [
     description: "Le Directeur Général est indisponible. Le DGA ou un autre suppléant prend le relais.",
   },
 ] as const;
+
+/**
+ * Hook returning fallback conditions with labels/descriptions
+ * interpolated from the configurable authority title.
+ */
+export function useFallbackConditions() {
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
+  const authLong = settings.authority_title_long || "Ministre";
+  return useMemo(
+    () => [
+      {
+        key: "ministre_absent",
+        label: `${authShort} absent`,
+        description: `Le courrier est marqué « ${authShort} absent ». Le suppléant prend le relais sur cette étape.`,
+      },
+      {
+        key: "responsible_unavailable",
+        label: "Responsable principal indisponible",
+        description: "Le responsable principal est marqué indisponible (absence/voyage/congé).",
+      },
+      {
+        key: "dg_absent",
+        label: "DG absent",
+        description: "Le Directeur Général est indisponible. Le DGA ou un autre suppléant prend le relais.",
+      },
+    ] as const,
+    [authShort, authLong]
+  );
+}
 
 const KEY = ["workflow_step_fallbacks"];
 

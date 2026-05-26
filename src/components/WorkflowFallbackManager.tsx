@@ -15,6 +15,7 @@ import {
   useUpsertFallback,
   useDeleteFallback,
   FALLBACK_CONDITIONS,
+  useFallbackConditions,
   type WorkflowFallback,
 } from "@/hooks/useWorkflowFallbacks";
 import { fetchWorkflowAssignableUsers, type AssignableUser } from "@/lib/workflow-assignment";
