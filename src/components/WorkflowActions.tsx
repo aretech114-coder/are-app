@@ -68,6 +68,27 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [arLoading, setArLoading] = useState(false);
   const [mailData, setMailData] = useState<any>(null);
 
+  // Reply creation (sortant) — bouton optionnel selon config étape
+  const [showReplySheet, setShowReplySheet] = useState(false);
+  const { data: activeSteps = [] } = useActiveWorkflowSteps();
+  const currentStepConfig = activeSteps.find((s) => s.step_order === currentStep);
+  const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
+  const [replyParentMail, setReplyParentMail] = useState<any>(null);
+
+  // Charger le mail courant pour pré-remplir la réponse
+  useEffect(() => {
+    if (canCreateReply && !replyParentMail) {
+      supabase
+        .from("mails")
+        .select("id, reference_number, sender_name, sender_organization, subject")
+        .eq("id", mailId)
+        .single()
+        .then(({ data }) => {
+          if (data) setReplyParentMail(data);
+        });
+    }
+  }, [canCreateReply, mailId, replyParentMail]);
+
   const stepInfo = getStepInfo(currentStep);
 
   // Map roles to their allowed steps
