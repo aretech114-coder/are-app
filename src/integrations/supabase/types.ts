@@ -378,6 +378,7 @@ export type Database = {
           mail_type: string | null
           mail_type_other: string | null
           ministre_absent: boolean
+          parent_mail_id: string | null
           priority: Database["public"]["Enums"]["mail_priority"]
           province_code: string | null
           qr_code_data: string
@@ -418,6 +419,7 @@ export type Database = {
           mail_type?: string | null
           mail_type_other?: string | null
           ministre_absent?: boolean
+          parent_mail_id?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           province_code?: string | null
           qr_code_data: string
@@ -458,6 +460,7 @@ export type Database = {
           mail_type?: string | null
           mail_type_other?: string | null
           ministre_absent?: boolean
+          parent_mail_id?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
           province_code?: string | null
           qr_code_data?: string
@@ -910,6 +913,7 @@ export type Database = {
       workflow_steps: {
         Row: {
           action_labels: Json | null
+          allow_reply_creation: boolean
           allow_sub_assignment: boolean
           assignment_mode: string | null
           assignment_target: string
@@ -928,6 +932,7 @@ export type Database = {
         }
         Insert: {
           action_labels?: Json | null
+          allow_reply_creation?: boolean
           allow_sub_assignment?: boolean
           assignment_mode?: string | null
           assignment_target?: string
@@ -946,6 +951,7 @@ export type Database = {
         }
         Update: {
           action_labels?: Json | null
+          allow_reply_creation?: boolean
           allow_sub_assignment?: boolean
           assignment_mode?: string | null
           assignment_target?: string

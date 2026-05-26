@@ -1,33 +1,54 @@
-## Trois ajustements sur le Registre
+# Toggle « Créer une réponse » par étape de workflow
 
-### 1. Pop-up "Nouveau courrier" centré (au lieu d'un panneau latéral)
+## Objectif
 
-Actuellement `MailRegistrationSheet` utilise le composant `Sheet` (slide droite→gauche). Convertir en `Dialog` centré :
-- Remplacer `Sheet/SheetContent/SheetHeader/SheetTitle/SheetDescription/SheetFooter` par `Dialog/DialogContent/DialogHeader/DialogTitle/DialogDescription/DialogFooter`.
-- Largeur cible ≈ 50 % d'écran avec marges de 25 % de chaque côté : `max-w-[50vw]` (fallback `sm:max-w-2xl lg:max-w-3xl`) + `max-h-[85vh] overflow-y-auto`.
-- Conserver tous les champs et la logique de soumission existante.
-- Optionnel : renommer le fichier en `MailRegistrationDialog.tsx` (sinon garder le nom actuel pour limiter le diff). Je propose de **garder le nom de fichier** et de juste changer le composant interne, pour éviter de toucher l'import dans `RegistrePage.tsx`.
+Permettre à un administrateur d'activer, étape par étape, un bouton « Créer une réponse » qui lance la saisie d'un courrier **sortant** lié automatiquement au courrier entrant en cours de traitement. Modulable selon les institutions : certaines voudront le bouton dès l'étape 1, d'autres à l'étape 5, 10, etc.
 
-### 2. Bouton "Modifier" fonctionnel
+## 1. Base de données (1 migration)
 
-`RegistrePage.handleEdit` affiche actuellement un toast "Édition disponible — module détaillé à venir". Or `MailEditDialog` existe déjà.
-- Ajouter un state `editingMail` dans `RegistrePage`.
-- `handleEdit(m)` : si `m.locked_for_edit` → toast d'erreur ; sinon `setEditingMail(m)`.
-- Monter `<MailEditDialog mail={editingMail} open={!!editingMail} onOpenChange={(o)=>!o && setEditingMail(null)} onSaved={() => { setEditingMail(null); refetch(); }} />` en bas de la page.
+**Table `workflow_steps`** : ajouter `allow_reply_creation boolean NOT NULL DEFAULT false`.
 
-### 3. Réassignation via sélection d'utilisateur (au lieu de `prompt` email)
+**Table `mails`** : ajouter `parent_mail_id uuid NULL` (référence souple, pas de FK stricte pour ne pas bloquer suppressions) + index. Permet de lier la réponse sortante au courrier entrant d'origine et d'afficher l'historique « réponses » dans la fiche du courrier entrant.
 
-`handleReassign` utilise `window.prompt` pour saisir un email. Le remplacer par une vraie modale :
-- Nouveau state `reassignMailId: string | null` et `reassignTargetUserId: string | null`.
-- Une `Dialog` qui affiche un `Select` (ou `Command/Combobox` recherchable) listant les utilisateurs assignables, chargés via `useQuery` sur `profiles` (`id, full_name, email`, triés par `full_name`).
-- À la validation : exécuter la logique existante (révoquer les `pending`, insérer la nouvelle assignation, créer la notification, toast + refetch), en utilisant l'ID sélectionné directement (plus de lookup par email).
-- Le bouton "Réassigner" du tableau ouvre la modale au lieu d'appeler `prompt`.
+Aucun changement de RLS (mêmes politiques s'appliquent), aucun GRANT additionnel (colonnes ajoutées à des tables existantes).
 
-### Fichiers touchés
+## 2. Admin — Configurer le toggle (`WorkflowStepManager.tsx`)
 
-- `src/components/MailRegistrationSheet.tsx` — passage Sheet → Dialog centré.
-- `src/pages/RegistrePage.tsx` — branchement `MailEditDialog`, nouvelle modale de réassignation, suppression du `prompt`.
+Dans le formulaire d'édition/création d'étape, ajouter un bloc « Actions disponibles » avec un `Switch` :
 
-### Hors périmètre
+> **Permettre la création d'une réponse depuis cette étape**
+> Affiche un bouton « Créer une réponse » qui pré-remplit un courrier sortant lié à ce courrier.
 
-Aucune modification SQL / backend. Pure UI + branchement de composants existants.
+Persiste `allow_reply_creation` via `useUpdateWorkflowStep` / `useCreateWorkflowStep` (mise à jour du type `WorkflowStep` dans `useWorkflowSteps.tsx`).
+
+## 3. Bouton « Créer une réponse » (`WorkflowActions.tsx`)
+
+Si `step.allow_reply_creation === true` **et** l'utilisateur a accès à l'étape courante (logique `canAct` existante), afficher en tête du panneau d'actions un bouton secondaire distinct (icône `Reply`, variant outline, couleur accent) — séparé visuellement des actions de transition pour ne pas créer de confusion UX.
+
+Clic → ouvre `MailRegistrationSheet` (déjà converti en Dialog centré) en mode `direction="sortant"`, avec props additionnelles :
+- `parentMail` : `{ id, reference_number, sender_name, sender_organization, subject }`
+- Pré-remplissage : `subject = "RE: <sujet entrant>"`, `addressed_to` = expéditeur du courrier entrant, champ description vide, bandeau d'info « Réponse au courrier <REF> ».
+- À la soumission, `parent_mail_id` du nouveau courrier = id du courrier entrant.
+
+## 4. Visibilité du lien parent/réponse
+
+Dans la fiche du courrier (côté lecture, `MailDetailFields` ou panneau dédié) : afficher une petite section « Réponses associées » listant les courriers sortants liés (`parent_mail_id = mail.id`) avec leur référence, sujet, statut. Lien cliquable pour ouvrir la réponse. Symétriquement, sur un courrier sortant ayant un `parent_mail_id`, afficher un badge « Réponse à <REF entrant> ».
+
+## 5. UX & mobile
+
+- Bouton « Créer une réponse » : pleine largeur sur mobile, inline desktop, libellé court (`Reply` + texte), placé au-dessus des actions de workflow.
+- Dialog de création déjà responsive (`max-w-[50vw] sm:max-w-2xl lg:max-w-3xl max-h-[85vh]`) — vérifié OK mobile via le viewport plein écran fallback.
+- Toast confirmation : « Réponse créée — liée au courrier <REF> ».
+- Aucune étape de workflow modifiée : la création d'une réponse n'avance/ne bloque jamais le workflow du courrier entrant.
+
+## Détails techniques
+
+**Fichiers touchés**
+- Migration SQL (workflow_steps + mails)
+- `src/hooks/useWorkflowSteps.tsx` (type + payload create/update)
+- `src/components/WorkflowStepManager.tsx` (Switch dans `StepFormFields`)
+- `src/components/MailRegistrationSheet.tsx` (props `parentMail`, pré-remplissage, insert `parent_mail_id`)
+- `src/components/WorkflowActions.tsx` (bouton conditionnel)
+- `src/components/MailDetailFields.tsx` (section « Réponses associées » + badge parent)
+
+**Rétrocompatibilité** : `allow_reply_creation` défaut `false` → comportement inchangé pour les workflows existants. À activer ponctuellement.
