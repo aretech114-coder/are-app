@@ -70,6 +70,8 @@ export default function SystemConfigPage() {
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
   const [pwaIconUrl, setPwaIconUrl] = useState("");
+  const [authorityShort, setAuthorityShort] = useState("");
+  const [authorityLong, setAuthorityLong] = useState("");
   const [loginBgColor, setLoginBgColor] = useState("#FFFFFF");
   const [loginBgImageUrl, setLoginBgImageUrl] = useState("");
   const [loginLogoUrl, setLoginLogoUrl] = useState("");
@@ -111,6 +113,8 @@ export default function SystemConfigPage() {
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
     setPwaIconUrl((settings as any).pwa_icon_url || "");
+    setAuthorityShort((settings as any).authority_title_short || "Ministre");
+    setAuthorityLong((settings as any).authority_title_long || "Ministre");
     setLoginBgColor((settings as any).login_bg_color || "#FFFFFF");
     setLoginBgImageUrl((settings as any).login_bg_image_url || "");
     setLoginLogoUrl((settings as any).login_logo_url || "");
@@ -297,6 +301,8 @@ export default function SystemConfigPage() {
         updateSetting("login_bg_color", loginBgColor),
         updateSetting("login_bg_image_url", loginBgImageUrl),
         updateSetting("login_logo_url", loginLogoUrl),
+        updateSetting("authority_title_short", authorityShort),
+        updateSetting("authority_title_long", authorityLong),
       ]);
       toast.success("Paramètres de branding sauvegardés");
     } catch {
@@ -518,6 +524,37 @@ export default function SystemConfigPage() {
             <p className="text-xs text-muted-foreground">
               Affichée sous le titre dans le header mobile. Max 40 caractères.
             </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-dashed border-border bg-muted/20 p-3">
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="text-sm font-semibold">Titre de l'autorité supérieure</Label>
+              <p className="text-xs text-muted-foreground">
+                Définit l'appellation utilisée dans toute la plateforme (workflow, écrans, étiquettes) pour désigner l'autorité supérieure de l'institution. Par défaut : « Ministre ». Adaptez selon votre contexte : DG, Directeur Général, Secrétaire Général, etc.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="authority_short">Forme courte</Label>
+              <Input
+                id="authority_short"
+                value={authorityShort}
+                onChange={(e) => setAuthorityShort(e.target.value)}
+                placeholder="Ex : DG, Ministre, SG"
+                maxLength={20}
+              />
+              <p className="text-[11px] text-muted-foreground">Utilisée dans les boutons et étiquettes compactes.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="authority_long">Forme longue</Label>
+              <Input
+                id="authority_long"
+                value={authorityLong}
+                onChange={(e) => setAuthorityLong(e.target.value)}
+                placeholder="Ex : Directeur Général, Ministre"
+                maxLength={60}
+              />
+              <p className="text-[11px] text-muted-foreground">Utilisée dans les phrases descriptives.</p>
+            </div>
           </div>
 
           <div className="space-y-2">

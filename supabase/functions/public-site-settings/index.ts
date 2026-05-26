@@ -29,6 +29,8 @@ const ALLOWED_KEYS = new Set([
   "login_bg_image_url",
   "login_logo_url",
   "show_login_title",
+  "authority_title_short",
+  "authority_title_long",
 ]);
 
 serve(async (req) => {

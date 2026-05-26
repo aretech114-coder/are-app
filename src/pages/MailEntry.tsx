@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,7 +39,7 @@ const MAIL_TYPES = [
 ];
 
 const ADDRESSEES_FULL = [
-  { value: "MINISTRE", label: "Ministre" },
+  { value: "MINISTRE", label: "Autorité" },
   { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
   { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
   { value: "CONSEILLER JURIDIQUE", label: "Conseiller Juridique" },
@@ -46,6 +47,9 @@ const ADDRESSEES_FULL = [
 
 export default function MailEntry() {
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
+  const authLong = settings.authority_title_long || "Ministre";
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -107,9 +111,10 @@ export default function MailEntry() {
   const [ministreAbsent, setMinistreAbsent] = useState(false);
 
   // Filter addressees based on "Ministre Absent" toggle
-  const ADDRESSEES = ministreAbsent
+  const ADDRESSEES = (ministreAbsent
     ? ADDRESSEES_FULL.filter(a => a.value !== "MINISTRE")
-    : ADDRESSEES_FULL;
+    : ADDRESSEES_FULL
+  ).map(a => a.value === "MINISTRE" ? { ...a, label: authShort } : a);
 
   const senderSuggestions = useMemo(() => {
     if (!senderSearch || senderSearch.length < 2 || !previousSenders) return [];
@@ -293,7 +298,7 @@ export default function MailEntry() {
           to_step: initialStep,
           action: "approve",
           performed_by: user.id,
-          notes: `Routé vers ${form.addressed_to || "étape 2"}${ministreAbsent ? " (Ministre absent)" : ""}`,
+          notes: `Routé vers ${form.addressed_to || "étape 2"}${ministreAbsent ? ` (${authShort} absent)` : ""}`,
         });
 
         routed = true;
@@ -427,8 +432,8 @@ export default function MailEntry() {
             {/* Ministre Absent toggle */}
             <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
               <div>
-                <Label className="text-sm font-semibold">Ministre Absent</Label>
-                <p className="text-xs text-muted-foreground">Activer pour router directement vers le DirCab ou autre</p>
+                <Label className="text-sm font-semibold">{authShort} absent</Label>
+                <p className="text-xs text-muted-foreground">Activer si le {authLong} est indisponible : le courrier sera routé directement vers le DirCab ou autre.</p>
               </div>
               <Switch
                 checked={ministreAbsent}

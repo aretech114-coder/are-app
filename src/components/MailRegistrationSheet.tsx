@@ -376,7 +376,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               <Input
                 value={form.addressed_to}
                 onChange={(e) => update("addressed_to", e.target.value)}
-                placeholder="Ex : Ministre, DirCab, …"
+                placeholder="Ex : DG, Ministre, DirCab, …"
               />
             </div>
             <div className="space-y-1.5">

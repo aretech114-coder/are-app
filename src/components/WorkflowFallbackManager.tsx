@@ -15,6 +15,7 @@ import {
   useUpsertFallback,
   useDeleteFallback,
   FALLBACK_CONDITIONS,
+  useFallbackConditions,
   type WorkflowFallback,
 } from "@/hooks/useWorkflowFallbacks";
 import { fetchWorkflowAssignableUsers, type AssignableUser } from "@/lib/workflow-assignment";
@@ -27,6 +28,7 @@ export function WorkflowFallbackManager() {
   const { role, hasPermission, user } = useAuth();
   const { data: steps = [] } = useWorkflowSteps();
   const { data: fallbacks = [], isLoading } = useWorkflowFallbacks();
+  const fallbackConditions = useFallbackConditions();
   const upsert = useUpsertFallback();
   const remove = useDeleteFallback();
   const [users, setUsers] = useState<AssignableUser[]>([]);
@@ -86,7 +88,7 @@ export function WorkflowFallbackManager() {
           Routage Conditionnel & Cascade de Suppléants
         </CardTitle>
         <CardDescription>
-          Définissez, pour chaque étape, les suppléants à mobiliser quand une condition se déclenche (ex. ministre absent, DG indisponible). Le système prendra le premier suppléant disponible dans la cascade (ordre = priorité, max 5).
+          Définissez, pour chaque étape, les suppléants à mobiliser quand une condition se déclenche (ex. autorité absente, DG indisponible). Le système prendra le premier suppléant disponible dans la cascade (ordre = priorité, max 5).
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -122,7 +124,7 @@ export function WorkflowFallbackManager() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4 space-y-3">
-                  {FALLBACK_CONDITIONS.map((cond) => {
+                  {fallbackConditions.map((cond) => {
                     const existing = stepFallbacks.find((f) => f.condition_key === cond.key);
                     return (
                       <ConditionEditor
@@ -157,7 +159,7 @@ export function WorkflowFallbackManager() {
 
 interface ConditionEditorProps {
   stepId: string;
-  condition: typeof FALLBACK_CONDITIONS[number];
+  condition: { key: string; label: string; description: string };
   existing: WorkflowFallback | undefined;
   users: AssignableUser[];
   usersMap: Map<string, AssignableUser>;

@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AlertTriangle, Paperclip } from "lucide-react";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface MailDetailFieldsProps {
   mail: any;
@@ -59,6 +60,9 @@ function DetailItem({ label, value }: { label: string; value: string | null | un
 
 export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps) {
   const isOverdue = mail.deadline_at && new Date(mail.deadline_at) < new Date() && mail.status !== "archived";
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
+  const authLong = settings.authority_title_long || "Ministre";
 
   return (
     <div className="space-y-3">
@@ -91,7 +95,7 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
         <FieldCategory title="Routage Hiérarchique" step={2} color="purple">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <DetailItem label="Destinataire" value={mail.addressed_to || "—"} />
-            <DetailItem label="Ministre absent" value={mail.ministre_absent ? "Oui" : "Non"} />
+            <DetailItem label={`${authShort} absent`} value={mail.ministre_absent ? "Oui" : "Non"} />
             <div>
               <p className="text-[11px] text-muted-foreground">Statut</p>
               <Badge variant="outline" className="text-[10px] mt-0.5">
@@ -135,10 +139,10 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
         </FieldCategory>
       )}
 
-      {/* Étape 6: Validation Ministre */}
+      {/* Étape 6: Validation autorité */}
       {(mail.current_step || 1) >= 6 && (
-        <FieldCategory title="Validation Ministre" step={6} color="rose">
-          <p className="text-xs text-muted-foreground">Validation finale par le Ministre.</p>
+        <FieldCategory title={`Validation ${authShort}`} step={6} color="rose">
+          <p className="text-xs text-muted-foreground">Validation finale par le {authLong}.</p>
         </FieldCategory>
       )}
 
