@@ -22,13 +22,21 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Reply } from "lucide-react";
+import { useEffect } from "react";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   direction: "entrant" | "sortant";
   onCreated?: () => void;
+  parentMail?: {
+    id: string;
+    reference_number: string;
+    sender_name: string;
+    sender_organization?: string | null;
+    subject: string;
+  } | null;
 };
 
 const generateRef = () => {
@@ -37,7 +45,7 @@ const generateRef = () => {
   return `CR-${d}-${rand}`;
 };
 
-export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated }: Props) {
+export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated, parentMail }: Props) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -90,6 +98,19 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     target_service_id: "",
     assigned_to: "",
   });
+
+  // Pré-remplissage si réponse à un courrier parent
+  useEffect(() => {
+    if (open && parentMail) {
+      setForm((f) => ({
+        ...f,
+        subject: f.subject || `RE: ${parentMail.subject}`,
+        addressed_to: f.addressed_to || parentMail.sender_name,
+        sender_name: f.sender_name || parentMail.sender_name,
+        sender_organization: f.sender_organization || (parentMail.sender_organization || ""),
+      }));
+    }
+  }, [open, parentMail]);
 
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -156,6 +177,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           direction,
           target_service_id: form.target_service_id || null,
           province_code: (profile as any)?.province_code || null,
+          parent_mail_id: parentMail?.id || null,
         } as any)
         .select("id")
         .single();
@@ -197,7 +219,11 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         });
       }
 
-      toast.success(`Courrier ${direction} enregistré (Réf: ${ref}).`);
+      toast.success(
+        parentMail
+          ? `Réponse créée (Réf: ${ref}) — liée au courrier ${parentMail.reference_number}.`
+          : `Courrier ${direction} enregistré (Réf: ${ref}).`,
+      );
       reset();
       onOpenChange(false);
       onCreated?.();
