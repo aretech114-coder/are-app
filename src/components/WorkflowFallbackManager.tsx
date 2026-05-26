@@ -159,7 +159,7 @@ export function WorkflowFallbackManager() {
 
 interface ConditionEditorProps {
   stepId: string;
-  condition: typeof FALLBACK_CONDITIONS[number];
+  condition: { key: string; label: string; description: string };
   existing: WorkflowFallback | undefined;
   users: AssignableUser[];
   usersMap: Map<string, AssignableUser>;

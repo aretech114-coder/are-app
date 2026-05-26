@@ -65,7 +65,7 @@ function buildNotificationHtml(params: {
 }): string {
   const typeLabels: Record<string, string> = {
     transition: "Nouvelle tâche assignée",
-    pre_assignment: "Pré-assignation par le Ministre",
+    pre_assignment: "Pré-assignation par l'autorité",
     sla_alert: "⚠️ Dépassement de délai SLA",
     rejection: "Dossier renvoyé",
   };
