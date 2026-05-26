@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { toast } from "sonner";
 import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin, Reply } from "lucide-react";
