@@ -179,7 +179,7 @@ export const ROLE_LABELS: Record<string, string> = {
   dga: "Directeur Général Adjoint",
   daf: "Directeur Administratif & Financier",
   dt: "Directeur Technique",
-  autorite_1: "Autorité 1 (DG / Ministre)",
+  autorite_1: "Autorité 1 (DG / Autorité supérieure)",
   autorite_2: "Autorité 2 (DGA / DirCab)",
   autorite_3: "Autorité 3 (Assistant DG / DirCabA)",
   autorite_4: "Autorité 4 (Conseiller Juridique)",

@@ -47,6 +47,9 @@ const ADDRESSEES_FULL = [
 
 export default function MailEntry() {
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
+  const authLong = settings.authority_title_long || "Ministre";
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -294,7 +297,7 @@ export default function MailEntry() {
           to_step: initialStep,
           action: "approve",
           performed_by: user.id,
-          notes: `Routé vers ${form.addressed_to || "étape 2"}${ministreAbsent ? " (Ministre absent)" : ""}`,
+          notes: `Routé vers ${form.addressed_to || "étape 2"}${ministreAbsent ? ` (${authShort} absent)` : ""}`,
         });
 
         routed = true;
@@ -428,8 +431,8 @@ export default function MailEntry() {
             {/* Ministre Absent toggle */}
             <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
               <div>
-                <Label className="text-sm font-semibold">Ministre Absent</Label>
-                <p className="text-xs text-muted-foreground">Activer pour router directement vers le DirCab ou autre</p>
+                <Label className="text-sm font-semibold">{authShort} absent</Label>
+                <p className="text-xs text-muted-foreground">Activer si le {authLong} est indisponible : le courrier sera routé directement vers le DirCab ou autre.</p>
               </div>
               <Switch
                 checked={ministreAbsent}
