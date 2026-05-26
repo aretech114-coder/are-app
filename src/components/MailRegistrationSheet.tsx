@@ -14,13 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -212,16 +212,16 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   const peopleLabel = direction === "entrant" ? "Expéditeur" : "Destinataire";
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[50vw] max-w-[50vw] sm:max-w-2xl lg:max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
             Nouveau courrier {direction === "entrant" ? "entrant" : "sortant"}
-          </SheetTitle>
-          <SheetDescription>
+          </DialogTitle>
+          <DialogDescription>
             Enregistrement officiel — toutes les informations clés du courrier.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-6">
           {/* Identité */}
@@ -361,7 +361,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             </div>
           </section>
 
-          <SheetFooter className="gap-2">
+          <DialogFooter className="gap-2">
             <Button
               type="button"
               variant="outline"
@@ -374,9 +374,9 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Enregistrer
             </Button>
-          </SheetFooter>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

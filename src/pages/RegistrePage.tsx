@@ -41,6 +41,15 @@ import { fr } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { RegistrySettingsDialog } from "@/components/RegistrySettingsDialog";
+import { MailEditDialog } from "@/components/MailEditDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 type Direction = "entrant" | "sortant";
@@ -67,6 +76,20 @@ export default function RegistrePage() {
   const [direction, setDirection] = useState<Direction>("entrant");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingMail, setEditingMail] = useState<any | null>(null);
+  const [reassignMailId, setReassignMailId] = useState<string | null>(null);
+  const [reassignTargetUserId, setReassignTargetUserId] = useState<string>("");
+
+  const { data: reassignableUsers = [] } = useQuery({
+    queryKey: ["registre-reassignable-users"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name");
+      return data ?? [];
+    },
+  });
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -211,16 +234,15 @@ export default function RegistrePage() {
     }
   };
 
-  const handleReassign = async (id: string) => {
-    const email = prompt("Email de l'utilisateur à qui réassigner ce courrier :");
-    if (!email) return;
-    const { data: u } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("email", email.trim())
-      .maybeSingle();
-    if (!u) return toast.error("Utilisateur introuvable.");
-    if (!user) return;
+  const openReassign = (id: string) => {
+    setReassignTargetUserId("");
+    setReassignMailId(id);
+  };
+
+  const confirmReassign = async () => {
+    if (!reassignMailId || !reassignTargetUserId || !user) return;
+    const id = reassignMailId;
+    const targetId = reassignTargetUserId;
     const mail = mails.find((m: any) => m.id === id);
     const step = mail?.current_step || 1;
     await supabase
@@ -232,19 +254,21 @@ export default function RegistrePage() {
     const { error } = await supabase.from("mail_assignments").insert({
       mail_id: id,
       assigned_by: user.id,
-      assigned_to: (u as any).id,
+      assigned_to: targetId,
       step_number: step,
       status: "pending",
       instructions: "Réassignation depuis le registre",
     });
     if (error) return toast.error(error.message);
     await supabase.from("notifications").insert({
-      user_id: (u as any).id,
+      user_id: targetId,
       title: "Courrier réassigné",
       message: `Un courrier vous a été réassigné.`,
       mail_id: id,
     });
     toast.success("Réassigné.");
+    setReassignMailId(null);
+    setReassignTargetUserId("");
     refetch();
   };
 
@@ -253,7 +277,7 @@ export default function RegistrePage() {
       toast.error("Ce courrier est verrouillé (déjà pris en charge).");
       return;
     }
-    toast.info("Édition disponible — module détaillé à venir.");
+    setEditingMail(m);
   };
 
   // Exports
@@ -587,7 +611,7 @@ export default function RegistrePage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleReassign(m.id)}
+                              onClick={() => openReassign(m.id)}
                               className="h-8 w-8"
                             >
                               <Users className="h-4 w-4" />
@@ -612,6 +636,71 @@ export default function RegistrePage() {
           onCreated={() => refetch()}
         />
         <RegistrySettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+        {editingMail && (
+          <MailEditDialog
+            mail={editingMail}
+            open={!!editingMail}
+            onOpenChange={(o) => !o && setEditingMail(null)}
+            onSaved={() => {
+              setEditingMail(null);
+              refetch();
+            }}
+          />
+        )}
+
+        <Dialog
+          open={!!reassignMailId}
+          onOpenChange={(o) => {
+            if (!o) {
+              setReassignMailId(null);
+              setReassignTargetUserId("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Réassigner le courrier</DialogTitle>
+              <DialogDescription>
+                Sélectionnez l'utilisateur à qui transférer ce courrier.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Select
+                value={reassignTargetUserId}
+                onValueChange={setReassignTargetUserId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir un utilisateur" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reassignableUsers.map((u: any) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name || u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReassignMailId(null);
+                  setReassignTargetUserId("");
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={confirmReassign}
+                disabled={!reassignTargetUserId}
+              >
+                Réassigner
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
