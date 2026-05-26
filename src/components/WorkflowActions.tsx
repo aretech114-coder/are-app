@@ -90,6 +90,23 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
 
+  const currentStepConfig = activeSteps.find((s) => s.step_order === currentStep);
+  const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
+
+  // Charger le mail courant pour pré-remplir la réponse
+  useEffect(() => {
+    if (canCreateReply && !replyParentMail) {
+      supabase
+        .from("mails")
+        .select("id, reference_number, sender_name, sender_organization, subject")
+        .eq("id", mailId)
+        .single()
+        .then(({ data }) => {
+          if (data) setReplyParentMail(data);
+        });
+    }
+  }, [canCreateReply, mailId, replyParentMail]);
+
   // Minister annotation from step 2 (visible at step 3)
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
 
