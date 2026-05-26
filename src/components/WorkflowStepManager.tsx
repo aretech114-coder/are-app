@@ -487,6 +487,28 @@ function StepFormFields({
           ))}
         </div>
       </div>
+
+      {/* Actions disponibles à cette étape */}
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+        <div>
+          <Label className="text-base">Actions disponibles</Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Activez des actions optionnelles directement utilisables depuis cette étape.
+          </p>
+        </div>
+        <label className="flex items-start justify-between gap-3 cursor-pointer">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Permettre la création d'une réponse</p>
+            <p className="text-xs text-muted-foreground">
+              Affiche un bouton « Créer une réponse » qui pré-remplit un courrier sortant lié au courrier traité.
+            </p>
+          </div>
+          <Switch
+            checked={form.allow_reply_creation}
+            onCheckedChange={(v) => setForm({ ...form, allow_reply_creation: !!v })}
+          />
+        </label>
+      </div>
     </div>
   );
 }
