@@ -636,6 +636,71 @@ export default function RegistrePage() {
           onCreated={() => refetch()}
         />
         <RegistrySettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+        {editingMail && (
+          <MailEditDialog
+            mail={editingMail}
+            open={!!editingMail}
+            onOpenChange={(o) => !o && setEditingMail(null)}
+            onSaved={() => {
+              setEditingMail(null);
+              refetch();
+            }}
+          />
+        )}
+
+        <Dialog
+          open={!!reassignMailId}
+          onOpenChange={(o) => {
+            if (!o) {
+              setReassignMailId(null);
+              setReassignTargetUserId("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Réassigner le courrier</DialogTitle>
+              <DialogDescription>
+                Sélectionnez l'utilisateur à qui transférer ce courrier.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Select
+                value={reassignTargetUserId}
+                onValueChange={setReassignTargetUserId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir un utilisateur" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reassignableUsers.map((u: any) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name || u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReassignMailId(null);
+                  setReassignTargetUserId("");
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={confirmReassign}
+                disabled={!reassignTargetUserId}
+              >
+                Réassigner
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
