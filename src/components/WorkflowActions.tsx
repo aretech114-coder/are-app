@@ -597,6 +597,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   return (
     <>
       <div className="flex flex-wrap gap-2">
+        {canCreateReply && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-primary/40 text-primary hover:bg-primary/10 w-full sm:w-auto"
+            onClick={() => setShowReplySheet(true)}
+          >
+            <Reply className="h-4 w-4 mr-1" />
+            Créer une réponse
+          </Button>
+        )}
         {actions.map((a) => (
           <Button
             key={a.key}
