@@ -67,6 +67,7 @@ interface EditForm {
   assignment_target: "roles" | "users" | "mixed";
   responsible_roles: string[];
   responsible_user_ids: string[];
+  allow_reply_creation: boolean;
 }
 
 const DEFAULT_FORM: EditForm = {
@@ -77,6 +78,7 @@ const DEFAULT_FORM: EditForm = {
   assignment_target: "roles",
   responsible_roles: [],
   responsible_user_ids: [],
+  allow_reply_creation: false,
 };
 
 export function WorkflowStepManager() {
@@ -121,6 +123,7 @@ export function WorkflowStepManager() {
       assignment_target: (step.assignment_target as any) || "roles",
       responsible_roles: step.responsible_roles || (step.responsible_role ? [step.responsible_role] : []),
       responsible_user_ids: step.responsible_user_ids || [],
+      allow_reply_creation: !!step.allow_reply_creation,
     });
   };
 
@@ -137,6 +140,7 @@ export function WorkflowStepManager() {
         responsible_roles: editForm.responsible_roles,
         responsible_user_ids: editForm.responsible_user_ids,
         responsible_role: editForm.responsible_roles[0] || null,
+        allow_reply_creation: editForm.allow_reply_creation,
       });
       toast.success("Étape mise à jour");
       setEditingStep(null);
@@ -158,6 +162,7 @@ export function WorkflowStepManager() {
         assignment_target: editForm.assignment_target,
         assignment_mode: editForm.assignment_mode || "default_user",
         color_class: editForm.color_class || COLOR_OPTIONS[0].value,
+        allow_reply_creation: editForm.allow_reply_creation,
       });
       toast.success("Étape créée");
       setShowCreate(false);
