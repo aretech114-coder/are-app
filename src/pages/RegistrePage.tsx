@@ -76,6 +76,20 @@ export default function RegistrePage() {
   const [direction, setDirection] = useState<Direction>("entrant");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingMail, setEditingMail] = useState<any | null>(null);
+  const [reassignMailId, setReassignMailId] = useState<string | null>(null);
+  const [reassignTargetUserId, setReassignTargetUserId] = useState<string>("");
+
+  const { data: reassignableUsers = [] } = useQuery({
+    queryKey: ["registre-reassignable-users"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name");
+      return data ?? [];
+    },
+  });
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
