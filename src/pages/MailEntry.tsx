@@ -111,9 +111,10 @@ export default function MailEntry() {
   const [ministreAbsent, setMinistreAbsent] = useState(false);
 
   // Filter addressees based on "Ministre Absent" toggle
-  const ADDRESSEES = ministreAbsent
+  const ADDRESSEES = (ministreAbsent
     ? ADDRESSEES_FULL.filter(a => a.value !== "MINISTRE")
-    : ADDRESSEES_FULL;
+    : ADDRESSEES_FULL
+  ).map(a => a.value === "MINISTRE" ? { ...a, label: authShort } : a);
 
   const senderSuggestions = useMemo(() => {
     if (!senderSearch || senderSearch.length < 2 || !previousSenders) return [];
