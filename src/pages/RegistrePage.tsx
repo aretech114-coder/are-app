@@ -611,7 +611,7 @@ export default function RegistrePage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleReassign(m.id)}
+                              onClick={() => openReassign(m.id)}
                               className="h-8 w-8"
                             >
                               <Users className="h-4 w-4" />
