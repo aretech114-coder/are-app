@@ -234,16 +234,15 @@ export default function RegistrePage() {
     }
   };
 
-  const handleReassign = async (id: string) => {
-    const email = prompt("Email de l'utilisateur à qui réassigner ce courrier :");
-    if (!email) return;
-    const { data: u } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("email", email.trim())
-      .maybeSingle();
-    if (!u) return toast.error("Utilisateur introuvable.");
-    if (!user) return;
+  const openReassign = (id: string) => {
+    setReassignTargetUserId("");
+    setReassignMailId(id);
+  };
+
+  const confirmReassign = async () => {
+    if (!reassignMailId || !reassignTargetUserId || !user) return;
+    const id = reassignMailId;
+    const targetId = reassignTargetUserId;
     const mail = mails.find((m: any) => m.id === id);
     const step = mail?.current_step || 1;
     await supabase
@@ -255,19 +254,21 @@ export default function RegistrePage() {
     const { error } = await supabase.from("mail_assignments").insert({
       mail_id: id,
       assigned_by: user.id,
-      assigned_to: (u as any).id,
+      assigned_to: targetId,
       step_number: step,
       status: "pending",
       instructions: "Réassignation depuis le registre",
     });
     if (error) return toast.error(error.message);
     await supabase.from("notifications").insert({
-      user_id: (u as any).id,
+      user_id: targetId,
       title: "Courrier réassigné",
       message: `Un courrier vous a été réassigné.`,
       mail_id: id,
     });
     toast.success("Réassigné.");
+    setReassignMailId(null);
+    setReassignTargetUserId("");
     refetch();
   };
 
@@ -276,7 +277,7 @@ export default function RegistrePage() {
       toast.error("Ce courrier est verrouillé (déjà pris en charge).");
       return;
     }
-    toast.info("Édition disponible — module détaillé à venir.");
+    setEditingMail(m);
   };
 
   // Exports
