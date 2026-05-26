@@ -24,6 +24,8 @@ interface SiteSettings {
   login_bg_image_url: string;
   login_logo_url: string;
   show_login_title: string;
+  authority_title_short: string;
+  authority_title_long: string;
 }
 
 type SiteSettingKey = keyof SiteSettings;
@@ -57,6 +59,8 @@ const defaults: SiteSettings = {
   login_bg_image_url: "",
   login_logo_url: "",
   show_login_title: "true",
+  authority_title_short: "Ministre",
+  authority_title_long: "Ministre",
 };
 
 const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
@@ -169,6 +173,16 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
     label: "Afficher le titre de connexion",
     setting_type: "boolean",
     description: "Affiche le titre et le sous-titre dans le formulaire de connexion",
+  },
+  authority_title_short: {
+    label: "Titre de l'autorité (court)",
+    setting_type: "text",
+    description: "Forme courte du titre de l'autorité supérieure (ex. DG, Ministre).",
+  },
+  authority_title_long: {
+    label: "Titre de l'autorité (long)",
+    setting_type: "text",
+    description: "Forme longue du titre de l'autorité supérieure (ex. Directeur Général, Ministre).",
   },
 };
 
