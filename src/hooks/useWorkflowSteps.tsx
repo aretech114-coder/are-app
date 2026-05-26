@@ -18,6 +18,7 @@ export interface WorkflowStep {
   responsible_user_ids: string[];
   assignment_target: "roles" | "users" | "mixed";
   allow_sub_assignment?: boolean;
+  allow_reply_creation?: boolean;
 }
 
 const WORKFLOW_STEPS_KEY = ["workflow_steps"];
@@ -89,6 +90,7 @@ export function useCreateWorkflowStep() {
       responsible_roles?: string[];
       responsible_user_ids?: string[];
       assignment_target?: "roles" | "users" | "mixed";
+      allow_reply_creation?: boolean;
     }) => {
       const { error } = await supabase
         .from("workflow_steps")

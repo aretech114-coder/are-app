@@ -12,8 +12,10 @@ import { advanceWorkflow, getStepInfo } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
+import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin, Reply } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -66,6 +68,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [arLoading, setArLoading] = useState(false);
   const [mailData, setMailData] = useState<any>(null);
 
+  // Reply creation (sortant) — bouton optionnel selon config étape
+  const [showReplySheet, setShowReplySheet] = useState(false);
+  const [replyParentMail, setReplyParentMail] = useState<any>(null);
+  const { data: activeSteps = [] } = useActiveWorkflowSteps();
+
   const stepInfo = getStepInfo(currentStep);
 
   // Map roles to their allowed steps
@@ -82,6 +89,23 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   };
 
   const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
+
+  const currentStepConfig = activeSteps.find((s) => s.step_order === currentStep);
+  const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
+
+  // Charger le mail courant pour pré-remplir la réponse
+  useEffect(() => {
+    if (canCreateReply && !replyParentMail) {
+      supabase
+        .from("mails")
+        .select("id, reference_number, sender_name, sender_organization, subject")
+        .eq("id", mailId)
+        .single()
+        .then(({ data }) => {
+          if (data) setReplyParentMail(data);
+        });
+    }
+  }, [canCreateReply, mailId, replyParentMail]);
 
   // Minister annotation from step 2 (visible at step 3)
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
@@ -573,6 +597,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   return (
     <>
       <div className="flex flex-wrap gap-2">
+        {canCreateReply && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-primary/40 text-primary hover:bg-primary/10 w-full sm:w-auto"
+            onClick={() => setShowReplySheet(true)}
+          >
+            <Reply className="h-4 w-4 mr-1" />
+            Créer une réponse
+          </Button>
+        )}
         {actions.map((a) => (
           <Button
             key={a.key}
@@ -1022,6 +1057,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canCreateReply && (
+        <MailRegistrationSheet
+          open={showReplySheet}
+          onOpenChange={setShowReplySheet}
+          direction="sortant"
+          parentMail={replyParentMail}
+          onCreated={() => {
+            setShowReplySheet(false);
+            onAdvanced();
+          }}
+        />
+      )}
     </>
   );
 }

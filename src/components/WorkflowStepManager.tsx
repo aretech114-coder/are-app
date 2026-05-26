@@ -67,6 +67,7 @@ interface EditForm {
   assignment_target: "roles" | "users" | "mixed";
   responsible_roles: string[];
   responsible_user_ids: string[];
+  allow_reply_creation: boolean;
 }
 
 const DEFAULT_FORM: EditForm = {
@@ -77,6 +78,7 @@ const DEFAULT_FORM: EditForm = {
   assignment_target: "roles",
   responsible_roles: [],
   responsible_user_ids: [],
+  allow_reply_creation: false,
 };
 
 export function WorkflowStepManager() {
@@ -121,6 +123,7 @@ export function WorkflowStepManager() {
       assignment_target: (step.assignment_target as any) || "roles",
       responsible_roles: step.responsible_roles || (step.responsible_role ? [step.responsible_role] : []),
       responsible_user_ids: step.responsible_user_ids || [],
+      allow_reply_creation: !!step.allow_reply_creation,
     });
   };
 
@@ -137,6 +140,7 @@ export function WorkflowStepManager() {
         responsible_roles: editForm.responsible_roles,
         responsible_user_ids: editForm.responsible_user_ids,
         responsible_role: editForm.responsible_roles[0] || null,
+        allow_reply_creation: editForm.allow_reply_creation,
       });
       toast.success("Étape mise à jour");
       setEditingStep(null);
@@ -158,6 +162,7 @@ export function WorkflowStepManager() {
         assignment_target: editForm.assignment_target,
         assignment_mode: editForm.assignment_mode || "default_user",
         color_class: editForm.color_class || COLOR_OPTIONS[0].value,
+        allow_reply_creation: editForm.allow_reply_creation,
       });
       toast.success("Étape créée");
       setShowCreate(false);
@@ -481,6 +486,28 @@ function StepFormFields({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Actions disponibles à cette étape */}
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+        <div>
+          <Label className="text-base">Actions disponibles</Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Activez des actions optionnelles directement utilisables depuis cette étape.
+          </p>
+        </div>
+        <label className="flex items-start justify-between gap-3 cursor-pointer">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Permettre la création d'une réponse</p>
+            <p className="text-xs text-muted-foreground">
+              Affiche un bouton « Créer une réponse » qui pré-remplit un courrier sortant lié au courrier traité.
+            </p>
+          </div>
+          <Switch
+            checked={form.allow_reply_creation}
+            onCheckedChange={(v) => setForm({ ...form, allow_reply_creation: !!v })}
+          />
+        </label>
       </div>
     </div>
   );
