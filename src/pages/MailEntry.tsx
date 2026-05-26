@@ -38,7 +38,7 @@ const MAIL_TYPES = [
 ];
 
 const ADDRESSEES_FULL = [
-  { value: "MINISTRE", label: "Ministre" },
+  { value: "MINISTRE", label: "Autorité" },
   { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
   { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
   { value: "CONSEILLER JURIDIQUE", label: "Conseiller Juridique" },
