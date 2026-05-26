@@ -41,6 +41,15 @@ import { fr } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { RegistrySettingsDialog } from "@/components/RegistrySettingsDialog";
+import { MailEditDialog } from "@/components/MailEditDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 type Direction = "entrant" | "sortant";
