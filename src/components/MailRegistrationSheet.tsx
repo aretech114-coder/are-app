@@ -250,6 +250,15 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-6">
+          {parentMail && (
+            <div className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <Reply className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-primary">Réponse au courrier {parentMail.reference_number}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1">{parentMail.subject}</p>
+              </div>
+            </div>
+          )}
           {/* Identité */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground">Identité</h3>
