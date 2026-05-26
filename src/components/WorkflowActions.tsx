@@ -70,24 +70,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Reply creation (sortant) — bouton optionnel selon config étape
   const [showReplySheet, setShowReplySheet] = useState(false);
-  const { data: activeSteps = [] } = useActiveWorkflowSteps();
-  const currentStepConfig = activeSteps.find((s) => s.step_order === currentStep);
-  const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
   const [replyParentMail, setReplyParentMail] = useState<any>(null);
-
-  // Charger le mail courant pour pré-remplir la réponse
-  useEffect(() => {
-    if (canCreateReply && !replyParentMail) {
-      supabase
-        .from("mails")
-        .select("id, reference_number, sender_name, sender_organization, subject")
-        .eq("id", mailId)
-        .single()
-        .then(({ data }) => {
-          if (data) setReplyParentMail(data);
-        });
-    }
-  }, [canCreateReply, mailId, replyParentMail]);
+  const { data: activeSteps = [] } = useActiveWorkflowSteps();
 
   const stepInfo = getStepInfo(currentStep);
 
