@@ -252,6 +252,7 @@ export type Database = {
           created_at: string
           id: string
           mail_id: string
+          processed_at: string | null
           status: string
           step_number: number
           updated_at: string
@@ -263,6 +264,7 @@ export type Database = {
           created_at?: string
           id?: string
           mail_id: string
+          processed_at?: string | null
           status?: string
           step_number?: number
           updated_at?: string
@@ -274,6 +276,7 @@ export type Database = {
           created_at?: string
           id?: string
           mail_id?: string
+          processed_at?: string | null
           status?: string
           step_number?: number
           updated_at?: string
@@ -1096,6 +1099,19 @@ export type Database = {
       list_my_mails: {
         Args: { _statuses?: string[] }
         Returns: Database["public"]["Tables"]["mails"]["Row"][]
+      }
+      submit_step4_treatment: {
+        Args: {
+          _attachment_urls?: Json
+          _body?: string | null
+          _mail_id: string
+          _notes?: string | null
+        }
+        Returns: Json
+      }
+      submit_step7_acknowledgement: {
+        Args: { _mail_id: string; _notes?: string | null }
+        Returns: Json
       }
       can_transition_update_mail: {
         Args: { _mail_id: string; _step: number; _user_id: string }

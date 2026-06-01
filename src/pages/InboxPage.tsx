@@ -23,7 +23,7 @@ import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
 import { RecoverMailButton } from "@/components/RecoverMailButton";
 import { listMyMails } from "@/lib/workflow-engine";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
-import { useMailContributions } from "@/hooks/useMailContributions";
+import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContributions";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -61,6 +61,7 @@ export default function InboxPage() {
   };
 
   const { contributions } = useMailContributions(selected?.id, 4);
+  const step4AssigneeCount = useStepAssigneeCount(selected?.id, 4);
 
   const markAsRead = async (mail: any) => {
     setSelected(mail);
@@ -228,8 +229,12 @@ export default function InboxPage() {
             <Step4ContextPanel mailId={selected.id} />
           )}
           <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
-          {(selected.current_step || 0) >= 4 && contributions.length > 0 && (
-            <MailContributionsPanel contributions={contributions} showDrafts />
+          {(selected.current_step || 0) === 4 && (
+            <MailContributionsPanel
+              contributions={contributions}
+              assigneeCount={step4AssigneeCount}
+              showDrafts
+            />
           )}
         </div>
         <div className="pt-3 border-t mt-2">

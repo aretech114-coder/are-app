@@ -9,6 +9,7 @@ export type MailContribution = {
   body: string | null;
   attachment_urls: { url: string; name?: string }[] | null;
   status: string;
+  processed_at: string | null;
   created_at: string;
   updated_at: string;
   profile?: { full_name: string; email: string };
@@ -52,6 +53,7 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
     setContributions(
       rows.map((r) => ({
         ...r,
+        processed_at: r.processed_at ?? null,
         attachment_urls: (r.attachment_urls as MailContribution["attachment_urls"]) || [],
         profile: profileMap.get(r.user_id),
       }))
@@ -62,6 +64,30 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
   useEffect(() => {
     fetchContributions();
   }, [fetchContributions]);
+
+  useEffect(() => {
+    if (!mailId) return;
+
+    const channel = supabase
+      .channel(`contributions:${mailId}:${stepNumber}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "mail_contributions",
+          filter: `mail_id=eq.${mailId}`,
+        },
+        () => {
+          fetchContributions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [mailId, stepNumber, fetchContributions]);
 
   const upsertMyContribution = async (
     userId: string,
@@ -79,6 +105,7 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
         attachment_urls: attachmentUrls,
         status,
         updated_at: new Date().toISOString(),
+        ...(status === "submitted" ? { processed_at: new Date().toISOString() } : {}),
       },
       { onConflict: "mail_id,user_id,step_number" }
     );
@@ -87,4 +114,31 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
   };
 
   return { contributions, loading, fetchContributions, upsertMyContribution };
+}
+
+/** Count of contributor assignments at a workflow step. */
+export function useStepAssigneeCount(mailId: string | undefined, stepNumber: number) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!mailId) {
+      setCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { count: n } = await supabase
+        .from("mail_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("mail_id", mailId)
+        .eq("step_number", stepNumber)
+        .eq("access_mode", "contributor");
+      if (!cancelled) setCount(n ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mailId, stepNumber]);
+
+  return count;
 }
