@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Mail, Inbox, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { getStepLabel, getStepColor, WORKFLOW_STEPS } from "@/lib/workflow-engine";
+import { getStepLabel, getStepColor, WORKFLOW_STEPS, listMyMails } from "@/lib/workflow-engine";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -28,8 +28,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const { data } = await supabase.from("mails").select("status, current_step, deadline_at");
-      if (data) {
+      let data: any[] = [];
+      try {
+        data = await listMyMails(["pending", "in_progress", "processed", "archived"]);
+      } catch {
+        data = [];
+      }
+      if (data.length > 0) {
         const now = new Date();
         setStats({
           total: data.length,
@@ -45,23 +50,27 @@ export default function Dashboard() {
         }));
         setStepDistribution(stepCounts);
       }
-      const { data: recent } = await supabase
-        .from("mails")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      setRecentMails(recent || []);
+      const recent = [...data]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5);
+      setRecentMails(recent);
 
       // Fetch overdue mails with details + reminder counts
       if (showOverduePanel) {
         const now = new Date().toISOString();
-        const { data: overdue } = await supabase
-          .from("mails")
-          .select("id, subject, sender_name, reference_number, current_step, deadline_at, priority, assigned_agent_id")
-          .lt("deadline_at", now)
-          .not("status", "in", '("archived","processed")')
-          .order("deadline_at", { ascending: true })
-          .limit(20);
+        const overdue = data
+          .filter(
+            (m) =>
+              m.deadline_at &&
+              new Date(m.deadline_at) < new Date(now) &&
+              m.status !== "archived" &&
+              m.status !== "processed"
+          )
+          .sort(
+            (a, b) =>
+              new Date(a.deadline_at).getTime() - new Date(b.deadline_at).getTime()
+          )
+          .slice(0, 20);
         
         // Fetch reminder counts for step 4 assignments
         if (overdue && overdue.length > 0) {

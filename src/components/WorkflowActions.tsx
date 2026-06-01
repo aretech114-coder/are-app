@@ -21,6 +21,8 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { getRoleLabel, UI_LABELS } from "@/lib/labels";
+import { useMailContributions } from "@/hooks/useMailContributions";
+import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -51,6 +53,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [selectedViewers, setSelectedViewers] = useState<string[]>([]);
+  const { contributions, upsertMyContribution, fetchContributions } = useMailContributions(mailId, 4);
+
+  const isDgRole =
+    role === "directeur" || role === "ministre" || role === "dg" || role === "autorite_1";
 
   // Step 4: treatment type
   const [treatmentType, setTreatmentType] = useState<string>("");
@@ -264,6 +271,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     );
   };
 
+  const toggleViewer = (userId: string) => {
+    setSelectedViewers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
   // Determine available actions based on current step
   const getActions = () => {
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
@@ -320,6 +333,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       }
     }
 
+    if (currentStep === 4 && isDgRole) {
+      actions.push({
+        key: "dg_advance",
+        label: "Valider (DG) — passer à l'étape suivante",
+        icon: ArrowRight,
+        variant: "default",
+      });
+    }
+
     return actions;
   };
 
@@ -371,25 +393,32 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         effectiveAction = "reject";
       }
 
-      // STEP 4 MULTI-ASSIGNEE LOGIC:
-      // When a conseiller completes step 4, mark their assignment as completed.
-      // Only advance the workflow when ALL assignees have completed.
-      if (currentStep === 4 && action === "complete") {
-        // Save treatment content
-        if (treatmentContent) {
-          // Append to existing ai_draft or set it
-          const { data: currentMail } = await supabase.from("mails").select("ai_draft").eq("id", mailId).single();
-          const existingDraft = currentMail?.ai_draft || "";
-          const { data: myProfile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
-          const authorName = myProfile?.full_name || "Conseiller";
-          const newDraft = existingDraft
-            ? `${existingDraft}\n\n--- ${authorName} ---\n${treatmentContent}`
-            : `--- ${authorName} ---\n${treatmentContent}`;
+      if (action === "dg_advance") {
+        const result = await advanceWorkflow(mailId, currentStep, "dg_advance", user.id, noteParts || notes, {
+          assigneeIds: selectedAssignees.length > 0 ? selectedAssignees : undefined,
+        });
+        if (result.success) {
+          toast.success(`Courrier avancé à l'étape ${result.newStep}`);
+          setShowDialog(false);
+          resetForm();
+          onAdvanced();
+        } else {
+          toast.error(result.error || "Erreur lors de l'avancement");
+        }
+        setLoading(false);
+        return;
+      }
 
-          await supabase.from("mails").update({
-            ai_draft: newDraft,
-            mail_type: treatmentType || undefined,
-          } as any).eq("id", mailId);
+      // STEP 4 MULTI-ASSIGNEE LOGIC:
+      if (currentStep === 4 && action === "complete") {
+        if (treatmentContent && user) {
+          const { error: contribErr } = await upsertMyContribution(
+            user.id,
+            treatmentContent,
+            [],
+            "submitted"
+          );
+          if (contribErr) throw new Error(contribErr);
         }
 
         // Mark my assignment as completed
@@ -510,6 +539,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       const assigneeIds = ([2, 3, 5].includes(currentStep) && selectedAssignees.length > 0)
         ? selectedAssignees
         : undefined;
+      const viewerIds =
+        currentStep === 2 && selectedViewers.length > 0 ? selectedViewers : undefined;
 
       // Step 5: If DirCab modified assignees, update step 4 assignments before advancing
       if (currentStep === 5 && selectedAssignees.length > 0 && user) {
@@ -532,7 +563,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         }
       }
 
-      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { assigneeIds });
+      const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, {
+        assigneeIds,
+        viewerIds,
+      });
 
       if (result.success) {
         // Step 2 proposed assignments handled atomically by advance_workflow_step RPC
@@ -575,6 +609,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setAnnotation("");
     setAttachmentFile(null);
     setSelectedAssignees([]);
+    setSelectedViewers([]);
     setTreatmentType("");
     setTreatmentContent("");
     setMinisterAnnotation("");
@@ -681,6 +716,18 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             <p className="text-sm text-muted-foreground">
               Étape actuelle : <strong>{stepInfo?.name}</strong>
             </p>
+
+            {(currentStep === 2 || currentStep === 4 || currentStep === 6) && (
+              <MailContributionsPanel
+                contributions={contributions}
+                title={
+                  isDgRole
+                    ? "Contributions des assignés (temps réel)"
+                    : "Contributions au traitement"
+                }
+                showDrafts={isDgRole}
+              />
+            )}
 
             {/* Step 4: Treatment type and content */}
             {showTreatment && action === "complete" && (
@@ -1077,6 +1124,30 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                     {selectedAssignees.length} personne(s) sélectionnée(s)
                   </p>
                 )}
+              </div>
+            )}
+
+            {showAssignment && currentStep === 2 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  Mettre en copie (lecture seule)
+                </Label>
+                <div className="space-y-1 max-h-36 overflow-auto border rounded-lg p-2 border-dashed">
+                  {assignableUsers.map((u) => (
+                    <label
+                      key={`viewer-${u.id}`}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-accent/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedViewers.includes(u.id)}
+                        onCheckedChange={() => toggleViewer(u.id)}
+                        disabled={selectedAssignees.includes(u.id)}
+                      />
+                      <span className="text-sm truncate">{u.full_name}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
 
