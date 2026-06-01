@@ -659,7 +659,7 @@ export default function AdminPage() {
                   <Select value={role} onValueChange={setRole} disabled={creating}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {allRoles.filter(r => r.value !== "superadmin").map((r) => (
+                      {allRoles.filter(r => r.value !== "superadmin" || isSuperAdmin).map((r) => (
                         <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -958,7 +958,7 @@ export default function AdminPage() {
               <Select value={editRole} onValueChange={setEditRole} disabled={saving || !canEditUsers}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {allRoles.filter(r => r.value !== "superadmin").map((r) => (
+                  {allRoles.filter(r => r.value !== "superadmin" || isSuperAdmin).map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
