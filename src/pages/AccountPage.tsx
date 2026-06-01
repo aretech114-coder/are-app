@@ -20,6 +20,7 @@ import {
   Moon,
   Puzzle,
 } from "lucide-react";
+import { getRoleLabel } from "@/lib/labels";
 
 interface MenuEntry {
   label: string;
@@ -31,9 +32,9 @@ interface MenuEntry {
 }
 
 const menuItems: MenuEntry[] = [
-  { label: "Tableau de bord", path: "/", icon: LayoutDashboard, roles: ["superadmin", "admin", "ministre", "dircab"] },
+  { label: "Tableau de bord", path: "/", icon: LayoutDashboard, roles: ["superadmin", "admin", "ministre", "directeur", "dircab"] },
   { label: "Statistiques", path: "/analytics", icon: BarChart3, roles: "all", excludeRoles: ["reception"] },
-  { label: "Tableau de suivi", path: "/suivi", icon: ClipboardList, roles: ["ministre", "dircab", "superadmin", "admin"] },
+  { label: "Tableau de suivi", path: "/suivi", icon: ClipboardList, roles: ["ministre", "directeur", "dircab", "superadmin", "admin"] },
   { label: "Profil", path: "/profile", icon: User, roles: "all" },
   { label: "Enregistrement", path: "/mail-entry", icon: Mail, roles: ["reception", "admin", "superadmin"] },
   { label: "Administration", path: "/admin", icon: Users, roles: ["superadmin"], permissionKey: "manage_users" },
@@ -65,20 +66,6 @@ export default function AccountPage() {
     .toUpperCase()
     .slice(0, 2);
 
-  const roleLabels: Record<string, string> = {
-    superadmin: "Super Administrateur",
-    admin: "Administrateur",
-    ministre: "Ministre",
-    dircab: "Directeur de Cabinet",
-    dircaba: "Dir. Cab. Adjoint",
-    conseiller: "Conseiller",
-    conseiller_juridique: "Conseiller Juridique",
-    secretariat: "Secrétariat",
-    supervisor: "Superviseur",
-    agent: "Agent",
-    reception: "Réception",
-  };
-
   return (
     <div className="space-y-6 pb-24 animate-fade-in">
       {/* User header */}
@@ -93,7 +80,7 @@ export default function AccountPage() {
           <p className="font-semibold text-base truncate">{profile?.full_name || "Utilisateur"}</p>
           <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
           <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-            {roleLabels[role || ""] || role}
+            {getRoleLabel(role || "")}
           </span>
         </div>
       </div>

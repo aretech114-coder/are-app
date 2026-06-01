@@ -21,10 +21,10 @@ export interface AssignableUser {
 }
 
 const STEP_FALLBACK_ROLES: Record<number, string[]> = {
-  2: ["ministre", "dircab", "dircaba", "admin", "superadmin"],
+  2: ["directeur", "ministre", "dircab", "dircaba", "admin", "superadmin"],
   3: ["dircab", "dircaba", "admin", "superadmin"],
   5: ["dircab", "dircaba", "admin", "superadmin"],
-  6: ["ministre", "dircab", "admin", "superadmin"],
+  6: ["directeur", "ministre", "dircab", "admin", "superadmin"],
   8: ["secretariat", "admin", "superadmin"],
   9: ["secretariat", "admin", "superadmin"],
 };

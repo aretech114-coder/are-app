@@ -28,6 +28,11 @@ import { GripVertical, Plus, Trash2, Pencil, ArrowUp, ArrowDown, Power, Layers, 
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+const ROLE_OPTIONS = [
+  "secretariat", "ministre", "directeur", "dircab", "dircaba",
+  "conseiller_juridique", "conseiller", "supervisor", "agent",
+];
+
 const MODE_OPTIONS = [
   {
     value: "default_user",

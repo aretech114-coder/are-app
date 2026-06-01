@@ -1,17 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
 import { sendWorkflowNotificationEmail, isStepNotificationEnabled } from "@/lib/workflow-notifications";
+import { WORKFLOW_STEP_LABELS, getRoleLabel, ROLE_LABELS } from "@/lib/labels";
+
+export { getRoleLabel, ROLE_LABELS };
 
 // ── Static fallback (kept for backward compatibility) ──
 export const WORKFLOW_STEPS = [
-  { step: 1, name: "Réception", role: "secretariat", description: "Scan, attribution ID, saisie métadonnées" },
-  { step: 2, name: "Routage Hiérarchique", role: "ministre", description: "Dispatch: Ministre → Dircab → Dircaba" },
-  { step: 3, name: "Filtrage Stratégique", role: "dircab", description: "Validation des instructions et réaffectation" },
-  { step: 4, name: "Traitement", role: "conseiller_juridique", description: "Rédaction notes techniques ou réponses" },
-  { step: 5, name: "Vérification", role: "dircab", description: "Vérification par le DirCab avant validation" },
-  { step: 6, name: "Validation Ministre", role: "ministre", description: "Validation finale ou rejet par le Ministre" },
-  { step: 7, name: "Consultation Conseillers", role: "conseiller_juridique", description: "Les conseillers consultent la validation de leur note technique" },
-  { step: 8, name: "Retour & Preuve de Dépôt", role: "secretariat", description: "Retour du document avec preuve de dépôt et scan" },
-  { step: 9, name: "Archivage Final", role: "secretariat", description: "Clôture définitive et transfert au dépôt central" },
+  { step: 1, name: WORKFLOW_STEP_LABELS[1].name, role: "secretariat", description: WORKFLOW_STEP_LABELS[1].description },
+  { step: 2, name: WORKFLOW_STEP_LABELS[2].name, role: "directeur", description: WORKFLOW_STEP_LABELS[2].description },
+  { step: 3, name: WORKFLOW_STEP_LABELS[3].name, role: "dircab", description: WORKFLOW_STEP_LABELS[3].description },
+  { step: 4, name: WORKFLOW_STEP_LABELS[4].name, role: "conseiller_juridique", description: WORKFLOW_STEP_LABELS[4].description },
+  { step: 5, name: WORKFLOW_STEP_LABELS[5].name, role: "dircab", description: WORKFLOW_STEP_LABELS[5].description },
+  { step: 6, name: WORKFLOW_STEP_LABELS[6].name, role: "directeur", description: WORKFLOW_STEP_LABELS[6].description },
+  { step: 7, name: WORKFLOW_STEP_LABELS[7].name, role: "conseiller_juridique", description: WORKFLOW_STEP_LABELS[7].description },
+  { step: 8, name: WORKFLOW_STEP_LABELS[8].name, role: "secretariat", description: WORKFLOW_STEP_LABELS[8].description },
+  { step: 9, name: WORKFLOW_STEP_LABELS[9].name, role: "secretariat", description: WORKFLOW_STEP_LABELS[9].description },
 ] as const;
 
 export type WorkflowStepInfo = typeof WORKFLOW_STEPS[number];
@@ -163,32 +166,3 @@ async function sendStepEmailNotification(
   }
 }
 
-export const ROLE_LABELS: Record<string, string> = {
-  superadmin: "Super Admin",
-  admin: "Administrateur",
-  supervisor: "Superviseur",
-  agent: "Agent",
-  ministre: "Ministre",
-  dircab: "Directeur de Cabinet",
-  dircaba: "Directeur de Cabinet Adjoint",
-  conseiller_juridique: "Conseiller Juridique",
-  secretariat: "Secrétariat",
-  conseiller: "Conseiller",
-  reception: "Réception",
-  dg: "Directeur Général",
-  dga: "Directeur Général Adjoint",
-  daf: "Directeur Administratif & Financier",
-  dt: "Directeur Technique",
-  autorite_1: "Autorité 1 (DG / Autorité supérieure)",
-  autorite_2: "Autorité 2 (DGA / DirCab)",
-  autorite_3: "Autorité 3 (Assistant DG / DirCabA)",
-  autorite_4: "Autorité 4 (Conseiller Juridique)",
-  directeur: "Directeur",
-  chef_departement: "Chef de Département",
-  secretaire_direction: "Secrétaire de Direction",
-  collaborateur: "Collaborateur",
-};
-
-export function getRoleLabel(role: string): string {
-  return ROLE_LABELS[role] || role;
-}

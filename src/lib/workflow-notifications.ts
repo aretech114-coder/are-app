@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { APP_URL } from "@/lib/constants";
+import { UI_LABELS } from "@/lib/labels";
 
 /**
  * Sends a workflow notification email via the send-notification-email edge function.
@@ -65,7 +66,7 @@ function buildNotificationHtml(params: {
 }): string {
   const typeLabels: Record<string, string> = {
     transition: "Nouvelle tâche assignée",
-    pre_assignment: "Pré-assignation par l'autorité",
+    pre_assignment: UI_LABELS.preAssignmentByDg,
     sla_alert: "⚠️ Dépassement de délai SLA",
     rejection: "Dossier renvoyé",
   };

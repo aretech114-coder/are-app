@@ -19,6 +19,7 @@ import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
 import { getStepLabel, getStepColor, WORKFLOW_STEPS } from "@/lib/workflow-engine";
 import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip } from "lucide-react";
 import { AttachmentIndicator } from "@/components/AttachmentViewer";
+import { getMailAttachmentUrls } from "@/lib/labels";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -380,7 +381,7 @@ export default function SuiviPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <AttachmentIndicator hasAttachment={!!mail.attachment_url} />
+                        <AttachmentIndicator hasAttachment={getMailAttachmentUrls(mail).length > 0} />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(mail.created_at), "dd/MM/yy")}

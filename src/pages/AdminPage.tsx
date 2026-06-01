@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { ROLE_LABELS } from "@/lib/labels";
+
 const RDC_PROVINCES: { code: string; label: string }[] = [
   { code: "KN", label: "Kinshasa" },
   { code: "KC", label: "Kongo-Central" },
@@ -48,15 +50,7 @@ const RDC_PROVINCES: { code: string; label: string }[] = [
 ];
 
 const DEFAULT_ROLE_LABELS: Record<string, string> = {
-  superadmin: "Super Admin",
-  admin: "Admin",
-  supervisor: "Superviseur",
-  agent: "Agent",
-  ministre: "Ministre",
-  dircab: "Directeur de Cabinet",
-  dircaba: "Dir. Cabinet Adjoint",
-  conseiller_juridique: "Conseiller Juridique",
-  secretariat: "Secrétariat",
+  ...ROLE_LABELS,
   dg: "Directeur Général",
   dga: "Directeur Général Adjoint",
   daf: "Directeur Administratif & Financier",
@@ -68,6 +62,7 @@ const roleBadgeVariant = (role: string) => {
     case "superadmin": return "destructive";
     case "admin": return "default";
     case "ministre":
+    case "directeur":
     case "dg":
     case "dircab": return "secondary";
     case "dga":
