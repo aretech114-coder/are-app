@@ -267,38 +267,22 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const getActions = () => {
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
 
-    if (currentStep === 2) {
-      actions.push({ key: "approve", label: "Annoter & Transmettre au DirCab", icon: ArrowRight, variant: "default" });
-    } else if (currentStep === 3) {
-      actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: `Renvoyer au ${authShort}`, icon: XCircle, variant: "destructive" });
-    } else if (currentStep === 4) {
-      const label = isLastPendingAssignee ? "Enregistrer & Valider le traitement" : "Enregistrer mon traitement";
-      actions.push({ key: "complete", label, icon: Send, variant: "default" });
-    } else if (currentStep === 5) {
-      actions.push({ key: "approve", label: `Approuver → Validation ${authShort}`, icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
-    } else if (currentStep === 6) {
-      actions.push({ key: "approve", label: "Valider & Finaliser", icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: "Rejeter (retour étape 4)", icon: XCircle, variant: "destructive" });
-    } else if (currentStep === 7) {
-      actions.push({ key: "acknowledge", label: "Consultation terminée", icon: CheckCircle, variant: "default" });
-    } else if (currentStep === 8) {
-      actions.push({ key: "complete", label: "Preuve de dépôt ajoutée", icon: Send, variant: "default" });
-    } else if (currentStep === 9) {
-      actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
-    }
-
-    // Fallback: if no hardcoded mapping matched, derive actions from the
-    // workflow_steps configuration (action_labels jsonb) or sensible defaults.
-    if (actions.length === 0 && currentStepConfig) {
+    // 100% data-driven: derive actions from workflow_steps.action_labels (jsonb).
+    // If the admin hasn't filled action_labels for this step, fall back to a
+    // sensible default based on step position (last step → archive, otherwise
+    // approve + reject with the previous step's name).
+    if (currentStepConfig) {
       const labels = (currentStepConfig.action_labels || {}) as Record<string, string>;
       const iconFor: Record<string, typeof CheckCircle> = {
-        approve: CheckCircle, complete: Send, acknowledge: CheckCircle,
-        reject: XCircle, archive: Archive,
+        approve: CheckCircle,
+        complete: Send,
+        acknowledge: CheckCircle,
+        reject: XCircle,
+        archive: Archive,
       };
       const variantFor: Record<string, "default" | "destructive" | "outline"> = {
-        reject: "destructive", archive: "outline",
+        reject: "destructive",
+        archive: "outline",
       };
       const configuredKeys = Object.keys(labels);
       if (configuredKeys.length > 0) {
@@ -311,13 +295,20 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           });
         });
       } else {
-        // Default: last active step → archive ; otherwise approve + reject
+        // No action_labels configured: emit sensible defaults.
         const maxOrder = Math.max(...activeSteps.map((s) => s.step_order), 0);
-        if (currentStep === maxOrder) {
+        const isFinal = currentStep === maxOrder;
+        if (isFinal) {
           actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
         } else {
           const prevStep = [...activeSteps].reverse().find((s) => s.step_order < currentStep);
-          actions.push({ key: "approve", label: "Approuver & Transmettre", icon: ArrowRight, variant: "default" });
+          const nextStep = activeSteps.find((s) => s.step_order > currentStep);
+          actions.push({
+            key: "approve",
+            label: nextStep ? `Approuver → ${nextStep.name}` : "Approuver & Transmettre",
+            icon: ArrowRight,
+            variant: "default",
+          });
           actions.push({
             key: "reject",
             label: prevStep ? `Renvoyer à : ${prevStep.name}` : "Rejeter",
