@@ -45,6 +45,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
   const [isLastPendingAssignee, setIsLastPendingAssignee] = useState(false);
+  const [hasActiveAssignment, setHasActiveAssignment] = useState(false);
 
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
@@ -79,22 +80,44 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const stepInfo = getStepInfo(currentStep);
 
-  // Map roles to their allowed steps
-  // Reception is NOT a workflow step — only submission
-  const roleStepMap: Record<string, number[]> = {
-    secretariat: [8, 9],
-    ministre: [2, 6],
-    dircab: [3, 5],
-    dircaba: [3],
-    conseiller_juridique: [4, 7],
-    conseiller: [4, 7],
-    admin: [2, 3, 4, 5, 6, 7, 8, 9],
-    superadmin: [2, 3, 4, 5, 6, 7, 8, 9],
-  };
-
-  const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
-
   const currentStepConfig = activeSteps.find((s) => s.step_order === currentStep);
+
+  // Dynamic permission: workflow_steps is the source of truth.
+  // A user can act on the current step if ANY of:
+  //   - role is admin/superadmin
+  //   - their role is in responsible_roles[]
+  //   - their user_id is in responsible_user_ids[]
+  //   - they have an active mail_assignments row on this mail + step
+  const canAct = (() => {
+    if (!role || !user) return false;
+    if (role === "admin" || role === "superadmin") return true;
+    if (currentStepConfig?.responsible_roles?.includes(role)) return true;
+    if (currentStepConfig?.responsible_user_ids?.includes(user.id)) return true;
+    if (hasActiveAssignment) return true;
+    return false;
+  })();
+
+  // Detect any active assignment for the current user at the current step
+  useEffect(() => {
+    if (!user || !mailId || !currentStep) {
+      setHasActiveAssignment(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("mail_assignments")
+        .select("id")
+        .eq("mail_id", mailId)
+        .eq("step_number", currentStep)
+        .eq("assigned_to", user.id)
+        .in("status", ["pending", "proposed", "submitted"])
+        .limit(1);
+      if (!cancelled) setHasActiveAssignment(!!data && data.length > 0);
+    })();
+    return () => { cancelled = true; };
+  }, [user, mailId, currentStep]);
+
   const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
 
   // Charger le mail courant pour pré-remplir la réponse
@@ -264,6 +287,45 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "complete", label: "Preuve de dépôt ajoutée", icon: Send, variant: "default" });
     } else if (currentStep === 9) {
       actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
+    }
+
+    // Fallback: if no hardcoded mapping matched, derive actions from the
+    // workflow_steps configuration (action_labels jsonb) or sensible defaults.
+    if (actions.length === 0 && currentStepConfig) {
+      const labels = (currentStepConfig.action_labels || {}) as Record<string, string>;
+      const iconFor: Record<string, typeof CheckCircle> = {
+        approve: CheckCircle, complete: Send, acknowledge: CheckCircle,
+        reject: XCircle, archive: Archive,
+      };
+      const variantFor: Record<string, "default" | "destructive" | "outline"> = {
+        reject: "destructive", archive: "outline",
+      };
+      const configuredKeys = Object.keys(labels);
+      if (configuredKeys.length > 0) {
+        configuredKeys.forEach((key) => {
+          actions.push({
+            key,
+            label: labels[key] || key,
+            icon: iconFor[key] || ArrowRight,
+            variant: variantFor[key] || "default",
+          });
+        });
+      } else {
+        // Default: last active step → archive ; otherwise approve + reject
+        const maxOrder = Math.max(...activeSteps.map((s) => s.step_order), 0);
+        if (currentStep === maxOrder) {
+          actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
+        } else {
+          const prevStep = [...activeSteps].reverse().find((s) => s.step_order < currentStep);
+          actions.push({ key: "approve", label: "Approuver & Transmettre", icon: ArrowRight, variant: "default" });
+          actions.push({
+            key: "reject",
+            label: prevStep ? `Renvoyer à : ${prevStep.name}` : "Rejeter",
+            icon: XCircle,
+            variant: "destructive",
+          });
+        }
+      }
     }
 
     return actions;

@@ -1,54 +1,84 @@
-# Toggle « Créer une réponse » par étape de workflow
 
-## Objectif
+# Refonte dynamique de WorkflowActions
 
-Permettre à un administrateur d'activer, étape par étape, un bouton « Créer une réponse » qui lance la saisie d'un courrier **sortant** lié automatiquement au courrier entrant en cours de traitement. Modulable selon les institutions : certaines voudront le bouton dès l'étape 1, d'autres à l'étape 5, 10, etc.
+## Problème (confirmé)
 
-## 1. Base de données (1 migration)
+Le composant `src/components/WorkflowActions.tsx` contient un **mapping rôle→étape figé** (lignes 84-95) et des **conditions `if (currentStep === N)`** partout pour générer les boutons, libellés et formulaires. Or `workflow_steps` a été personnalisé en base (étapes renommées/réordonnées, rôles modifiés, ajout de `dg`, étape 7 = Secrétariat, étapes 9 et 10 ajoutées). Résultat : tout rôle ou numéro d'étape qui s'écarte du mapping initial ne voit **aucun champ ni bouton de traitement** — c'est ce qui arrive au DG.
 
-**Table `workflow_steps`** : ajouter `allow_reply_creation boolean NOT NULL DEFAULT false`.
+## Principe de la refonte
 
-**Table `mails`** : ajouter `parent_mail_id uuid NULL` (référence souple, pas de FK stricte pour ne pas bloquer suppressions) + index. Permet de lier la réponse sortante au courrier entrant d'origine et d'afficher l'historique « réponses » dans la fiche du courrier entrant.
+La table `workflow_steps` devient la **seule source de vérité**. On exploite les colonnes déjà existantes :
 
-Aucun changement de RLS (mêmes politiques s'appliquent), aucun GRANT additionnel (colonnes ajoutées à des tables existantes).
+- `responsible_roles` (text[])
+- `responsible_user_ids` (uuid[])
+- `assignment_target` (`roles` / `users` / `mixed`)
+- `action_labels` (jsonb : `{ approve: "...", reject: "...", complete: "...", ... }`)
+- `allow_sub_assignment`, `allow_reply_creation`
+- `conditions` (jsonb)
+- `name`, `step_order`
 
-## 2. Admin — Configurer le toggle (`WorkflowStepManager.tsx`)
+Plus aucun numéro d'étape ni nom de rôle codé en dur côté UI.
 
-Dans le formulaire d'édition/création d'étape, ajouter un bloc « Actions disponibles » avec un `Switch` :
+## Changements
 
-> **Permettre la création d'une réponse depuis cette étape**
-> Affiche un bouton « Créer une réponse » qui pré-remplit un courrier sortant lié à ce courrier.
+### 1. `src/components/WorkflowActions.tsx` — refonte
 
-Persiste `allow_reply_creation` via `useUpdateWorkflowStep` / `useCreateWorkflowStep` (mise à jour du type `WorkflowStep` dans `useWorkflowSteps.tsx`).
+**a. Calcul de `canAct` dynamique** (remplace `roleStepMap`) :
 
-## 3. Bouton « Créer une réponse » (`WorkflowActions.tsx`)
+L'utilisateur peut agir sur l'étape courante si :
+- il a une `mail_assignments` `pending` / `proposed` sur ce mail + step ; **ou**
+- son rôle figure dans `currentStepConfig.responsible_roles` ; **ou**
+- son `user_id` figure dans `currentStepConfig.responsible_user_ids` ; **ou**
+- il est `admin` / `superadmin`.
 
-Si `step.allow_reply_creation === true` **et** l'utilisateur a accès à l'étape courante (logique `canAct` existante), afficher en tête du panneau d'actions un bouton secondaire distinct (icône `Reply`, variant outline, couleur accent) — séparé visuellement des actions de transition pour ne pas créer de confusion UX.
+→ nouveau hook léger `useStepPermission(mailId, currentStep)` qui combine `useActiveWorkflowSteps` + une requête `mail_assignments`.
 
-Clic → ouvre `MailRegistrationSheet` (déjà converti en Dialog centré) en mode `direction="sortant"`, avec props additionnelles :
-- `parentMail` : `{ id, reference_number, sender_name, sender_organization, subject }`
-- Pré-remplissage : `subject = "RE: <sujet entrant>"`, `addressed_to` = expéditeur du courrier entrant, champ description vide, bandeau d'info « Réponse au courrier <REF> ».
-- À la soumission, `parent_mail_id` du nouveau courrier = id du courrier entrant.
+**b. `getActions()` dynamique** :
 
-## 4. Visibilité du lien parent/réponse
+- Lit `currentStepConfig.action_labels` (jsonb). Pour chaque clé présente → un bouton.
+- Mapping clé → icône/variant centralisé :
+  - `approve` / `complete` / `acknowledge` → `CheckCircle`, default
+  - `reject` → `XCircle`, destructive
+  - `archive` → `Archive`, outline
+  - autres → `ArrowRight`, default
+- Si `action_labels` est vide, fallback intelligent selon `step_order` (dernière étape active = archive, sinon `approve` + `reject`).
+- Les libellés type « Renvoyer au Ministre / retour étape 4 » sont remplacés par : `« Renvoyer à : {nom de l'étape précédente active} »`, calculé via `activeSteps`.
 
-Dans la fiche du courrier (côté lecture, `MailDetailFields` ou panneau dédié) : afficher une petite section « Réponses associées » listant les courriers sortants liés (`parent_mail_id = mail.id`) avec leur référence, sujet, statut. Lien cliquable pour ouvrir la réponse. Symétriquement, sur un courrier sortant ayant un `parent_mail_id`, afficher un badge « Réponse à <REF entrant> ».
+**c. Affichage conditionnel des blocs (annotation / assignation / pièce jointe / traitement)** :
 
-## 5. UX & mobile
+Au lieu de `currentStep === 2 || 3 || ...`, on s'appuie sur des flags dérivés de la config :
 
-- Bouton « Créer une réponse » : pleine largeur sur mobile, inline desktop, libellé court (`Reply` + texte), placé au-dessus des actions de workflow.
-- Dialog de création déjà responsive (`max-w-[50vw] sm:max-w-2xl lg:max-w-3xl max-h-[85vh]`) — vérifié OK mobile via le viewport plein écran fallback.
-- Toast confirmation : « Réponse créée — liée au courrier <REF> ».
-- Aucune étape de workflow modifiée : la création d'une réponse n'avance/ne bloque jamais le workflow du courrier entrant.
+- `showAssignment` = `currentStepConfig.assignment_target` in (`users`, `mixed`) OU étape courante prépare l'étape suivante qui requiert assignation (cas actuel des étapes 2/3 qui pré-assignent l'étape 4). Pour simplifier : on expose ces blocs **dès qu'on a la permission** d'agir, mais on garde la logique métier existante pour étapes 4/7 (multi-assignation) qui reste pilotée par `allow_sub_assignment` et la présence de plusieurs `mail_assignments`.
+- `showSubmitTreatment` = il existe au moins un `mail_assignments.assigned_to = user.id` sur l'étape courante (la « soumission individuelle » du multi-assignation actuel).
+- `showAttachment` / `showAnnotation` : exposés par défaut sauf si étape finale d'archivage.
 
-## Détails techniques
+**d. `dialogTitle`** : remplacé par `currentStepConfig.name` (avec préfixe « Action — »).
 
-**Fichiers touchés**
-- Migration SQL (workflow_steps + mails)
-- `src/hooks/useWorkflowSteps.tsx` (type + payload create/update)
-- `src/components/WorkflowStepManager.tsx` (Switch dans `StepFormFields`)
-- `src/components/MailRegistrationSheet.tsx` (props `parentMail`, pré-remplissage, insert `parent_mail_id`)
-- `src/components/WorkflowActions.tsx` (bouton conditionnel)
-- `src/components/MailDetailFields.tsx` (section « Réponses associées » + badge parent)
+**e. Logiques spéciales (multi-assignation, RDV, AR, sous-assignation, preuve de dépôt)** : conservées telles quelles **mais déclenchées par des flags de config** au lieu de numéros d'étape :
+- Multi-assignation et acknowledge → détectés par la présence de plusieurs `mail_assignments` actives sur le step + statut individuel (déjà le cas en partie).
+- Génération AR / preuve de dépôt → conditionné par `currentStepConfig.action_labels?.complete` ET `mail_type === 'accuse_reception'` (au lieu de `currentStep === 8`).
+- Création de réponse → déjà piloté par `allow_reply_creation` ✅.
+- Sous-assignation → déjà piloté par `allow_sub_assignment` ✅.
+- Pré-assignation conseillers depuis étape 2 → conditionné par `currentStepConfig.assignment_target` in (`users`, `mixed`) ET existence d'une étape suivante.
 
-**Rétrocompatibilité** : `allow_reply_creation` défaut `false` → comportement inchangé pour les workflows existants. À activer ponctuellement.
+### 2. Garde-fous backend (côté `advance_workflow_step` RPC)
+
+La RPC vérifie déjà `mail_assignments` + `admin/superadmin`. **Aucun changement DB nécessaire** pour ce ticket — le bug est purement front. La validation des permissions reste serveur via RLS + RPC.
+
+### 3. Points NON modifiés
+
+- Pas de migration SQL.
+- Pas de modification de `workflow-engine.ts` ni `WorkflowStepper.tsx` (déjà dynamique).
+- Pas de modification des edge functions ni des notifications.
+
+## Vérification après build
+
+1. Se connecter comme DG → ouvrir un courrier à l'étape 6 → vérifier que le bouton « Valider & Finaliser » (ou libellé issu de `action_labels`) s'affiche, avec les champs annotation et pièce jointe.
+2. Re-tester chacun des rôles déjà fonctionnels (ministre étape 2, dircab étape 3, conseiller étape 4 multi, secrétariat étapes 9/10) pour confirmer la non-régression.
+3. Tester l'ajout d'une nouvelle étape via `WorkflowStepManager` → les boutons doivent apparaître **sans nouveau déploiement**.
+
+## Notes / risques
+
+- La logique « étapes spéciales » (RDV étape 2, AR étape 8) garde une part conditionnelle car elle dépend du *contenu métier* (type de courrier, présence d'un draft IA) et pas seulement de la structure du workflow. On la rattache à des champs sémantiques (`action_labels.complete` + `mail_type`) plutôt qu'au numéro d'étape.
+- À terme, ces comportements pourraient être pilotés par de nouveaux flags ajoutés à `workflow_steps` (`enable_rdv_scheduling`, `generate_ar_document`, etc.) — proposé en suivant si besoin, hors scope ici.
+- Aucun impact RLS — la sécurité reste enforced côté DB.
