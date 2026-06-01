@@ -341,7 +341,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           .replace(/_+/g, "_");
         const filePath = `annotations/${mailId}/${Date.now()}_${sanitizedName}`;
         const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, compressedFile);
-        if (uploadErr) throw uploadErr;
+        if (uploadErr) {
+          const msg = uploadErr.message || "";
+          if (/row-level security/i.test(msg)) {
+            throw new Error(
+              "Impossible de joindre le fichier : votre rôle n'a pas les droits d'upload (directeur/DG). Appliquez la migration SQL 20260601120000 sur Supabase."
+            );
+          }
+          throw uploadErr;
+        }
         const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
         annotationAttachmentUrl = urlData?.signedUrl || null;
       }

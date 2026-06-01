@@ -423,3 +423,56 @@ BEGIN
     );
   END IF;
 END $$;
+
+-- 4. Storage mail-documents : rôle directeur (upload annotations étape 2)
+DROP POLICY IF EXISTS "Authorized roles upload mail documents" ON storage.objects;
+CREATE POLICY "Authorized roles upload mail documents"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'mail-documents'
+  AND (
+    has_role(auth.uid(), 'superadmin'::app_role)
+    OR has_role(auth.uid(), 'admin'::app_role)
+    OR has_role(auth.uid(), 'secretariat'::app_role)
+    OR has_role(auth.uid(), 'reception'::app_role)
+    OR has_role(auth.uid(), 'dircab'::app_role)
+    OR has_role(auth.uid(), 'dircaba'::app_role)
+    OR has_role(auth.uid(), 'ministre'::app_role)
+    OR has_role(auth.uid(), 'directeur'::app_role)
+    OR has_role(auth.uid(), 'autorite_1'::app_role)
+    OR has_role(auth.uid(), 'autorite_2'::app_role)
+    OR has_role(auth.uid(), 'autorite_3'::app_role)
+    OR has_role(auth.uid(), 'autorite_4'::app_role)
+    OR has_role(auth.uid(), 'conseiller_juridique'::app_role)
+    OR has_role(auth.uid(), 'conseiller'::app_role)
+    OR has_role(auth.uid(), 'supervisor'::app_role)
+  )
+);
+
+DROP POLICY IF EXISTS "Authorized roles read mail documents" ON storage.objects;
+CREATE POLICY "Authorized roles read mail documents"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'mail-documents'
+  AND (
+    has_role(auth.uid(), 'superadmin'::app_role)
+    OR has_role(auth.uid(), 'admin'::app_role)
+    OR has_role(auth.uid(), 'secretariat'::app_role)
+    OR has_role(auth.uid(), 'reception'::app_role)
+    OR has_role(auth.uid(), 'dircab'::app_role)
+    OR has_role(auth.uid(), 'dircaba'::app_role)
+    OR has_role(auth.uid(), 'ministre'::app_role)
+    OR has_role(auth.uid(), 'directeur'::app_role)
+    OR has_role(auth.uid(), 'autorite_1'::app_role)
+    OR has_role(auth.uid(), 'autorite_2'::app_role)
+    OR has_role(auth.uid(), 'autorite_3'::app_role)
+    OR has_role(auth.uid(), 'autorite_4'::app_role)
+    OR has_role(auth.uid(), 'conseiller_juridique'::app_role)
+    OR has_role(auth.uid(), 'conseiller'::app_role)
+    OR has_role(auth.uid(), 'supervisor'::app_role)
+  )
+);
+
+GRANT EXECUTE ON FUNCTION public.advance_workflow_step(
+  uuid, text, uuid, text, boolean, uuid[]
+) TO authenticated;
