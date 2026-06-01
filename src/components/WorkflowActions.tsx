@@ -289,6 +289,45 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
     }
 
+    // Fallback: if no hardcoded mapping matched, derive actions from the
+    // workflow_steps configuration (action_labels jsonb) or sensible defaults.
+    if (actions.length === 0 && currentStepConfig) {
+      const labels = (currentStepConfig.action_labels || {}) as Record<string, string>;
+      const iconFor: Record<string, typeof CheckCircle> = {
+        approve: CheckCircle, complete: Send, acknowledge: CheckCircle,
+        reject: XCircle, archive: Archive,
+      };
+      const variantFor: Record<string, "default" | "destructive" | "outline"> = {
+        reject: "destructive", archive: "outline",
+      };
+      const configuredKeys = Object.keys(labels);
+      if (configuredKeys.length > 0) {
+        configuredKeys.forEach((key) => {
+          actions.push({
+            key,
+            label: labels[key] || key,
+            icon: iconFor[key] || ArrowRight,
+            variant: variantFor[key] || "default",
+          });
+        });
+      } else {
+        // Default: last active step → archive ; otherwise approve + reject
+        const maxOrder = Math.max(...activeSteps.map((s) => s.step_order), 0);
+        if (currentStep === maxOrder) {
+          actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
+        } else {
+          const prevStep = [...activeSteps].reverse().find((s) => s.step_order < currentStep);
+          actions.push({ key: "approve", label: "Approuver & Transmettre", icon: ArrowRight, variant: "default" });
+          actions.push({
+            key: "reject",
+            label: prevStep ? `Renvoyer à : ${prevStep.name}` : "Rejeter",
+            icon: XCircle,
+            variant: "destructive",
+          });
+        }
+      }
+    }
+
     return actions;
   };
 
