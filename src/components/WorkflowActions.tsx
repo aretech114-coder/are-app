@@ -8,7 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { advanceWorkflow, getStepInfo } from "@/lib/workflow-engine";
+import {
+  advanceWorkflow,
+  getStepInfo,
+  submitStep4Treatment,
+  submitStep7Acknowledgement,
+  uploadMailDocument,
+} from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,7 +60,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [selectedViewers, setSelectedViewers] = useState<string[]>([]);
-  const { contributions, upsertMyContribution, fetchContributions } = useMailContributions(mailId, 4);
+  const { contributions, fetchContributions } = useMailContributions(mailId, 4);
+  const [step4AssigneeCount, setStep4AssigneeCount] = useState(0);
 
   const isDgRole =
     role === "directeur" || role === "ministre" || role === "dg" || role === "autorite_1";
@@ -177,6 +184,24 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       })();
     }
   }, [currentStep, mailId, user]);
+
+  useEffect(() => {
+    if (currentStep !== 4 || !mailId) {
+      setStep4AssigneeCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from("mail_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("mail_id", mailId)
+        .eq("step_number", 4)
+        .eq("access_mode", "contributor");
+      if (!cancelled) setStep4AssigneeCount(count ?? 0);
+    })();
+    return () => { cancelled = true; };
+  }, [currentStep, mailId, contributions.length]);
 
   // Fetch mail data for step 8
   useEffect(() => {
@@ -350,9 +375,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setLoading(true);
 
     try {
-      // Upload attachment if provided
+      // Upload attachment if provided (step 4 uploads handled in treatment RPC block)
       let annotationAttachmentUrl: string | null = null;
-      if (attachmentFile) {
+      if (attachmentFile && currentStep !== 4) {
         const { file: compressedFile, originalSize, compressedSize, wasCompressed } = await compressFile(attachmentFile);
         if (wasCompressed) {
           toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
@@ -409,57 +434,47 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // STEP 4 MULTI-ASSIGNEE LOGIC:
+      // STEP 4: atomic RPC (contribution + assignment + optional auto-advance)
       if (currentStep === 4 && action === "complete") {
-        if (treatmentContent && user) {
-          const { error: contribErr } = await upsertMyContribution(
-            user.id,
-            treatmentContent,
-            [],
-            "submitted"
-          );
-          if (contribErr) throw new Error(contribErr);
+        let treatmentAttachments: { url: string; name?: string }[] = [];
+        if (attachmentFile) {
+          const { file: compressedFile, originalSize, compressedSize, wasCompressed } =
+            await compressFile(attachmentFile);
+          if (wasCompressed) {
+            toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
+          }
+          try {
+            treatmentAttachments = [await uploadMailDocument(mailId, compressedFile, "treatments")];
+          } catch (uploadErr: any) {
+            const msg = uploadErr?.message || "";
+            if (/row-level security/i.test(msg)) {
+              throw new Error(
+                "Impossible de joindre le fichier : droits d'upload insuffisants. Appliquez la migration Storage sur Supabase."
+              );
+            }
+            throw uploadErr;
+          }
         }
 
-        // Mark my assignment as completed
-        await supabase.from("mail_assignments")
-          .update({ status: "completed", completed_at: new Date().toISOString() })
-          .eq("mail_id", mailId)
-          .eq("assigned_to", user.id)
-          .eq("step_number", 4);
+        const result = await submitStep4Treatment(
+          mailId,
+          treatmentContent || null,
+          treatmentAttachments,
+          noteParts || notes || undefined
+        );
 
-        // Record a workflow transition note (without advancing)
-        await supabase.from("workflow_transitions").insert({
-          mail_id: mailId,
-          from_step: 4,
-          to_step: 4,
-          action: "submit_treatment",
-          performed_by: user.id,
-          notes: noteParts || notes || null,
-        });
-
-        // Check if ALL assignees for step 4 have completed
-        const { data: allAssignments } = await supabase
-          .from("mail_assignments")
-          .select("id, status")
-          .eq("mail_id", mailId)
-          .eq("step_number", 4);
-
-        const allCompleted = allAssignments && allAssignments.length > 0 &&
-          allAssignments.every(a => a.status === "completed");
-
-        if (allCompleted) {
-          // All done — advance workflow to step 5 (auto-assignment handled by advanceWorkflow)
-          const result = await advanceWorkflow(mailId, currentStep, "complete", user.id,
-            `✅ Tous les conseillers assignés ont terminé leur traitement.`);
-          if (result.success) {
-            toast.success("Tous les conseillers ont soumis — dossier avancé à l'étape 5");
-          } else {
-            toast.error(result.error || "Erreur lors de l'avancement");
-          }
+        if (!result.success) {
+          toast.error(result.error || "Erreur lors de la soumission");
+        } else if (result.allCompleted) {
+          toast.success(
+            result.newStep
+              ? `Tous les conseillers ont soumis — dossier avancé à l'étape ${result.newStep}`
+              : "Tous les conseillers ont soumis — dossier avancé à l'étape 5"
+          );
         } else {
-          const remaining = allAssignments ? allAssignments.filter(a => a.status !== "completed").length : 0;
-          toast.success(`Traitement soumis ! En attente de ${remaining} autre(s) conseiller(s).`);
+          toast.success(
+            `Traitement soumis ! En attente de ${result.remaining ?? 0} autre(s) conseiller(s).`
+          );
         }
 
         setShowDialog(false);
@@ -469,47 +484,25 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // STEP 7 ACKNOWLEDGEMENT LOGIC:
-      // Conseillers acknowledge they've seen the minister's validation
+      // STEP 7: atomic RPC acknowledgement
       if (currentStep === 7 && action === "acknowledge") {
-        // Mark step 7 assignment as acknowledged
-        await supabase.from("mail_assignments")
-          .update({ status: "acknowledged" })
-          .eq("mail_id", mailId)
-          .eq("assigned_to", user.id)
-          .eq("step_number", 7);
+        const result = await submitStep7Acknowledgement(
+          mailId,
+          noteParts || notes || undefined
+        );
 
-        // Record transition
-        await supabase.from("workflow_transitions").insert({
-          mail_id: mailId,
-          from_step: 7,
-          to_step: 7,
-          action: "acknowledge",
-          performed_by: user.id,
-          notes: noteParts || "Consultation de la validation confirmée.",
-        });
-
-        // Check if ALL conseillers have acknowledged (check step 7 assignments)
-        const { data: allAssignments } = await supabase
-          .from("mail_assignments")
-          .select("id, status")
-          .eq("mail_id", mailId)
-          .eq("step_number", 7);
-
-        const allAcknowledged = allAssignments && allAssignments.length > 0 &&
-          allAssignments.every(a => a.status === "acknowledged");
-
-        if (allAcknowledged) {
-          const result = await advanceWorkflow(mailId, currentStep, "complete", user.id,
-            "✅ Tous les conseillers ont consulté la validation.");
-          if (result.success) {
-            toast.success("Tous les conseillers ont confirmé — dossier avancé à l'étape suivante");
-          } else {
-            toast.error(result.error || "Erreur");
-          }
+        if (!result.success) {
+          toast.error(result.error || "Erreur");
+        } else if (result.allAcknowledged) {
+          toast.success(
+            result.newStep
+              ? `Tous les conseillers ont confirmé — dossier avancé à l'étape ${result.newStep}`
+              : "Tous les conseillers ont confirmé — dossier avancé à l'étape suivante"
+          );
         } else {
-          const remaining = allAssignments ? allAssignments.filter(a => a.status !== "acknowledged").length : 0;
-          toast.success(`Consultation confirmée ! En attente de ${remaining} autre(s) conseiller(s).`);
+          toast.success(
+            `Consultation confirmée ! En attente de ${result.remaining ?? 0} autre(s) conseiller(s).`
+          );
         }
 
         setShowDialog(false);
@@ -541,27 +534,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         : undefined;
       const viewerIds =
         currentStep === 2 && selectedViewers.length > 0 ? selectedViewers : undefined;
-
-      // Step 5: If DirCab modified assignees, update step 4 assignments before advancing
-      if (currentStep === 5 && selectedAssignees.length > 0 && user) {
-        // Remove old step 4 pending assignments and add new ones
-        await supabase.from("mail_assignments")
-          .delete()
-          .eq("mail_id", mailId)
-          .eq("step_number", 4)
-          .in("status", ["pending", "proposed"]);
-        
-        for (const assigneeId of selectedAssignees) {
-          await supabase.from("mail_assignments").insert({
-            mail_id: mailId,
-            assigned_by: user.id,
-            assigned_to: assigneeId,
-            step_number: 4,
-            status: effectiveAction === "reject" ? "pending" : "completed",
-            instructions: annotation || null,
-          });
-        }
-      }
 
       const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, {
         assigneeIds,
@@ -720,6 +692,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             {(currentStep === 2 || currentStep === 4 || currentStep === 6) && (
               <MailContributionsPanel
                 contributions={contributions}
+                assigneeCount={currentStep === 4 ? step4AssigneeCount : undefined}
                 title={
                   isDgRole
                     ? "Contributions des assignés (temps réel)"
@@ -727,6 +700,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 }
                 showDrafts={isDgRole}
               />
+            )}
+
+            {currentStep === 4 && step4AssigneeCount > 0 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                {step4AssigneeCount} personne(s) assignée(s) à ce traitement
+              </p>
             )}
 
             {/* Step 4: Treatment type and content */}

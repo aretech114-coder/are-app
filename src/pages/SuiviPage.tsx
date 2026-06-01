@@ -12,7 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
+import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContributions";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { MailDetailFields } from "@/components/MailDetailFields";
 import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
@@ -59,6 +61,8 @@ export default function SuiviPage() {
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
   const [selectedMail, setSelectedMail] = useState<any>(null);
+  const { contributions: detailContributions } = useMailContributions(selectedMail?.id, 4);
+  const detailStep4AssigneeCount = useStepAssigneeCount(selectedMail?.id, 4);
   const [editMail, setEditMail] = useState<any>(null);
   const [deleteMail, setDeleteMail] = useState<any>(null);
   const [showStats, setShowStats] = useState(true);
@@ -427,6 +431,13 @@ export default function SuiviPage() {
               <MailDetailFields mail={selectedMail} getProfileName={getProfileName} />
               <TreatmentsList mailId={selectedMail.id} />
               <Step4ContextPanel mailId={selectedMail.id} />
+              {(selectedMail.current_step || 0) >= 4 && (
+                <MailContributionsPanel
+                  contributions={detailContributions}
+                  assigneeCount={detailStep4AssigneeCount}
+                  showDrafts
+                />
+              )}
               <div className="p-3 rounded-lg border bg-muted/20">
                 <h4 className="text-sm font-semibold mb-2">Historique du workflow</h4>
                 <WorkflowTimeline mailId={selectedMail.id} />

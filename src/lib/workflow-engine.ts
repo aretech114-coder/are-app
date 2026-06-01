@@ -128,13 +128,126 @@ export async function advanceWorkflow(
   };
 }
 
-/** Mails visible to current user (RLS + can_access_mail). */
+const DEFAULT_MAIL_STATUSES = ["pending", "in_progress"] as const;
+
+/** Mails visible to current user (RLS + can_access_mail). Falls back to direct query if RPC unavailable. */
 export async function listMyMails(statuses?: string[]) {
+  const statusList = statuses ?? [...DEFAULT_MAIL_STATUSES];
   const { data, error } = await supabase.rpc("list_my_mails", {
-    _statuses: statuses ?? ["pending", "in_progress"],
+    _statuses: statusList,
   });
-  if (error) throw error;
-  return data || [];
+  if (!error) return data || [];
+
+  const { data: rows, error: queryError } = await supabase
+    .from("mails")
+    .select("*")
+    .in("status", statusList)
+    .order("created_at", { ascending: false });
+  if (queryError) throw queryError;
+  return rows ?? [];
+}
+
+export interface Step4TreatmentResult {
+  success: boolean;
+  allCompleted?: boolean;
+  remaining?: number;
+  newStep?: number;
+  advanced?: boolean;
+  error?: string;
+}
+
+/** Atomic step-4 treatment submission (contribution + assignment + optional auto-advance). */
+export async function submitStep4Treatment(
+  mailId: string,
+  body: string | null,
+  attachmentUrls: { url: string; name?: string }[] = [],
+  notes?: string
+): Promise<Step4TreatmentResult> {
+  const { data, error } = await supabase.rpc("submit_step4_treatment", {
+    _mail_id: mailId,
+    _body: body,
+    _attachment_urls: attachmentUrls,
+    _notes: notes ?? null,
+  } as any);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (!result?.success) {
+    return { success: false, error: (result?.error as string) || "Erreur inconnue" };
+  }
+
+  return {
+    success: true,
+    allCompleted: result.all_completed as boolean | undefined,
+    remaining: result.remaining as number | undefined,
+    newStep: result.new_step as number | undefined,
+    advanced: result.advanced as boolean | undefined,
+  };
+}
+
+export interface Step7AckResult {
+  success: boolean;
+  allAcknowledged?: boolean;
+  remaining?: number;
+  newStep?: number;
+  advanced?: boolean;
+  error?: string;
+}
+
+/** Atomic step-7 acknowledgement (assignment + optional auto-advance). */
+export async function submitStep7Acknowledgement(
+  mailId: string,
+  notes?: string
+): Promise<Step7AckResult> {
+  const { data, error } = await supabase.rpc("submit_step7_acknowledgement", {
+    _mail_id: mailId,
+    _notes: notes ?? null,
+  } as any);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (!result?.success) {
+    return { success: false, error: (result?.error as string) || "Erreur inconnue" };
+  }
+
+  return {
+    success: true,
+    allAcknowledged: result.all_acknowledged as boolean | undefined,
+    remaining: result.remaining as number | undefined,
+    newStep: result.new_step as number | undefined,
+    advanced: result.advanced as boolean | undefined,
+  };
+}
+
+/** Upload a workflow attachment to mail-documents bucket. */
+export async function uploadMailDocument(
+  mailId: string,
+  file: File,
+  subfolder: "annotations" | "treatments" = "treatments"
+): Promise<{ url: string; name: string }> {
+  const sanitizedName = file.name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/_+/g, "_");
+  const filePath = `${subfolder}/${mailId}/${Date.now()}_${sanitizedName}`;
+  const { error: uploadErr } = await supabase.storage
+    .from("mail-documents")
+    .upload(filePath, file);
+  if (uploadErr) throw uploadErr;
+
+  const { data: urlData } = await supabase.storage
+    .from("mail-documents")
+    .createSignedUrl(filePath, 60 * 60 * 24 * 365);
+  if (!urlData?.signedUrl) throw new Error("Impossible de générer l'URL du fichier");
+
+  return { url: urlData.signedUrl, name: file.name };
 }
 
 /**
