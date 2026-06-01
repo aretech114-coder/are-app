@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -22,8 +23,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Reply } from "lucide-react";
-import { useEffect } from "react";
+import { Loader2, Reply, Upload, X, Paperclip } from "lucide-react";
+import { compressFile, formatFileSize } from "@/lib/file-compressor";
+import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 
 type Props = {
   open: boolean;
@@ -85,6 +87,20 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     },
   });
 
+  // Step 2 (premier traitement) config — label affiché et routage par défaut
+  const { data: treatmentStep } = useQuery({
+    queryKey: ["workflow-step-2"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("workflow_steps")
+        .select("step_order, name")
+        .eq("step_order", 2)
+        .eq("is_active", true)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const [form, setForm] = useState({
     reference_number: "",
     sender_name: "",
@@ -98,6 +114,21 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     target_service_id: "",
     assigned_to: "",
   });
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [titulaireAbsent, setTitulaireAbsent] = useState(false);
+
+  // Options affichées uniquement quand l'autorité par défaut (DG) est absente
+  const ADDRESSEE_OPTIONS = [
+    { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
+    { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
+    { value: "CONSEILLER JURIDIQUE", label: "Conseiller Juridique" },
+  ];
+  const ROLE_MAP: Record<string, string> = {
+    "DIRECTEUR DE CABINET": "dircab",
+    "DIRECTEUR DE CABINET ADJOINT": "dircaba",
+    "CONSEILLER JURIDIQUE": "conseiller_juridique",
+  };
 
   // Pré-remplissage si réponse à un courrier parent
   useEffect(() => {
@@ -114,7 +145,14 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
 
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  const handleFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    setFiles((prev) => [...prev, ...Array.from(incoming)]);
+  };
+  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+
   const reset = () =>
+  {
     setForm({
       reference_number: "",
       sender_name: "",
@@ -128,12 +166,19 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       target_service_id: "",
       assigned_to: "",
     });
+    setFiles([]);
+    setTitulaireAbsent(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     if (!form.sender_name.trim() || !form.subject.trim()) {
       toast.error("Expéditeur/Destinataire et Objet sont obligatoires.");
+      return;
+    }
+    if (titulaireAbsent && !form.addressed_to && !form.assigned_to) {
+      toast.error("Précisez à qui adresser le courrier (rôle ou personne) — autorité absente.");
       return;
     }
     setLoading(true);
@@ -154,8 +199,55 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         direction,
       });
 
-      const selectedType = types.find((t: any) => t.code === form.mail_type);
-      const targetStep = selectedType?.default_workflow_step ?? 1;
+      // Routage par défaut : étape 2 (Traitement DG)
+      const targetStep = 2;
+
+      // Upload pièces jointes (multi)
+      const uploadedUrls: string[] = [];
+      for (const original of files) {
+        const { file, originalSize, compressedSize, wasCompressed } = await compressFile(original);
+        if (wasCompressed) {
+          toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
+        }
+        const sanitized = file.name
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "_")
+          .replace(/_+/g, "_");
+        const filePath = `mail-attachments/${ref.replace(/[^a-zA-Z0-9/_-]/g, "_")}/${Date.now()}_${sanitized}`;
+        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, file);
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
+        if (urlData?.signedUrl) uploadedUrls.push(urlData.signedUrl);
+      }
+      const attachmentUrl: string | null =
+        uploadedUrls.length === 0 ? null :
+        uploadedUrls.length === 1 ? uploadedUrls[0] :
+        JSON.stringify(uploadedUrls);
+
+      // Résolution du destinataire pour l'étape 2
+      let assignee: string | null = null;
+      if (titulaireAbsent) {
+        // Override manuel : utilisateur précis prioritaire, sinon premier user du rôle adressé
+        if (form.assigned_to) {
+          assignee = form.assigned_to;
+        } else if (form.addressed_to && ROLE_MAP[form.addressed_to]) {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", ROLE_MAP[form.addressed_to] as any)
+            .limit(1)
+            .maybeSingle();
+          assignee = roleData?.user_id || null;
+        }
+      } else {
+        // Routage automatique vers le responsable configuré de l'étape 2
+        assignee = await resolveWorkflowStepAssignee(targetStep, null);
+      }
+
+      // Libellé "Adressé à" enregistré
+      const addressedToLabel = titulaireAbsent
+        ? (form.addressed_to || "Intérim désigné")
+        : (treatmentStep?.name || "Traitement DG");
 
       // Insert mail
       const { data: inserted, error } = await supabase
@@ -170,10 +262,13 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           priority: form.priority as any,
           mail_type: form.mail_type || null,
           registered_by: user.id,
-          current_step: 1,
-          status: "pending" as any,
+          current_step: assignee ? targetStep : 1,
+          status: (assignee ? "in_progress" : "pending") as any,
+          attachment_url: attachmentUrl,
+          ministre_absent: titulaireAbsent,
+          assigned_agent_id: assignee,
           reception_date: form.reception_date || null,
-          addressed_to: form.addressed_to || null,
+          addressed_to: addressedToLabel,
           direction,
           target_service_id: form.target_service_id || null,
           province_code: (profile as any)?.province_code || null,
@@ -195,13 +290,6 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         notes: `Courrier ${direction} enregistré`,
       });
 
-      // Determine assignee: manual override > service default handler
-      let assignee: string | null = form.assigned_to || null;
-      if (!assignee && form.target_service_id) {
-        const svc = services.find((s: any) => s.id === form.target_service_id);
-        assignee = svc?.default_handler_user_id || null;
-      }
-
       if (assignee) {
         await supabase.from("mail_assignments").insert({
           mail_id: inserted.id,
@@ -217,12 +305,24 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           message: `Courrier "${form.subject}" (Réf: ${ref}) vous a été assigné.`,
           mail_id: inserted.id,
         });
+        await supabase.from("workflow_transitions").insert({
+          mail_id: inserted.id,
+          from_step: 1,
+          to_step: targetStep,
+          action: "approve",
+          performed_by: user.id,
+          notes: titulaireAbsent
+            ? `Routage intérim : ${addressedToLabel} (titulaire absent)`
+            : `Routage automatique vers ${addressedToLabel}`,
+        });
       }
 
       toast.success(
         parentMail
           ? `Réponse créée (Réf: ${ref}) — liée au courrier ${parentMail.reference_number}.`
-          : `Courrier ${direction} enregistré (Réf: ${ref}).`,
+          : assignee
+            ? `Courrier ${direction} enregistré et routé (Réf: ${ref}).`
+            : `Courrier ${direction} enregistré (Réf: ${ref}) — routage non effectué, vérifiez la configuration.`,
       );
       reset();
       onOpenChange(false);
@@ -371,29 +471,106 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Adressé à (libre)</Label>
-              <Input
-                value={form.addressed_to}
-                onChange={(e) => update("addressed_to", e.target.value)}
-                placeholder="Ex : DG, Ministre, DirCab, …"
+
+            {/* Adressé à — routage par défaut DG + toggle intérim */}
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <Label className="text-sm font-semibold">Adressé à</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {titulaireAbsent
+                      ? "Titulaire absent — désignez l'autorité ou la personne qui prendra l'intérim."
+                      : `Routage automatique vers : ${treatmentStep?.name || "Traitement DG"}.`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Label htmlFor="abs" className="text-xs">Titulaire absent</Label>
+                  <Switch
+                    id="abs"
+                    checked={titulaireAbsent}
+                    onCheckedChange={(c) => {
+                      setTitulaireAbsent(c);
+                      if (!c) {
+                        update("addressed_to", "");
+                        update("assigned_to", "");
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {titulaireAbsent && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Adresser à (rôle)</Label>
+                    <Select value={form.addressed_to} onValueChange={(v) => update("addressed_to", v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir un rôle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ADDRESSEE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Ou personne précise (optionnel)</Label>
+                    <Select value={form.assigned_to} onValueChange={(v) => update("assigned_to", v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un utilisateur" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignableUsers.map((u: any) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.full_name || u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Pièces jointes */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Pièces jointes</h3>
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+              onClick={() => fileInputRef.current?.click()}
+              className="cursor-pointer rounded-lg border-2 border-dashed border-muted-foreground/30 p-4 text-center hover:bg-muted/30 transition-colors"
+            >
+              <Upload className="h-5 w-5 mx-auto text-muted-foreground" />
+              <p className="text-xs text-muted-foreground mt-1">
+                Glisser-déposer ou cliquer pour ajouter — une ou plusieurs pièces jointes (PDF, images, documents).
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Assigner à (optionnel — sinon routage par défaut du service)</Label>
-              <Select value={form.assigned_to} onValueChange={(v) => update("assigned_to", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Routage automatique" />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignableUsers.map((u: any) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.full_name || u.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {files.length > 0 && (
+              <ul className="space-y-1">
+                {files.map((f, i) => (
+                  <li key={i} className="flex items-center justify-between rounded border bg-background px-2 py-1 text-xs">
+                    <span className="flex items-center gap-2 truncate">
+                      <Paperclip className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{f.name}</span>
+                      <span className="text-muted-foreground">({formatFileSize(f.size)})</span>
+                    </span>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(i)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <DialogFooter className="gap-2">
