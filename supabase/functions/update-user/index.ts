@@ -109,9 +109,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Prevent escalation to superadmin
-    if (role === "superadmin") {
-      return new Response(JSON.stringify({ error: "Impossible d'attribuer le rôle superadmin" }), {
+    // Only a Super Admin can grant the superadmin role
+    if (role === "superadmin" && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: "Seul un Super Admin peut attribuer le rôle Super Admin" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
