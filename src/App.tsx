@@ -23,6 +23,7 @@ import MissionsPage from "./pages/MissionsPage";
 import ReunionsPage from "./pages/ReunionsPage";
 import SuiviPage from "./pages/SuiviPage";
 import ReceptionDashboard from "./pages/ReceptionDashboard";
+import RegistrePage from "./pages/RegistrePage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
@@ -64,7 +65,7 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
 
 function ReceptionRoute({ children }: { children: React.ReactNode }) {
   const { role } = useAuth();
-  if (role === "reception") return <Navigate to="/reception-dashboard" replace />;
+  if (role === "reception") return <Navigate to="/registre" replace />;
   return <>{children}</>;
 }
 
@@ -72,7 +73,7 @@ function AppRoutes() {
   const { user, loading, role } = useAuth();
   if (loading) return null;
 
-  const defaultRoute = role === "reception" ? "/reception-dashboard" : "/inbox";
+  const defaultRoute = role === "reception" ? "/registre" : "/inbox";
 
   return (
     <Routes>
@@ -81,11 +82,12 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={
         <ProtectedRoute>
-          {role === "reception" ? <Navigate to="/reception-dashboard" replace /> : <Dashboard />}
+          {role === "reception" ? <Navigate to="/registre" replace /> : <Dashboard />}
         </ProtectedRoute>
       } />
-      <Route path="/mail-entry" element={<ProtectedRoute><MailEntry /></ProtectedRoute>} />
-      <Route path="/reception-dashboard" element={<ProtectedRoute><ReceptionDashboard /></ProtectedRoute>} />
+      <Route path="/registre" element={<ProtectedRoute><RegistrePage /></ProtectedRoute>} />
+      <Route path="/mail-entry" element={<Navigate to="/registre" replace />} />
+      <Route path="/reception-dashboard" element={<Navigate to="/registre" replace />} />
       <Route path="/inbox" element={<ProtectedRoute><ReceptionRoute><InboxPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><ReceptionRoute><HistoryPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/archive" element={<ProtectedRoute><ReceptionRoute><ArchivePage /></ReceptionRoute></ProtectedRoute>} />

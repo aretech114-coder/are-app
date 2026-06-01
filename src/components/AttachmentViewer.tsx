@@ -20,10 +20,24 @@ function isImage(url: string) {
   return /\.(jpe?g|png|gif|webp)/i.test(url);
 }
 
+/** Parse legacy url prop when stored as JSON array string */
+function parseUrlsFromString(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr)) return arr.filter((u) => typeof u === "string");
+    } catch {
+      /* fallthrough */
+    }
+  }
+  return [trimmed];
+}
+
 function resolveUrls(props: AttachmentViewerProps): string[] {
   if (props.urls?.length) return props.urls;
   if (props.mail) return getMailAttachmentUrls(props.mail);
-  if (props.url) return [props.url];
+  if (props.url) return parseUrlsFromString(props.url);
   return [];
 }
 
@@ -108,7 +122,7 @@ export function AttachmentViewer({ url, urls, mail, inline }: AttachmentViewerPr
           </DialogHeader>
           {allUrls.length > 1 && (
             <div className="flex flex-wrap gap-2 pb-2 border-b">
-              {allUrls.map((u, i) => (
+              {allUrls.map((_, i) => (
                 <Button
                   key={i}
                   size="sm"

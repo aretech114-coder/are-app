@@ -19,6 +19,8 @@ import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
 import { getMailAttachmentUrls } from "@/lib/labels";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { MailDetailFields } from "@/components/MailDetailFields";
+import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
+import { RecoverMailButton } from "@/components/RecoverMailButton";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -221,9 +223,18 @@ export default function InboxPage() {
           {selected.current_step >= 3 && selected.current_step <= 9 && (
             <Step4ContextPanel mailId={selected.id} />
           )}
+          <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
         </div>
         <div className="pt-3 border-t mt-2">
           <WorkflowActions mailId={selected.id} currentStep={selected.current_step || 1} onAdvanced={fetchMails} />
+          <div className="mt-2">
+            <RecoverMailButton
+              mailId={selected.id}
+              currentStep={selected.current_step || 1}
+              deadlineAt={selected.deadline_at}
+              onRecovered={fetchMails}
+            />
+          </div>
         </div>
         {renderAiDialog()}
         {renderDocDialog()}
@@ -355,6 +366,8 @@ export default function InboxPage() {
                   <Step4ContextPanel mailId={selected.id} />
                 )}
 
+                <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
+
                 {/* Workflow Timeline toggle */}
                 <div>
                   <Button
@@ -379,7 +392,13 @@ export default function InboxPage() {
                   currentStep={selected.current_step || 1}
                   onAdvanced={fetchMails}
                 />
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap items-center">
+                  <RecoverMailButton
+                    mailId={selected.id}
+                    currentStep={selected.current_step || 1}
+                    deadlineAt={selected.deadline_at}
+                    onRecovered={fetchMails}
+                  />
                   <Select
                     onValueChange={async (type) => {
                       if (!selected) return;

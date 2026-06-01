@@ -277,6 +277,87 @@ export type Database = {
           },
         ]
       }
+      mail_sub_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          mail_id: string
+          parent_assignment_id: string
+          parent_deadline_at: string | null
+          status: string
+          sub_assigned_by: string
+          sub_assigned_to: string
+          submission_notes: string | null
+          submitted_at: string | null
+          updated_at: string
+          validated_at: string | null
+          validation_notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mail_id: string
+          parent_assignment_id: string
+          parent_deadline_at?: string | null
+          status?: string
+          sub_assigned_by: string
+          sub_assigned_to: string
+          submission_notes?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validation_notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mail_id?: string
+          parent_assignment_id?: string
+          parent_deadline_at?: string | null
+          status?: string
+          sub_assigned_by?: string
+          sub_assigned_to?: string
+          submission_notes?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validation_notes?: string | null
+        }
+        Relationships: []
+      }
+      mail_types: {
+        Row: {
+          code: string
+          created_at: string
+          default_workflow_step: number | null
+          direction: string
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          default_workflow_step?: number | null
+          direction?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          default_workflow_step?: number | null
+          direction?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mails: {
         Row: {
           addressed_to: string | null
@@ -290,13 +371,17 @@ export type Database = {
           deadline_at: string | null
           deposit_time: string | null
           description: string | null
+          direction: string
           document_summary: string | null
           id: string
           is_read: boolean | null
+          locked_for_edit: boolean
           mail_type: string | null
           mail_type_other: string | null
           ministre_absent: boolean
+          parent_mail_id: string | null
           priority: Database["public"]["Enums"]["mail_priority"]
+          province_code: string | null
           qr_code_data: string
           reception_date: string | null
           reference_number: string
@@ -310,6 +395,7 @@ export type Database = {
           sender_phone: string | null
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
+          target_service_id: string | null
           tenant_id: string | null
           updated_at: string | null
           workflow_completed_at: string | null
@@ -327,13 +413,17 @@ export type Database = {
           deadline_at?: string | null
           deposit_time?: string | null
           description?: string | null
+          direction?: string
           document_summary?: string | null
           id?: string
           is_read?: boolean | null
+          locked_for_edit?: boolean
           mail_type?: string | null
           mail_type_other?: string | null
           ministre_absent?: boolean
+          parent_mail_id?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
+          province_code?: string | null
           qr_code_data: string
           reception_date?: string | null
           reference_number: string
@@ -347,6 +437,7 @@ export type Database = {
           sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
+          target_service_id?: string | null
           tenant_id?: string | null
           updated_at?: string | null
           workflow_completed_at?: string | null
@@ -364,13 +455,17 @@ export type Database = {
           deadline_at?: string | null
           deposit_time?: string | null
           description?: string | null
+          direction?: string
           document_summary?: string | null
           id?: string
           is_read?: boolean | null
+          locked_for_edit?: boolean
           mail_type?: string | null
           mail_type_other?: string | null
           ministre_absent?: boolean
+          parent_mail_id?: string | null
           priority?: Database["public"]["Enums"]["mail_priority"]
+          province_code?: string | null
           qr_code_data?: string
           reception_date?: string | null
           reference_number?: string
@@ -384,12 +479,21 @@ export type Database = {
           sender_phone?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
+          target_service_id?: string | null
           tenant_id?: string | null
           updated_at?: string | null
           workflow_completed_at?: string | null
           workflow_started_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mails_target_service_fk"
+            columns: ["target_service_id"]
+            isOneToOne: false
+            referencedRelation: "services_concernes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       missions: {
         Row: {
@@ -505,9 +609,13 @@ export type Database = {
           email: string
           first_login: boolean | null
           full_name: string
+          habilitation_speciale: boolean
           id: string
+          is_available: boolean
           password_changed_at: string | null
+          province_code: string | null
           tenant_id: string | null
+          unavailable_until: string | null
           updated_at: string | null
         }
         Insert: {
@@ -516,9 +624,13 @@ export type Database = {
           email: string
           first_login?: boolean | null
           full_name?: string
+          habilitation_speciale?: boolean
           id: string
+          is_available?: boolean
           password_changed_at?: string | null
+          province_code?: string | null
           tenant_id?: string | null
+          unavailable_until?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -527,9 +639,13 @@ export type Database = {
           email?: string
           first_login?: boolean | null
           full_name?: string
+          habilitation_speciale?: boolean
           id?: string
+          is_available?: boolean
           password_changed_at?: string | null
+          province_code?: string | null
           tenant_id?: string | null
+          unavailable_until?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -538,6 +654,44 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services_concernes: {
+        Row: {
+          code: string
+          created_at: string
+          default_handler_user_id: string | null
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          default_handler_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          default_handler_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_concernes_default_handler_user_id_fkey"
+            columns: ["default_handler_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -661,6 +815,47 @@ export type Database = {
           },
         ]
       }
+      workflow_step_fallbacks: {
+        Row: {
+          condition_key: string
+          created_at: string
+          created_by: string | null
+          fallback_user_ids: string[]
+          id: string
+          is_active: boolean
+          step_id: string
+          updated_at: string
+        }
+        Insert: {
+          condition_key: string
+          created_at?: string
+          created_by?: string | null
+          fallback_user_ids?: string[]
+          id?: string
+          is_active?: boolean
+          step_id: string
+          updated_at?: string
+        }
+        Update: {
+          condition_key?: string
+          created_at?: string
+          created_by?: string | null
+          fallback_user_ids?: string[]
+          id?: string
+          is_active?: boolean
+          step_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_step_fallbacks_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_step_responsibles: {
         Row: {
           assignment_mode: string
@@ -721,7 +916,10 @@ export type Database = {
       workflow_steps: {
         Row: {
           action_labels: Json | null
+          allow_reply_creation: boolean
+          allow_sub_assignment: boolean
           assignment_mode: string | null
+          assignment_target: string
           color_class: string | null
           conditions: Json | null
           created_at: string | null
@@ -730,12 +928,17 @@ export type Database = {
           is_active: boolean
           name: string
           responsible_role: string | null
+          responsible_roles: string[]
+          responsible_user_ids: string[]
           step_order: number
           updated_at: string | null
         }
         Insert: {
           action_labels?: Json | null
+          allow_reply_creation?: boolean
+          allow_sub_assignment?: boolean
           assignment_mode?: string | null
+          assignment_target?: string
           color_class?: string | null
           conditions?: Json | null
           created_at?: string | null
@@ -744,12 +947,17 @@ export type Database = {
           is_active?: boolean
           name: string
           responsible_role?: string | null
+          responsible_roles?: string[]
+          responsible_user_ids?: string[]
           step_order: number
           updated_at?: string | null
         }
         Update: {
           action_labels?: Json | null
+          allow_reply_creation?: boolean
+          allow_sub_assignment?: boolean
           assignment_mode?: string | null
+          assignment_target?: string
           color_class?: string | null
           conditions?: Json | null
           created_at?: string | null
@@ -758,6 +966,8 @@ export type Database = {
           is_active?: boolean
           name?: string
           responsible_role?: string | null
+          responsible_roles?: string[]
+          responsible_user_ids?: string[]
           step_order?: number
           updated_at?: string | null
         }
@@ -845,7 +1055,9 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_province: { Args: { _uid: string }; Returns: string }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
+      has_habilitation_speciale: { Args: { _uid: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -861,9 +1073,17 @@ export type Database = {
         Args: { _email: string }
         Returns: undefined
       }
+      resolve_fallback_user: {
+        Args: { _condition_key: string; _step_id: string }
+        Returns: string
+      }
       resolve_step_assignee: {
         Args: { _mail_id?: string; _step_number: number }
         Returns: string
+      }
+      revert_mail_to_dispatcher: {
+        Args: { _mail_id: string; _notes?: string; _performed_by: string }
+        Returns: Json
       }
     }
     Enums: {
@@ -887,6 +1107,10 @@ export type Database = {
         | "chef_departement"
         | "secretaire_direction"
         | "collaborateur"
+        | "dg"
+        | "dga"
+        | "daf"
+        | "dt"
       mail_priority: "low" | "normal" | "high" | "urgent"
       mail_status: "pending" | "in_progress" | "processed" | "archived"
       mail_type:
@@ -1048,6 +1272,10 @@ export const Constants = {
         "chef_departement",
         "secretaire_direction",
         "collaborateur",
+        "dg",
+        "dga",
+        "daf",
+        "dt",
       ],
       mail_priority: ["low", "normal", "high", "urgent"],
       mail_status: ["pending", "in_progress", "processed", "archived"],

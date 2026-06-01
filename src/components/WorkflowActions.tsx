@@ -12,8 +12,11 @@ import { advanceWorkflow, getStepInfo } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin, Reply } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -43,6 +46,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
   const [isLastPendingAssignee, setIsLastPendingAssignee] = useState(false);
+  const [hasActiveAssignment, setHasActiveAssignment] = useState(false);
 
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
@@ -67,23 +71,69 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [arLoading, setArLoading] = useState(false);
   const [mailData, setMailData] = useState<any>(null);
 
+  // Reply creation (sortant) — bouton optionnel selon config étape
+  const [showReplySheet, setShowReplySheet] = useState(false);
+  const [replyParentMail, setReplyParentMail] = useState<any>(null);
+  const { data: activeSteps = [] } = useActiveWorkflowSteps();
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
+  const authLong = settings.authority_title_long || "Ministre";
+
   const stepInfo = getStepInfo(currentStep);
 
-  // Map roles to their allowed steps
-  // Reception is NOT a workflow step — only submission
-  const roleStepMap: Record<string, number[]> = {
-    secretariat: [8, 9],
-    ministre: [2, 6],
-    directeur: [2, 6],
-    dircab: [3, 5],
-    dircaba: [3],
-    conseiller_juridique: [4, 7],
-    conseiller: [4, 7],
-    admin: [2, 3, 4, 5, 6, 7, 8, 9],
-    superadmin: [2, 3, 4, 5, 6, 7, 8, 9],
-  };
+  const currentStepConfig = activeSteps.find((s) => s.step_order === currentStep);
 
-  const canAct = role ? (roleStepMap[role] || []).includes(currentStep) : false;
+  // Dynamic permission: workflow_steps is the source of truth.
+  // A user can act on the current step if ANY of:
+  //   - role is admin/superadmin
+  //   - their role is in responsible_roles[]
+  //   - their user_id is in responsible_user_ids[]
+  //   - they have an active mail_assignments row on this mail + step
+  const canAct = (() => {
+    if (!role || !user) return false;
+    if (role === "admin" || role === "superadmin") return true;
+    if (currentStepConfig?.responsible_roles?.includes(role)) return true;
+    if (currentStepConfig?.responsible_user_ids?.includes(user.id)) return true;
+    if (hasActiveAssignment) return true;
+    return false;
+  })();
+
+  // Detect any active assignment for the current user at the current step
+  useEffect(() => {
+    if (!user || !mailId || !currentStep) {
+      setHasActiveAssignment(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("mail_assignments")
+        .select("id")
+        .eq("mail_id", mailId)
+        .eq("step_number", currentStep)
+        .eq("assigned_to", user.id)
+        .in("status", ["pending", "proposed", "submitted"])
+        .limit(1);
+      if (!cancelled) setHasActiveAssignment(!!data && data.length > 0);
+    })();
+    return () => { cancelled = true; };
+  }, [user, mailId, currentStep]);
+
+  const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
+
+  // Charger le mail courant pour pré-remplir la réponse
+  useEffect(() => {
+    if (canCreateReply && !replyParentMail) {
+      supabase
+        .from("mails")
+        .select("id, reference_number, sender_name, sender_organization, subject")
+        .eq("id", mailId)
+        .single()
+        .then(({ data }) => {
+          if (data) setReplyParentMail(data);
+        });
+    }
+  }, [canCreateReply, mailId, replyParentMail]);
 
   // Minister annotation from step 2 (visible at step 3)
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
@@ -218,26 +268,56 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const getActions = () => {
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
 
-    if (currentStep === 2) {
-      actions.push({ key: "approve", label: "Annoter & Transmettre au DirCab", icon: ArrowRight, variant: "default" });
-    } else if (currentStep === 3) {
-      actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: UI_LABELS.returnToDg, icon: XCircle, variant: "destructive" });
-    } else if (currentStep === 4) {
-      const label = isLastPendingAssignee ? "Enregistrer & Valider le traitement" : "Enregistrer mon traitement";
-      actions.push({ key: "complete", label, icon: Send, variant: "default" });
-    } else if (currentStep === 5) {
-      actions.push({ key: "approve", label: UI_LABELS.approveToDgValidation, icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
-    } else if (currentStep === 6) {
-      actions.push({ key: "approve", label: "Valider & Finaliser", icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: "Rejeter (retour étape 4)", icon: XCircle, variant: "destructive" });
-    } else if (currentStep === 7) {
-      actions.push({ key: "acknowledge", label: "Consultation terminée", icon: CheckCircle, variant: "default" });
-    } else if (currentStep === 8) {
-      actions.push({ key: "complete", label: "Preuve de dépôt ajoutée", icon: Send, variant: "default" });
-    } else if (currentStep === 9) {
-      actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
+    // Data-driven: derive actions from workflow_steps.action_labels (jsonb).
+    // If the admin hasn't filled action_labels for this step, fall back to a
+    // sensible default based on step position (last step → archive, otherwise
+    // approve + reject with the previous step's name).
+    if (currentStepConfig) {
+      const labels = (currentStepConfig.action_labels || {}) as Record<string, string>;
+      const iconFor: Record<string, typeof CheckCircle> = {
+        approve: CheckCircle,
+        complete: Send,
+        acknowledge: CheckCircle,
+        reject: XCircle,
+        archive: Archive,
+      };
+      const variantFor: Record<string, "default" | "destructive" | "outline"> = {
+        reject: "destructive",
+        archive: "outline",
+      };
+      const configuredKeys = Object.keys(labels);
+      if (configuredKeys.length > 0) {
+        configuredKeys.forEach((key) => {
+          actions.push({
+            key,
+            label: labels[key] || key,
+            icon: iconFor[key] || ArrowRight,
+            variant: variantFor[key] || "default",
+          });
+        });
+      } else {
+        // No action_labels configured: emit sensible defaults.
+        const maxOrder = Math.max(...activeSteps.map((s) => s.step_order), 0);
+        const isFinal = currentStep === maxOrder;
+        if (isFinal) {
+          actions.push({ key: "archive", label: "Archiver définitivement", icon: Archive, variant: "outline" });
+        } else {
+          const prevStep = [...activeSteps].reverse().find((s) => s.step_order < currentStep);
+          const nextStep = activeSteps.find((s) => s.step_order > currentStep);
+          actions.push({
+            key: "approve",
+            label: nextStep ? `Approuver → ${nextStep.name}` : "Approuver & Transmettre",
+            icon: ArrowRight,
+            variant: "default",
+          });
+          actions.push({
+            key: "reject",
+            label: prevStep ? `Renvoyer à : ${prevStep.name}` : "Rejeter",
+            icon: XCircle,
+            variant: "destructive",
+          });
+        }
+      }
     }
 
     return actions;
@@ -555,6 +635,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   return (
     <>
       <div className="flex flex-wrap gap-2">
+        {canCreateReply && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-primary/40 text-primary hover:bg-primary/10 w-full sm:w-auto"
+            onClick={() => setShowReplySheet(true)}
+          >
+            <Reply className="h-4 w-4 mr-1" />
+            Créer une réponse
+          </Button>
+        )}
         {actions.map((a) => (
           <Button
             key={a.key}
@@ -1004,6 +1095,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canCreateReply && (
+        <MailRegistrationSheet
+          open={showReplySheet}
+          onOpenChange={setShowReplySheet}
+          direction="sortant"
+          parentMail={replyParentMail}
+          onCreated={() => {
+            setShowReplySheet(false);
+            onAdvanced();
+          }}
+        />
+      )}
     </>
   );
 }

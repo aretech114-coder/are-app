@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainNav = [
-  { title: "Enregistrement", url: "/mail-entry", icon: Mail, roles: ["reception", "superadmin", "admin"] },
-  { title: "Registre", url: "/reception-dashboard", icon: ClipboardList, roles: ["reception"] },
+  { title: "Registre", url: "/registre", icon: ClipboardList, roles: ["reception", "superadmin", "admin"] },
   { title: "Boîte de réception", url: "/inbox", icon: Inbox, roles: ["__all__"] },
   { title: "Historique", url: "/history", icon: History, roles: ["__all__"] },
   { title: "Archives", url: "/archive", icon: Archive, roles: ["__all__"] },

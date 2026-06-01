@@ -160,6 +160,27 @@ Deno.serve(async (req) => {
         notificationsCreated++;
       }
 
+      // Notifier le dispatcher d'origine (qui a réalisé l'assignation à l'étape courante)
+      // afin qu'il puisse récupérer le courrier pour réassignation
+      const { data: firstAssignment } = await supabase
+        .from("mail_assignments")
+        .select("assigned_by")
+        .eq("mail_id", mail.id)
+        .eq("step_number", mail.current_step)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (firstAssignment?.assigned_by && firstAssignment.assigned_by !== mail.assigned_agent_id) {
+        await supabase.from("notifications").insert({
+          user_id: firstAssignment.assigned_by,
+          title: "⏱️ Récupération possible — SLA dépassé",
+          message: `Le courrier "${mail.subject}" (Réf: ${mail.reference_number}) a dépassé son délai. Vous pouvez le récupérer pour le réassigner.`,
+          mail_id: mail.id,
+        });
+        notificationsCreated++;
+      }
+
       for (const leaderId of leaderUserIds) {
         if (leaderId !== mail.assigned_agent_id) {
           await supabase.from("notifications").insert({

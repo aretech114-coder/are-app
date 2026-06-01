@@ -4,6 +4,7 @@ import { Users, MessageSquare, CalendarDays, Navigation } from "lucide-react";
 import { UI_LABELS } from "@/lib/labels";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface Step4ContextPanelProps {
   mailId: string;
@@ -25,6 +26,8 @@ interface Meeting {
 }
 
 export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
   const [dircabOrientation, setDircabOrientation] = useState("");
   const [dircabVerification, setDircabVerification] = useState("");

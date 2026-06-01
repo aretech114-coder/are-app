@@ -4,6 +4,7 @@ import { fr } from "date-fns/locale";
 import { AlertTriangle, Paperclip } from "lucide-react";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { UI_LABELS, getMailAttachmentUrls } from "@/lib/labels";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface MailDetailFieldsProps {
   mail: any;
@@ -60,6 +61,9 @@ function DetailItem({ label, value }: { label: string; value: string | null | un
 
 export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps) {
   const isOverdue = mail.deadline_at && new Date(mail.deadline_at) < new Date() && mail.status !== "archived";
+  const { settings } = useSiteSettings();
+  const authShort = settings.authority_title_short || "Ministre";
+  const authLong = settings.authority_title_long || "Ministre";
 
   return (
     <div className="space-y-3">
@@ -138,7 +142,7 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
       {/* Étape 6: Validation DG */}
       {(mail.current_step || 1) >= 6 && (
         <FieldCategory title={UI_LABELS.dgValidation} step={6} color="rose">
-          <p className="text-xs text-muted-foreground">Validation finale par le Directeur général.</p>
+          <p className="text-xs text-muted-foreground">Validation finale par le {authLong || UI_LABELS.dg}.</p>
         </FieldCategory>
       )}
 

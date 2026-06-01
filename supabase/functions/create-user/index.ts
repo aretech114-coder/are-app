@@ -84,8 +84,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (role === "superadmin") {
-      return new Response(JSON.stringify({ error: "Impossible de créer un compte superadmin" }), {
+    if (role === "superadmin" && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: "Seul un Super Admin peut créer un compte Super Admin" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

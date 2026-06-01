@@ -20,7 +20,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { ROLE_LABELS } from "@/lib/labels";
 
-const DEFAULT_ROLE_LABELS: Record<string, string> = { ...ROLE_LABELS };
+const RDC_PROVINCES: { code: string; label: string }[] = [
+  { code: "KN", label: "Kinshasa" },
+  { code: "KC", label: "Kongo-Central" },
+  { code: "KW", label: "Kwango" },
+  { code: "KL", label: "Kwilu" },
+  { code: "MN", label: "Mai-Ndombe" },
+  { code: "KS", label: "Kasaï" },
+  { code: "KE", label: "Kasaï-Central" },
+  { code: "KO", label: "Kasaï-Oriental" },
+  { code: "LO", label: "Lomami" },
+  { code: "SA", label: "Sankuru" },
+  { code: "MA", label: "Maniema" },
+  { code: "SK", label: "Sud-Kivu" },
+  { code: "NK", label: "Nord-Kivu" },
+  { code: "IT", label: "Ituri" },
+  { code: "HU", label: "Haut-Uele" },
+  { code: "TS", label: "Tshopo" },
+  { code: "BU", label: "Bas-Uele" },
+  { code: "MO", label: "Mongala" },
+  { code: "NU", label: "Nord-Ubangi" },
+  { code: "SU", label: "Sud-Ubangi" },
+  { code: "EQ", label: "Équateur" },
+  { code: "TU", label: "Tshuapa" },
+  { code: "TA", label: "Tanganyika" },
+  { code: "HL", label: "Haut-Lomami" },
+  { code: "LU", label: "Lualaba" },
+  { code: "HK", label: "Haut-Katanga" },
+];
+
+const DEFAULT_ROLE_LABELS: Record<string, string> = {
+  ...ROLE_LABELS,
+  dg: "Directeur Général",
+  dga: "Directeur Général Adjoint",
+  daf: "Directeur Administratif & Financier",
+  dt: "Directeur Technique",
+};
 
 const roleBadgeVariant = (role: string) => {
   switch (role) {
@@ -28,7 +63,11 @@ const roleBadgeVariant = (role: string) => {
     case "admin": return "default";
     case "ministre":
     case "directeur":
+    case "dg":
     case "dircab": return "secondary";
+    case "dga":
+    case "daf":
+    case "dt": return "secondary";
     default: return "outline";
   }
 };
@@ -90,6 +129,8 @@ export default function AdminPage() {
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editTenantId, setEditTenantId] = useState<string>("");
+  const [editProvinceCode, setEditProvinceCode] = useState<string>("");
+  const [editHabilitationSpeciale, setEditHabilitationSpeciale] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -312,6 +353,8 @@ export default function AdminPage() {
     setEditPassword("");
     setEditRole(userRole);
     setEditTenantId(u.tenant_id || "");
+    setEditProvinceCode(u.province_code || "");
+    setEditHabilitationSpeciale(!!u.habilitation_speciale);
     setEditOpen(true);
   };
 
@@ -349,6 +392,21 @@ export default function AdminPage() {
       const currentTenantId = editUser.tenant_id || null;
       if (newTenantId !== currentTenantId) {
         await supabase.from("profiles").update({ tenant_id: newTenantId } as any).eq("id", editUser.id);
+      }
+
+      // Persist province_code & habilitation_speciale on profile (admin/superadmin only)
+      const newProvince = editProvinceCode || null;
+      const currentProvince = editUser.province_code || null;
+      const newHabilitation = !!editHabilitationSpeciale;
+      const currentHabilitation = !!editUser.habilitation_speciale;
+      if (newProvince !== currentProvince || newHabilitation !== currentHabilitation) {
+        const { error: profErr } = await supabase
+          .from("profiles")
+          .update({ province_code: newProvince, habilitation_speciale: newHabilitation } as any)
+          .eq("id", editUser.id);
+        if (profErr) {
+          toast.error("Erreur enregistrement province/habilitation : " + profErr.message);
+        }
       }
 
       if (Object.keys(body).length === 1 && newTenantId === currentTenantId) {
@@ -596,7 +654,7 @@ export default function AdminPage() {
                   <Select value={role} onValueChange={setRole} disabled={creating}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {allRoles.filter(r => r.value !== "superadmin").map((r) => (
+                      {allRoles.filter(r => r.value !== "superadmin" || isSuperAdmin).map((r) => (
                         <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -895,7 +953,7 @@ export default function AdminPage() {
               <Select value={editRole} onValueChange={setEditRole} disabled={saving || !canEditUsers}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {allRoles.filter(r => r.value !== "superadmin").map((r) => (
+                  {allRoles.filter(r => r.value !== "superadmin" || isSuperAdmin).map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -915,6 +973,38 @@ export default function AdminPage() {
                 </Select>
               </div>
             )}
+            <div className="space-y-2">
+              <Label>Province (RDC)</Label>
+              <Select
+                value={editProvinceCode || "__none__"}
+                onValueChange={(v) => setEditProvinceCode(v === "__none__" ? "" : v)}
+                disabled={saving || !canEditUsers}
+              >
+                <SelectTrigger><SelectValue placeholder="Aucune province" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Aucune (national)</SelectItem>
+                  {RDC_PROVINCES.map((p) => (
+                    <SelectItem key={p.code} value={p.code}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Détermine la portée d'accès au registre. Laisser vide pour un utilisateur national.
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Habilitation spéciale</Label>
+                <p className="text-xs text-muted-foreground">
+                  Permet l'accès aux courriers de toutes les provinces.
+                </p>
+              </div>
+              <Switch
+                checked={editHabilitationSpeciale}
+                onCheckedChange={setEditHabilitationSpeciale}
+                disabled={saving || !canEditUsers}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>Annuler</Button>

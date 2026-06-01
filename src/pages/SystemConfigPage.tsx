@@ -61,7 +61,7 @@ const isValidHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
 export default function SystemConfigPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
-  const { settings, updateSetting } = useSiteSettings();
+  const { settings, updateSetting, refresh } = useSiteSettings();
 
   const [siteTitle, setSiteTitle] = useState("");
   const [siteSubtitle, setSiteSubtitle] = useState("");
@@ -70,8 +70,12 @@ export default function SystemConfigPage() {
   const [faviconUrl, setFaviconUrl] = useState("");
   const [sidebarLogoUrl, setSidebarLogoUrl] = useState("");
   const [pwaIconUrl, setPwaIconUrl] = useState("");
+  const [authorityShort, setAuthorityShort] = useState("");
+  const [authorityLong, setAuthorityLong] = useState("");
   const [loginBgColor, setLoginBgColor] = useState("#FFFFFF");
   const [loginBgImageUrl, setLoginBgImageUrl] = useState("");
+  const [loginLogoUrl, setLoginLogoUrl] = useState("");
+  const [uploadingLoginLogo, setUploadingLoginLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingPwaIcon, setUploadingPwaIcon] = useState(false);
@@ -99,6 +103,7 @@ export default function SystemConfigPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
   const loginBgInputRef = useRef<HTMLInputElement>(null);
+  const loginLogoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -108,8 +113,11 @@ export default function SystemConfigPage() {
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
     setPwaIconUrl((settings as any).pwa_icon_url || "");
+    setAuthorityShort((settings as any).authority_title_short || "Ministre");
+    setAuthorityLong((settings as any).authority_title_long || "Ministre");
     setLoginBgColor((settings as any).login_bg_color || "#FFFFFF");
     setLoginBgImageUrl((settings as any).login_bg_image_url || "");
+    setLoginLogoUrl((settings as any).login_logo_url || "");
     setColors({
       primary_color: settings.primary_color || COLOR_DEFAULTS.primary_color,
       secondary_color: settings.secondary_color || COLOR_DEFAULTS.secondary_color,
@@ -253,6 +261,7 @@ export default function SystemConfigPage() {
   const uploadFile = async (
     file: File,
     folder: string,
+    settingKey: string,
     setUploading: (v: boolean) => void,
     setUrl: (url: string) => void
   ) => {
@@ -269,6 +278,8 @@ export default function SystemConfigPage() {
         .from("branding")
         .getPublicUrl(filePath);
       setUrl(urlData.publicUrl);
+      await updateSetting(settingKey, urlData.publicUrl);
+      await refresh();
       toast.success("Image uploadée avec succès");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de l'upload");
@@ -289,6 +300,9 @@ export default function SystemConfigPage() {
         updateSetting("pwa_icon_url", pwaIconUrl),
         updateSetting("login_bg_color", loginBgColor),
         updateSetting("login_bg_image_url", loginBgImageUrl),
+        updateSetting("login_logo_url", loginLogoUrl),
+        updateSetting("authority_title_short", authorityShort),
+        updateSetting("authority_title_long", authorityLong),
       ]);
       toast.success("Paramètres de branding sauvegardés");
     } catch {
@@ -438,6 +452,24 @@ export default function SystemConfigPage() {
               onCheckedChange={toggleRememberMe}
             />
           </div>
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30 mt-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Afficher le titre sur la page de connexion</Label>
+              <p className="text-xs text-muted-foreground">
+                {settings.show_login_title !== "false"
+                  ? "Le titre et le sous-titre sont visibles dans le formulaire"
+                  : "Le titre et le sous-titre sont masqués dans le formulaire"}
+              </p>
+            </div>
+            <Switch
+              checked={settings.show_login_title !== "false"}
+              onCheckedChange={async () => {
+                const newValue = settings.show_login_title === "false" ? "true" : "false";
+                await updateSetting("show_login_title", newValue);
+                toast.success(newValue === "true" ? "Titre affiché" : "Titre masqué");
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -492,6 +524,37 @@ export default function SystemConfigPage() {
             <p className="text-xs text-muted-foreground">
               Affichée sous le titre dans le header mobile. Max 40 caractères.
             </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-dashed border-border bg-muted/20 p-3">
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="text-sm font-semibold">Titre de l'autorité supérieure</Label>
+              <p className="text-xs text-muted-foreground">
+                Définit l'appellation utilisée dans toute la plateforme (workflow, écrans, étiquettes) pour désigner l'autorité supérieure de l'institution. Par défaut : « Ministre ». Adaptez selon votre contexte : DG, Directeur Général, Secrétaire Général, etc.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="authority_short">Forme courte</Label>
+              <Input
+                id="authority_short"
+                value={authorityShort}
+                onChange={(e) => setAuthorityShort(e.target.value)}
+                placeholder="Ex : DG, Ministre, SG"
+                maxLength={20}
+              />
+              <p className="text-[11px] text-muted-foreground">Utilisée dans les boutons et étiquettes compactes.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="authority_long">Forme longue</Label>
+              <Input
+                id="authority_long"
+                value={authorityLong}
+                onChange={(e) => setAuthorityLong(e.target.value)}
+                placeholder="Ex : Directeur Général, Ministre"
+                maxLength={60}
+              />
+              <p className="text-[11px] text-muted-foreground">Utilisée dans les phrases descriptives.</p>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -550,7 +613,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "favicon", setUploadingFavicon, setFaviconUrl);
+                     if (file) uploadFile(file, "favicon", "favicon_url", setUploadingFavicon, setFaviconUrl);
                     e.target.value = "";
                   }}
                 />
@@ -602,7 +665,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "logo", setUploadingLogo, setSidebarLogoUrl);
+                     if (file) uploadFile(file, "logo", "sidebar_logo_url", setUploadingLogo, setSidebarLogoUrl);
                     e.target.value = "";
                   }}
                 />
@@ -657,7 +720,7 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "pwa-icon", setUploadingPwaIcon, setPwaIconUrl);
+                     if (file) uploadFile(file, "pwa-icon", "pwa_icon_url", setUploadingPwaIcon, setPwaIconUrl);
                     e.target.value = "";
                   }}
                 />
@@ -727,12 +790,54 @@ export default function SystemConfigPage() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadFile(file, "login-bg", setUploadingLoginBg, setLoginBgImageUrl);
+                     if (file) uploadFile(file, "login-bg", "login_bg_image_url", setUploadingLoginBg, setLoginBgImageUrl);
                     e.target.value = "";
                   }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">Prioritaire sur la couleur si définie</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Logo de la page de connexion</Label>
+              <div className="flex items-center gap-2">
+                {loginLogoUrl ? (
+                  <div className="relative">
+                    <img src={loginLogoUrl} alt="Logo connexion" className="w-10 h-10 rounded-lg object-contain border bg-background" />
+                    <button
+                      onClick={() => setLoginLogoUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingLoginLogo}
+                  onClick={() => loginLogoInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {uploadingLoginLogo ? "Upload..." : "Uploader"}
+                </Button>
+                <input
+                  ref={loginLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                     if (file) uploadFile(file, "login-logo", "login_logo_url", setUploadingLoginLogo, setLoginLogoUrl);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Affiché dans le formulaire de connexion. Si vide, le logo de la sidebar est utilisé.</p>
             </div>
           </div>
 
