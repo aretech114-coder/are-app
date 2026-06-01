@@ -16,7 +16,7 @@ import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { MailDetailFields } from "@/components/MailDetailFields";
 import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
-import { getStepLabel, getStepColor, WORKFLOW_STEPS } from "@/lib/workflow-engine";
+import { getStepLabel, getStepColor, WORKFLOW_STEPS, listMyMails } from "@/lib/workflow-engine";
 import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip } from "lucide-react";
 import { AttachmentIndicator } from "@/components/AttachmentViewer";
 import { getMailAttachmentUrls } from "@/lib/labels";
@@ -72,8 +72,8 @@ export default function SuiviPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [{ data: mailsData }, { data: profilesData }] = await Promise.all([
-      supabase.from("mails").select("*").order("created_at", { ascending: false }),
+    const [mailsData, { data: profilesData }] = await Promise.all([
+      listMyMails(["pending", "in_progress", "processed", "archived"]),
       supabase.from("profiles").select("id, full_name, email"),
     ]);
     setMails(mailsData || []);

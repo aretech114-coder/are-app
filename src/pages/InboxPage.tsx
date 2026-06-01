@@ -21,6 +21,9 @@ import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { MailDetailFields } from "@/components/MailDetailFields";
 import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
 import { RecoverMailButton } from "@/components/RecoverMailButton";
+import { listMyMails } from "@/lib/workflow-engine";
+import { MailContributionsPanel } from "@/components/MailContributionsPanel";
+import { useMailContributions } from "@/hooks/useMailContributions";
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -41,22 +44,23 @@ export default function InboxPage() {
 
   const fetchMails = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("mails")
-      .select("*")
-      .in("status", ["pending", "in_progress"])
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Erreur fetch mails:", error.message);
-      toast.error("Erreur chargement courriers: " + error.message);
+    let data: any[] = [];
+    try {
+      data = await listMyMails(["pending", "in_progress"]);
+      setMails(data || []);
+    } catch (error: any) {
+      console.error("Erreur fetch mails:", error?.message);
+      toast.error("Erreur chargement courriers: " + (error?.message || "inconnue"));
+      setMails([]);
     }
-    setMails(data || []);
     setLoading(false);
     if (selected) {
-      const updated = data?.find(m => m.id === selected.id);
+      const updated = data.find((m) => m.id === selected.id);
       setSelected(updated || null);
     }
   };
+
+  const { contributions } = useMailContributions(selected?.id, 4);
 
   const markAsRead = async (mail: any) => {
     setSelected(mail);
@@ -224,6 +228,9 @@ export default function InboxPage() {
             <Step4ContextPanel mailId={selected.id} />
           )}
           <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
+          {(selected.current_step || 0) >= 4 && contributions.length > 0 && (
+            <MailContributionsPanel contributions={contributions} showDrafts />
+          )}
         </div>
         <div className="pt-3 border-t mt-2">
           <WorkflowActions mailId={selected.id} currentStep={selected.current_step || 1} onAdvanced={fetchMails} />

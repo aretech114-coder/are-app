@@ -68,6 +68,7 @@ export function getStepColor(stepNumber: number): string {
 export interface AdvanceOptions {
   skipAutoAssign?: boolean;
   assigneeIds?: string[];
+  viewerIds?: string[];
 }
 
 interface AdvanceResult {
@@ -99,6 +100,7 @@ export async function advanceWorkflow(
       _notes: notes || null,
       _skip_auto_assign: options?.skipAutoAssign || false,
       _assignee_ids: options?.assigneeIds || null,
+      _viewer_ids: options?.viewerIds || null,
     } as any
   );
 
@@ -124,6 +126,15 @@ export async function advanceWorkflow(
     assignedTo,
     ministreAbsent: result.ministre_absent,
   };
+}
+
+/** Mails visible to current user (RLS + can_access_mail). */
+export async function listMyMails(statuses?: string[]) {
+  const { data, error } = await supabase.rpc("list_my_mails", {
+    _statuses: statuses ?? ["pending", "in_progress"],
+  });
+  if (error) throw error;
+  return data || [];
 }
 
 /**
