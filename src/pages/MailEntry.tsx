@@ -2,7 +2,8 @@ import { useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
 import { useAuth } from "@/hooks/useAuth";
-import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
+import { resolveWorkflowStepAssignee, fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
+import { UI_LABELS, type MailAttachmentMeta } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,13 +38,6 @@ const MAIL_TYPES = [
   { value: "autre", label: "Autre" },
 ];
 
-const ADDRESSEES_FULL = [
-  { value: "MINISTRE", label: "Ministre" },
-  { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
-  { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
-  { value: "CONSEILLER JURIDIQUE", label: "Conseiller Juridique" },
-];
-
 export default function MailEntry() {
   const { user } = useAuth();
 
@@ -76,6 +70,12 @@ export default function MailEntry() {
     enabled: !!user,
   });
 
+  const { data: assignableUsers } = useQuery({
+    queryKey: ["mail-entry-assignable-users"],
+    queryFn: fetchWorkflowAssignableUsers,
+    enabled: !!user,
+  });
+
   const [form, setForm] = useState({
     reference_number: "",
     sender_name: "",
@@ -93,7 +93,6 @@ export default function MailEntry() {
     deposit_time: "",
     deposit_month: "",
     deposit_year: "",
-    addressed_to: "",
     comments: "",
   });
 
@@ -104,12 +103,8 @@ export default function MailEntry() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [senderSearch, setSenderSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [ministreAbsent, setMinistreAbsent] = useState(false);
-
-  // Filter addressees based on "Ministre Absent" toggle
-  const ADDRESSEES = ministreAbsent
-    ? ADDRESSEES_FULL.filter(a => a.value !== "MINISTRE")
-    : ADDRESSEES_FULL;
+  const [dgAbsent, setDgAbsent] = useState(false);
+  const [interimUserId, setInterimUserId] = useState("");
 
   const senderSuggestions = useMemo(() => {
     if (!senderSearch || senderSearch.length < 2 || !previousSenders) return [];
@@ -156,6 +151,12 @@ export default function MailEntry() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (dgAbsent && !interimUserId) {
+      toast.error("Veuillez sélectionner un intérimaire lorsque le DG est absent.");
+      return;
+    }
+
     setLoading(true);
 
     const ref = generateRef();
@@ -177,12 +178,13 @@ export default function MailEntry() {
     const qrCodeData = JSON.stringify({ ref, date: new Date().toISOString(), agent: user.id });
 
     try {
+      const attachmentUrls: MailAttachmentMeta[] = [];
       let attachmentUrl: string | null = null;
-      if (files.length > 0) {
-        const originalFile = files[0];
+
+      for (const originalFile of files) {
         const { file, originalSize, compressedSize, wasCompressed } = await compressFile(originalFile);
         if (wasCompressed) {
-          toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
+          toast.info(`${file.name} compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
         }
         const sanitizedName = file.name
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -192,7 +194,11 @@ export default function MailEntry() {
         const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, file);
         if (uploadErr) throw uploadErr;
         const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
-        attachmentUrl = urlData?.signedUrl || null;
+        const url = urlData?.signedUrl || "";
+        if (url) {
+          attachmentUrls.push({ name: file.name, path: filePath, url });
+          if (!attachmentUrl) attachmentUrl = url;
+        }
       }
 
       // Always start at step 2 (Routage Hiérarchique)
@@ -208,28 +214,11 @@ export default function MailEntry() {
       const deadline = new Date();
       deadline.setHours(deadline.getHours() + deadlineHours);
 
-      // Resolve target user for step 2 based on ministre absent toggle
-      const roleMap: Record<string, string> = {
-        "DIRECTEUR DE CABINET": "dircab",
-        "DIRECTEUR DE CABINET ADJOINT": "dircaba",
-        "CONSEILLER JURIDIQUE": "conseiller_juridique",
-      };
       let targetUserId: string | null = null;
 
-      if (ministreAbsent) {
-        // Ministre absent: find user matching addressed_to role
-        const targetRole = roleMap[form.addressed_to];
-        if (targetRole) {
-          const { data: roleData } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("role", targetRole as any)
-            .limit(1)
-            .single();
-          targetUserId = roleData?.user_id || null;
-        }
+      if (dgAbsent) {
+        targetUserId = interimUserId || null;
       } else {
-        // Normal flow: use configured user for step 2
         targetUserId = await resolveWorkflowStepAssignee(2, null);
       }
 
@@ -249,6 +238,7 @@ export default function MailEntry() {
         deadline_at: deadline.toISOString(),
         workflow_started_at: new Date().toISOString(),
         attachment_url: attachmentUrl,
+        attachment_urls: attachmentUrls,
         sender_phone: form.sender_phone || null,
         sender_email: form.sender_email || null,
         sender_address: form.sender_address || null,
@@ -256,10 +246,10 @@ export default function MailEntry() {
         sender_country: form.sender_country || null,
         reception_date: form.reception_date || null,
         deposit_time: form.deposit_time || null,
-        addressed_to: form.addressed_to || null,
+        addressed_to: null,
         comments: form.comments || null,
         assigned_agent_id: targetUserId,
-        ministre_absent: ministreAbsent,
+        ministre_absent: dgAbsent,
       } as any).select("id").single();
 
       if (error) throw error;
@@ -293,7 +283,7 @@ export default function MailEntry() {
           to_step: initialStep,
           action: "approve",
           performed_by: user.id,
-          notes: `Routé vers ${form.addressed_to || "étape 2"}${ministreAbsent ? " (Ministre absent)" : ""}`,
+          notes: dgAbsent ? UI_LABELS.routedInterim : UI_LABELS.routedToDg,
         });
 
         routed = true;
@@ -306,10 +296,12 @@ export default function MailEntry() {
         reference_number: "", sender_name: "", sender_organization: "", subject: "", reception_date: "",
         mail_type: "", mail_type_other: "", priority: "normal", sender_phone: "", sender_email: "",
         sender_address: "", sender_city: "", sender_country: "République démocratique du Congo",
-        deposit_time: "", deposit_month: "", deposit_year: "", addressed_to: "", comments: "",
+        deposit_time: "", deposit_month: "", deposit_year: "", comments: "",
       });
       setSenderSearch("");
       setFiles([]);
+      setDgAbsent(false);
+      setInterimUserId("");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -424,38 +416,36 @@ export default function MailEntry() {
               </Field>
             )}
 
-            {/* Ministre Absent toggle */}
+            {/* DG absent toggle */}
             <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
               <div>
-                <Label className="text-sm font-semibold">Ministre Absent</Label>
-                <p className="text-xs text-muted-foreground">Activer pour router directement vers le DirCab ou autre</p>
+                <Label className="text-sm font-semibold">{UI_LABELS.dgAbsent}</Label>
+                <p className="text-xs text-muted-foreground">{UI_LABELS.dgAbsentHint}</p>
               </div>
               <Switch
-                checked={ministreAbsent}
+                checked={dgAbsent}
                 onCheckedChange={(checked) => {
-                  setMinistreAbsent(checked);
-                  // Reset addressed_to if Ministre was selected
-                  if (checked && form.addressed_to === "MINISTRE") {
-                    update("addressed_to", "");
-                  }
+                  setDgAbsent(checked);
+                  if (!checked) setInterimUserId("");
                 }}
               />
             </div>
 
-            {/* À qui s'adresse ce courrier */}
-            <Field label="À qui s'adresse ce courrier ?" required hint="Destinataire hiérarchique">
-              <Select value={form.addressed_to} onValueChange={(v) => update("addressed_to", v)}>
-                <SelectTrigger><SelectValue placeholder="Sélectionnez le destinataire" /></SelectTrigger>
-                <SelectContent>
-                  {ADDRESSEES.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+            {dgAbsent && (
+              <Field label="Intérimaire" required hint="Personne habilitée à traiter le courrier en l'absence du DG">
+                <Select value={interimUserId} onValueChange={setInterimUserId}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionnez l'intérimaire" /></SelectTrigger>
+                  <SelectContent>
+                    {(assignableUsers || []).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
 
-            {/* Pièce jointe */}
-            <Field label="Pièce Jointe" hint="Joindre la version scannée du courrier et/ou tout autre document.">
+            {/* Pièces jointes */}
+            <Field label="Pièces jointes" hint="Joindre les versions scannées du courrier et/ou tout autre document.">
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}

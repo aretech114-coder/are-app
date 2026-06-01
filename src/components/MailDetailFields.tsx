@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AlertTriangle, Paperclip } from "lucide-react";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { UI_LABELS, getMailAttachmentUrls } from "@/lib/labels";
 
 interface MailDetailFieldsProps {
   mail: any;
@@ -88,10 +89,9 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
 
       {/* Étape 2: Routage Hiérarchique */}
       {(mail.current_step || 1) >= 2 && (
-        <FieldCategory title="Routage Hiérarchique" step={2} color="purple">
+        <FieldCategory title="Traitement DG" step={2} color="purple">
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <DetailItem label="Destinataire" value={mail.addressed_to || "—"} />
-            <DetailItem label="Ministre absent" value={mail.ministre_absent ? "Oui" : "Non"} />
+            <DetailItem label={UI_LABELS.dgAbsent} value={mail.ministre_absent ? "Oui" : "Non"} />
             <div>
               <p className="text-[11px] text-muted-foreground">Statut</p>
               <Badge variant="outline" className="text-[10px] mt-0.5">
@@ -99,7 +99,7 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
               </Badge>
             </div>
             {getProfileName && mail.assigned_agent_id && (
-              <DetailItem label="Assigné à" value={getProfileName(mail.assigned_agent_id)} />
+              <DetailItem label={UI_LABELS.treatedBy} value={getProfileName(mail.assigned_agent_id)} />
             )}
           </div>
           {mail.comments && (
@@ -131,14 +131,14 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
       {/* Étape 5: Vérification */}
       {(mail.current_step || 1) >= 5 && (
         <FieldCategory title="Vérification DirCab" step={5} color="cyan">
-          <p className="text-xs text-muted-foreground">Vérification par le DirCab avant validation ministérielle.</p>
+          <p className="text-xs text-muted-foreground">Vérification par le DirCab avant validation DG.</p>
         </FieldCategory>
       )}
 
-      {/* Étape 6: Validation Ministre */}
+      {/* Étape 6: Validation DG */}
       {(mail.current_step || 1) >= 6 && (
-        <FieldCategory title="Validation Ministre" step={6} color="rose">
-          <p className="text-xs text-muted-foreground">Validation finale par le Ministre.</p>
+        <FieldCategory title={UI_LABELS.dgValidation} step={6} color="rose">
+          <p className="text-xs text-muted-foreground">Validation finale par le Directeur général.</p>
         </FieldCategory>
       )}
 
@@ -154,13 +154,13 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
       )}
 
       {/* Pièces jointes */}
-      {mail.attachment_url && (
+      {getMailAttachmentUrls(mail).length > 0 && (
         <div className="p-3 rounded-lg border border-border bg-muted/20">
           <div className="flex items-center gap-2 mb-2">
             <Paperclip className="h-4 w-4 text-muted-foreground" />
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pièces jointes</h4>
           </div>
-          <AttachmentViewer url={mail.attachment_url} />
+          <AttachmentViewer mail={mail} />
         </div>
       )}
 

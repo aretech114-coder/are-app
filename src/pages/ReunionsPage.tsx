@@ -100,7 +100,7 @@ export default function ReunionsPage() {
   const upcoming = filtered.filter(e => new Date(e.event_date) >= new Date(today.toISOString().split("T")[0]));
   const past = filtered.filter(e => new Date(e.event_date) < new Date(today.toISOString().split("T")[0]));
 
-  const isLeader = role === "ministre" || role === "dircab" || role === "superadmin" || role === "admin";
+  const isLeader = role === "ministre" || role === "directeur" || role === "dircab" || role === "superadmin" || role === "admin";
 
   return (
     <div className="animate-fade-in space-y-6">

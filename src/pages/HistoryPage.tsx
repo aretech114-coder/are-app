@@ -15,6 +15,7 @@ import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
 import { MailDetailFields } from "@/components/MailDetailFields";
 import { Search, Eye, CheckCircle, Clock, Paperclip } from "lucide-react";
 import { AttachmentIndicator, AttachmentViewer } from "@/components/AttachmentViewer";
+import { getMailAttachmentUrls } from "@/lib/labels";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -124,7 +125,7 @@ export default function HistoryPage() {
           latestStep: raw.step_number,
           latestStatus: raw.status,
           latestDate: raw.created_at,
-          hasAttachment: !!mail.attachment_url,
+          hasAttachment: !!(mail.attachment_url || (Array.isArray(mail.attachment_urls) && mail.attachment_urls.length > 0)),
         });
       }
     }

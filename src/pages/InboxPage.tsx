@@ -16,6 +16,8 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { Step4ContextPanel } from "@/components/Step4ContextPanel";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { getStepColor, getStepLabel } from "@/lib/workflow-engine";
+import { getMailAttachmentUrls } from "@/lib/labels";
+import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { MailDetailFields } from "@/components/MailDetailFields";
 
 export default function InboxPage() {
@@ -124,35 +126,41 @@ export default function InboxPage() {
     </Dialog>
   );
 
-  const renderDocDialog = () => (
+  const renderDocDialog = () => {
+    const docUrls = selected ? getMailAttachmentUrls(selected) : [];
+    const primaryUrl = docUrls[0] ?? null;
+
+    return (
     <Dialog open={showDoc} onOpenChange={setShowDoc}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Paperclip className="h-5 w-5" />
-            Pièce jointe
+            {docUrls.length > 1 ? `Pièces jointes (${docUrls.length})` : "Pièce jointe"}
           </DialogTitle>
         </DialogHeader>
         <div className="min-h-[300px] md:min-h-[500px] flex flex-col">
-          {selected?.attachment_url ? (
-            selected.attachment_url.match(/\.pdf/i) ? (
+          {primaryUrl ? (
+            docUrls.length > 1 ? (
+              <AttachmentViewer mail={selected} />
+            ) : primaryUrl.match(/\.pdf/i) ? (
               <div className="flex flex-col flex-1 gap-2">
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="outline" asChild>
-                    <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                    <a href={primaryUrl} target="_blank" rel="noopener noreferrer">
                       Ouvrir dans un nouvel onglet
                     </a>
                   </Button>
                 </div>
                 <iframe
-                  src={`https://docs.google.com/gview?url=${encodeURIComponent(selected.attachment_url)}&embedded=true`}
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(primaryUrl)}&embedded=true`}
                   className="w-full flex-1 min-h-[300px] md:min-h-[500px] rounded border"
                   title="Document PDF"
                 />
               </div>
-            ) : selected.attachment_url.match(/\.(jpe?g|png|gif|webp)/i) ? (
+            ) : primaryUrl.match(/\.(jpe?g|png|gif|webp)/i) ? (
               <img
-                src={selected.attachment_url}
+                src={primaryUrl}
                 alt="Pièce jointe"
                 className="max-w-full max-h-[400px] md:max-h-[500px] object-contain mx-auto rounded"
               />
@@ -161,7 +169,7 @@ export default function InboxPage() {
                 <FileText className="h-12 w-12" />
                 <p className="text-sm">Ce type de fichier ne peut pas être prévisualisé directement.</p>
                 <Button asChild variant="default">
-                  <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                  <a href={primaryUrl} target="_blank" rel="noopener noreferrer">
                     Télécharger le fichier
                   </a>
                 </Button>
@@ -173,7 +181,8 @@ export default function InboxPage() {
         </div>
       </DialogContent>
     </Dialog>
-  );
+    );
+  };
 
   if (isMobile && selected) {
     return (
@@ -201,7 +210,7 @@ export default function InboxPage() {
             </div>
           </div>
           <MailDetailFields mail={selected} />
-          {selected.attachment_url && (
+          {getMailAttachmentUrls(selected).length > 0 && (
             <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/20">
               <Paperclip className="h-4 w-4 text-primary shrink-0" />
               <span className="text-sm truncate flex-1">Pièce jointe</span>
@@ -328,7 +337,7 @@ export default function InboxPage() {
                 <MailDetailFields mail={selected} />
 
                 {/* Attachment preview button */}
-                {selected.attachment_url && (
+                {getMailAttachmentUrls(selected).length > 0 && (
                   <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/20">
                     <Paperclip className="h-4 w-4 text-primary shrink-0" />
                     <span className="text-sm truncate flex-1">Pièce jointe disponible</span>
@@ -379,7 +388,7 @@ export default function InboxPage() {
                       setShowAiDialog(true);
                       try {
                         const { data, error } = await supabase.functions.invoke("ai-assistant", {
-                          body: { type, subject: selected.subject, description: selected.description, senderName: selected.sender_name, attachmentUrl: selected.attachment_url },
+                          body: { type, subject: selected.subject, description: selected.description, senderName: selected.sender_name, attachmentUrl: getMailAttachmentUrls(selected)[0] },
                         });
                         if (error) throw error;
                         setAiContent(data.content || "Aucune réponse.");
@@ -400,7 +409,7 @@ export default function InboxPage() {
                       <SelectItem value="resume"><Sparkles className="h-3 w-3 inline mr-1" />Résumé</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selected.attachment_url && (
+                  {getMailAttachmentUrls(selected).length > 0 && (
                     <Button size="sm" variant="outline" onClick={() => setShowDoc(true)}>
                       <Paperclip className="h-4 w-4 mr-2" />
                       Document

@@ -21,7 +21,7 @@ import { GripVertical, Plus, Trash2, Pencil, ArrowUp, ArrowDown, Power, Layers }
 import { cn } from "@/lib/utils";
 
 const ROLE_OPTIONS = [
-  "secretariat", "ministre", "dircab", "dircaba",
+  "secretariat", "ministre", "directeur", "dircab", "dircaba",
   "conseiller_juridique", "conseiller", "supervisor", "agent",
 ];
 

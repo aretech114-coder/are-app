@@ -29,7 +29,7 @@ export function AppSidebar() {
   const isSuperAdmin = role === "superadmin";
   const isAdmin = role === "admin";
   const isReception = role === "reception";
-  const isMinisterOrDircab = role === "ministre" || role === "dircab" || isSuperAdmin || isAdmin;
+  const isMinisterOrDircab = role === "ministre" || role === "directeur" || role === "dircab" || isSuperAdmin || isAdmin;
 
   const canAccessAdminUsers = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
   const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
@@ -82,7 +82,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Suivi for Ministre / DirCab */}
+        {/* Suivi for DG / DirCab */}
         {isMinisterOrDircab && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider px-2 mb-2 mt-4">

@@ -18,23 +18,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const DEFAULT_ROLE_LABELS: Record<string, string> = {
-  superadmin: "Super Admin",
-  admin: "Admin",
-  supervisor: "Superviseur",
-  agent: "Agent",
-  ministre: "Ministre",
-  dircab: "Directeur de Cabinet",
-  dircaba: "Dir. Cabinet Adjoint",
-  conseiller_juridique: "Conseiller Juridique",
-  secretariat: "Secrétariat",
-};
+import { ROLE_LABELS } from "@/lib/labels";
+
+const DEFAULT_ROLE_LABELS: Record<string, string> = { ...ROLE_LABELS };
 
 const roleBadgeVariant = (role: string) => {
   switch (role) {
     case "superadmin": return "destructive";
     case "admin": return "default";
     case "ministre":
+    case "directeur":
     case "dircab": return "secondary";
     default: return "outline";
   }

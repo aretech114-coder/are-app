@@ -283,6 +283,7 @@ export type Database = {
           ai_draft: string | null
           assigned_agent_id: string | null
           attachment_url: string | null
+          attachment_urls: Json | null
           comments: string | null
           created_at: string | null
           current_step: number | null
@@ -319,6 +320,7 @@ export type Database = {
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
+          attachment_urls?: Json | null
           comments?: string | null
           created_at?: string | null
           current_step?: number | null
@@ -355,6 +357,7 @@ export type Database = {
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
+          attachment_urls?: Json | null
           comments?: string | null
           created_at?: string | null
           current_step?: number | null

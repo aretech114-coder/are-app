@@ -24,7 +24,7 @@ export default function Dashboard() {
   const [overdueMails, setOverdueMails] = useState<any[]>([]);
   const [stepDistribution, setStepDistribution] = useState<{ name: string; value: number }[]>([]);
 
-  const showOverduePanel = role === "ministre" || role === "dircab" || role === "admin" || role === "superadmin";
+  const showOverduePanel = role === "ministre" || role === "directeur" || role === "dircab" || role === "admin" || role === "superadmin";
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -125,7 +125,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Overdue Panel - Ministre/DirCab only */}
+      {/* Overdue Panel - DG / DirCab only */}
       {showOverduePanel && overdueMails.length > 0 && (
         <div className="stat-card border-destructive/30">
           <div className="flex items-center gap-2 mb-4">

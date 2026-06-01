@@ -17,6 +17,7 @@ import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileTex
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { getRoleLabel, UI_LABELS } from "@/lib/labels";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -73,6 +74,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const roleStepMap: Record<string, number[]> = {
     secretariat: [8, 9],
     ministre: [2, 6],
+    directeur: [2, 6],
     dircab: [3, 5],
     dircaba: [3],
     conseiller_juridique: [4, 7],
@@ -220,12 +222,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       actions.push({ key: "approve", label: "Annoter & Transmettre au DirCab", icon: ArrowRight, variant: "default" });
     } else if (currentStep === 3) {
       actions.push({ key: "approve", label: "Confirmer & Affecter", icon: CheckCircle, variant: "default" });
-      actions.push({ key: "reject", label: "Renvoyer au Ministre", icon: XCircle, variant: "destructive" });
+      actions.push({ key: "reject", label: UI_LABELS.returnToDg, icon: XCircle, variant: "destructive" });
     } else if (currentStep === 4) {
       const label = isLastPendingAssignee ? "Enregistrer & Valider le traitement" : "Enregistrer mon traitement";
       actions.push({ key: "complete", label, icon: Send, variant: "default" });
     } else if (currentStep === 5) {
-      actions.push({ key: "approve", label: "Approuver → Validation Ministre", icon: CheckCircle, variant: "default" });
+      actions.push({ key: "approve", label: UI_LABELS.approveToDgValidation, icon: CheckCircle, variant: "default" });
       actions.push({ key: "reject", label: "Renvoyer au traitement (Étape 4)", icon: XCircle, variant: "destructive" });
     } else if (currentStep === 6) {
       actions.push({ key: "approve", label: "Valider & Finaliser", icon: CheckCircle, variant: "default" });
@@ -417,7 +419,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
       // Build advance options: pass assignee IDs for dynamic steps (step 3 → step 4)
       // Also handle step 5 reassignment (DirCab modifies step 4 assignees before approve/reject)
-      const assigneeIds = ((currentStep === 3 || currentStep === 5) && selectedAssignees.length > 0)
+      const assigneeIds = ([2, 3, 5].includes(currentStep) && selectedAssignees.length > 0)
         ? selectedAssignees
         : undefined;
 
@@ -445,28 +447,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       const result = await advanceWorkflow(mailId, currentStep, effectiveAction, user.id, noteParts || notes, { assigneeIds });
 
       if (result.success) {
-        // Step 2: Create "proposed" assignments for conseillers pre-selected by Ministre
-        if (selectedAssignees.length > 0 && currentStep === 2) {
-          for (const assigneeId of selectedAssignees) {
-            await supabase.from("mail_assignments").insert({
-              mail_id: mailId,
-              assigned_by: user.id,
-              assigned_to: assigneeId,
-              step_number: 4,
-              instructions: annotation || null,
-              status: "proposed",
-            });
-
-            await supabase.from("notifications").insert({
-              user_id: assigneeId,
-              title: "Pré-assignation par le Ministre",
-              message: `Le courrier vous a été pré-assigné pour traitement.${annotation ? ` Annotation: ${annotation}` : ""}`,
-              mail_id: mailId,
-            });
-          }
-        }
-
-        // Step 6 approve & step 7 skip are now handled atomically by the RPC
+        // Step 2 proposed assignments handled atomically by advance_workflow_step RPC
         // No more client-side direct updates to mails.current_step
 
         // Save calendar event if RDV was scheduled
@@ -552,7 +533,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     dircab: "Directeur de Cabinet",
     dircaba: "Dir. Cabinet Adjoint",
     agent: "Agent",
-    ministre: "Ministre",
+    ministre: getRoleLabel("ministre"),
+    directeur: getRoleLabel("directeur"),
     secretariat: "Secrétariat",
     admin: "Administrateur",
     supervisor: "Superviseur",
@@ -560,11 +542,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   };
 
   const dialogTitle: Record<number, string> = {
-    2: "Annotation du Ministre",
+    2: UI_LABELS.dgAnnotation,
     3: "Filtrage & Confirmation — DirCab",
     4: "Traitement du dossier — Conseiller",
     5: "Vérification — DirCab",
-    6: "Validation — Ministre",
+    6: UI_LABELS.dgValidation,
     7: "Consultation — Conseiller",
     8: "Retour & Preuve de Dépôt — Secrétariat",
     9: "Archivage Final",
@@ -798,7 +780,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             {/* Show Minister's annotation at Step 3 */}
             {currentStep === 3 && ministerAnnotation && (
               <div className="p-3 rounded-lg border bg-accent/30 space-y-1">
-                <p className="text-xs font-semibold text-primary">📝 Annotation du Ministre</p>
+                <p className="text-xs font-semibold text-primary">📝 {UI_LABELS.dgAnnotation}</p>
                 <p className="text-sm whitespace-pre-wrap">{ministerAnnotation}</p>
               </div>
             )}
@@ -808,14 +790,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
-                  {currentStep === 2 ? "Annotation / Instructions du Ministre" : currentStep === 6 ? "Commentaire de validation" : "Notes du DirCab"}
+                  {currentStep === 2 ? `Annotation / Instructions du ${UI_LABELS.dgShort}` : currentStep === 6 ? "Commentaire de validation" : "Notes du DirCab"}
                 </Label>
                 <Textarea
                   placeholder={
                     currentStep === 2
-                      ? "Instructions du Ministre pour le traitement de ce dossier..."
+                      ? UI_LABELS.dgInstructions
                       : currentStep === 6
-                        ? "Observations du Ministre sur la validation..."
+                        ? UI_LABELS.dgValidationComment
                         : "Observations du DirCab sur les assignations..."
                   }
                   value={annotation}
@@ -968,7 +950,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-2">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5" />
-                  {currentStep === 2 ? "Pré-assigner des personnes pour traitement" : currentStep === 5 ? "Modifier les assignés (étape traitement)" : "Confirmer / Modifier les assignations"}
+                  {currentStep === 2 ? UI_LABELS.assignForTreatment : currentStep === 5 ? "Modifier les assignés (étape traitement)" : "Confirmer / Modifier les assignations"}
                 </Label>
                 {assignableUsers.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Chargement des utilisateurs...</p>

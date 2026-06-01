@@ -24,7 +24,6 @@ export function MailEditDialog({ mail, open, onOpenChange, onSaved }: MailEditDi
     sender_organization: mail?.sender_organization || "",
     priority: mail?.priority || "normal",
     mail_type: mail?.mail_type || "",
-    addressed_to: mail?.addressed_to || "",
     description: mail?.description || "",
     comments: mail?.comments || "",
   });
@@ -38,7 +37,6 @@ export function MailEditDialog({ mail, open, onOpenChange, onSaved }: MailEditDi
       sender_organization: form.sender_organization || null,
       priority: form.priority as any,
       mail_type: form.mail_type || null,
-      addressed_to: form.addressed_to || null,
       description: form.description || null,
       comments: form.comments || null,
     }).eq("id", mail.id);
@@ -93,8 +91,8 @@ export function MailEditDialog({ mail, open, onOpenChange, onSaved }: MailEditDi
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Destinataire</Label>
-              <Input value={form.addressed_to} onChange={e => update("addressed_to", e.target.value)} />
+              <Label>Type</Label>
+              <Input value={form.mail_type} onChange={e => update("mail_type", e.target.value)} />
             </div>
           </div>
           <div className="space-y-2">
