@@ -34,8 +34,8 @@ export function RecoverMailButton({ mailId, currentStep, deadlineAt, onRecovered
       return;
     }
 
-    // DG / admin / superadmin : toujours autorisés
-    if (role && ["dg", "admin", "superadmin"].includes(role)) {
+    // DG / admin / superadmin / directeur : autorisés
+    if (role && ["dg", "directeur", "ministre", "autorite_1", "admin", "superadmin"].includes(role)) {
       setCanRecover(true);
       return;
     }

@@ -132,21 +132,21 @@ export async function advanceWorkflow(
 
 const DEFAULT_MAIL_STATUSES = ["pending", "in_progress"] as const;
 
-/** Mails visible to current user (RLS + can_access_mail). Falls back to direct query if RPC unavailable. */
+/** Mails visible to current user (RLS + can_access_mail). */
 export async function listMyMails(statuses?: string[]) {
   const statusList = statuses ?? [...DEFAULT_MAIL_STATUSES];
   const { data, error } = await supabase.rpc("list_my_mails", {
     _statuses: statusList,
   });
-  if (!error) return data || [];
-
-  const { data: rows, error: queryError } = await supabase
-    .from("mails")
-    .select("*")
-    .in("status", statusList)
-    .order("created_at", { ascending: false });
-  if (queryError) throw queryError;
-  return rows ?? [];
+  if (error) {
+    console.error("list_my_mails RPC failed:", error.message);
+    throw new Error(
+      error.message.includes("Could not find the function")
+        ? "Fonction list_my_mails absente — appliquez les migrations SQL workflow sur Supabase."
+        : `Impossible de charger vos courriers : ${error.message}`
+    );
+  }
+  return data || [];
 }
 
 export interface Step4TreatmentResult {

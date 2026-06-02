@@ -26,7 +26,7 @@ import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContributions";
 
 export default function InboxPage() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const isMobile = useIsMobile();
   const [mails, setMails] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
@@ -62,6 +62,10 @@ export default function InboxPage() {
 
   const { contributions } = useMailContributions(selected?.id, 4);
   const step4AssigneeCount = useStepAssigneeCount(selected?.id, 4);
+
+  const isDgRole =
+    role === "directeur" || role === "ministre" || role === "dg" || role === "autorite_1";
+  const showContributionsPanel = isDgRole && (selected?.current_step || 0) >= 2;
 
   const markAsRead = async (mail: any) => {
     setSelected(mail);
@@ -229,7 +233,7 @@ export default function InboxPage() {
             <Step4ContextPanel mailId={selected.id} />
           )}
           <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
-          {(selected.current_step || 0) === 4 && (
+          {showContributionsPanel && (
             <MailContributionsPanel
               contributions={contributions}
               assigneeCount={step4AssigneeCount}
@@ -379,6 +383,14 @@ export default function InboxPage() {
                 )}
 
                 <SubAssignmentPanel mailId={selected.id} currentStep={selected.current_step || 1} />
+
+                {showContributionsPanel && (
+                  <MailContributionsPanel
+                    contributions={contributions}
+                    assigneeCount={step4AssigneeCount}
+                    showDrafts
+                  />
+                )}
 
                 {/* Workflow Timeline toggle */}
                 <div>

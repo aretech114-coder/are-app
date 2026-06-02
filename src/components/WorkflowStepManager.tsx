@@ -363,7 +363,7 @@ function StepFormFields({
     <div className="space-y-5">
       <div className="space-y-2">
         <Label>Nom de l'étape</Label>
-        <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Validation DirCab" />
+        <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Vérification DGA" />
       </div>
       <div className="space-y-2">
         <Label>Description</Label>

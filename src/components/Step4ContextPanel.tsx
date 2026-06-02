@@ -27,7 +27,7 @@ interface Meeting {
 
 export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
   const { settings } = useSiteSettings();
-  const authShort = settings.authority_title_short || "Ministre";
+  const authShort = settings.authority_title_short || UI_LABELS.dgShort;
   const [ministerAnnotation, setMinisterAnnotation] = useState("");
   const [dircabOrientation, setDircabOrientation] = useState("");
   const [dircabVerification, setDircabVerification] = useState("");
@@ -146,7 +146,7 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
         <div className="flex gap-2.5 p-3 rounded-lg border bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
           <Navigation className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-orange-700 dark:text-orange-300">Vérification du DirCab (Étape 5)</p>
+            <p className="text-xs font-semibold text-orange-700 dark:text-orange-300">Vérification du DGA (Étape 5)</p>
             <p className="text-sm mt-0.5 whitespace-pre-wrap">{dircabVerification}</p>
           </div>
         </div>
@@ -168,7 +168,7 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
         <div className="flex gap-2.5 p-3 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <Navigation className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Orientations du DirCab</p>
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Orientations du DGA</p>
             <p className="text-sm mt-0.5 whitespace-pre-wrap">{dircabOrientation}</p>
           </div>
         </div>

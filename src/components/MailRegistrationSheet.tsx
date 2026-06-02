@@ -27,6 +27,7 @@ import { Loader2, Reply, Upload, X, Paperclip } from "lucide-react";
 import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
+import { UI_LABELS } from "@/lib/labels";
 import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 
@@ -127,19 +128,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [titulaireAbsent, setTitulaireAbsent] = useState(false);
 
-  // Options affichées uniquement quand l'autorité par défaut (DG) est absente
-  const ADDRESSEE_OPTIONS = [
-    { value: "DIRECTEUR DE CABINET", label: "Directeur de Cabinet" },
-    { value: "DIRECTEUR DE CABINET ADJOINT", label: "Directeur de Cabinet Adjoint" },
-    { value: "CONSEILLER JURIDIQUE", label: "Conseiller Juridique" },
-  ];
-  const ROLE_MAP: Record<string, string> = {
-    "DIRECTEUR DE CABINET": "dircab",
-    "DIRECTEUR DE CABINET ADJOINT": "dircaba",
-    "CONSEILLER JURIDIQUE": "conseiller_juridique",
-  };
-
-  // Pré-remplissage si réponse à un courrier parent
+  const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   useEffect(() => {
     if (open && parentMail) {
       setForm((f) => ({
@@ -151,8 +140,6 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       }));
     }
   }, [open, parentMail]);
-
-  const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleFiles = (incoming: FileList | null) => {
     if (!incoming) return;
@@ -192,8 +179,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       toast.error("Expéditeur/Destinataire et Objet sont obligatoires.");
       return;
     }
-    if (titulaireAbsent && !form.addressed_to && !form.assigned_to) {
-      toast.error("Précisez à qui adresser le courrier (rôle ou personne) — autorité absente.");
+    if (titulaireAbsent && !form.assigned_to) {
+      toast.error("Désignez l'intérimaire — autorité absente.");
       return;
     }
     setLoading(true);
@@ -235,27 +222,17 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
 
       // Résolution du destinataire pour l'étape 2
       let assignee: string | null = null;
+      let interimLabel = "";
       if (titulaireAbsent) {
-        // Override manuel : utilisateur précis prioritaire, sinon premier user du rôle adressé
-        if (form.assigned_to) {
-          assignee = form.assigned_to;
-        } else if (form.addressed_to && ROLE_MAP[form.addressed_to]) {
-          const { data: roleData } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("role", ROLE_MAP[form.addressed_to] as any)
-            .limit(1)
-            .maybeSingle();
-          assignee = roleData?.user_id || null;
-        }
+        assignee = form.assigned_to || null;
+        const interimUser = assignableUsers.find((u: { id: string }) => u.id === form.assigned_to);
+        interimLabel = interimUser?.full_name || interimUser?.email || "Intérimaire désigné";
       } else {
-        // Routage automatique vers le responsable configuré de l'étape 2
         assignee = await resolveWorkflowStepAssignee(targetStep, null);
       }
 
-      // Libellé "Adressé à" enregistré
       const addressedToLabel = titulaireAbsent
-        ? (form.addressed_to || "Intérim désigné")
+        ? interimLabel
         : (treatmentStep?.name || "Traitement DG");
 
       // Insert mail
@@ -313,6 +290,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           assigned_to: assignee,
           step_number: targetStep,
           status: "pending",
+          access_mode: titulaireAbsent ? "custodian" : "contributor",
           instructions: form.description || null,
         });
         await supabase.from("notifications").insert({
@@ -596,12 +574,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
                   <Label className="text-sm font-semibold">Adressé à</Label>
                   <p className="text-xs text-muted-foreground">
                     {titulaireAbsent
-                      ? "Titulaire absent — désignez l'autorité ou la personne qui prendra l'intérim."
+                      ? UI_LABELS.dgAbsentHint
                       : `Routage automatique vers : ${treatmentStep?.name || "Traitement DG"}.`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Label htmlFor="abs" className="text-xs">Titulaire absent</Label>
+                  <Label htmlFor="abs" className="text-xs">{UI_LABELS.dgAbsent}</Label>
                   <Switch
                     id="abs"
                     checked={titulaireAbsent}
@@ -617,35 +595,20 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               </div>
 
               {titulaireAbsent && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Adresser à (rôle)</Label>
-                    <Select value={form.addressed_to} onValueChange={(v) => update("addressed_to", v)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir un rôle" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ADDRESSEE_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Ou personne précise (optionnel)</Label>
-                    <Select value={form.assigned_to} onValueChange={(v) => update("assigned_to", v)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner un utilisateur" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {assignableUsers.map((u: any) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.full_name || u.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Intérimaire *</Label>
+                  <Select value={form.assigned_to} onValueChange={(v) => update("assigned_to", v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un utilisateur" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignableUsers.map((u: { id: string; full_name?: string | null; email?: string | null }) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>

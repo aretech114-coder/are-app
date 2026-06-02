@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { UI_LABELS } from "@/lib/labels";
 import { useMemo } from "react";
 
 export interface WorkflowFallback {
@@ -38,8 +39,8 @@ export const FALLBACK_CONDITIONS = [
  */
 export function useFallbackConditions() {
   const { settings } = useSiteSettings();
-  const authShort = settings.authority_title_short || "Ministre";
-  const authLong = settings.authority_title_long || "Ministre";
+  const authShort = settings.authority_title_short || UI_LABELS.dgShort;
+  const authLong = settings.authority_title_long || UI_LABELS.dg;
   return useMemo(
     () => [
       {

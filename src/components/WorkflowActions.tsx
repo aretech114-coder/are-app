@@ -55,6 +55,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
   const [isLastPendingAssignee, setIsLastPendingAssignee] = useState(false);
   const [hasActiveAssignment, setHasActiveAssignment] = useState(false);
+  const [hasCustodianAccess, setHasCustodianAccess] = useState(false);
+  const [isDefaultResponsible, setIsDefaultResponsible] = useState(false);
+  const [isInterimAssignee, setIsInterimAssignee] = useState(false);
 
   // Multi-assignment state
   const [assignableUsers, setAssignableUsers] = useState<UserProfile[]>([]);
@@ -90,8 +93,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [replyParentMail, setReplyParentMail] = useState<any>(null);
   const { data: activeSteps = [] } = useActiveWorkflowSteps();
   const { settings } = useSiteSettings();
-  const authShort = settings.authority_title_short || "Ministre";
-  const authLong = settings.authority_title_long || "Ministre";
+  const authShort = settings.authority_title_short || UI_LABELS.dgShort;
+  const authLong = settings.authority_title_long || UI_LABELS.dg;
 
   const stepInfo = getStepInfo(currentStep);
 
@@ -109,6 +112,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     if (currentStepConfig?.responsible_roles?.includes(role)) return true;
     if (currentStepConfig?.responsible_user_ids?.includes(user.id)) return true;
     if (hasActiveAssignment) return true;
+    if (hasCustodianAccess && currentStep >= 2 && currentStep <= 6) return true;
+    if (isDefaultResponsible) return true;
+    if (isInterimAssignee && currentStep >= 2 && currentStep <= 6) return true;
+    if (isDgRole && currentStep >= 2 && currentStep <= 6) return true;
     return false;
   })();
 
@@ -122,16 +129,70 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     (async () => {
       const { data } = await supabase
         .from("mail_assignments")
-        .select("id")
+        .select("id, access_mode")
         .eq("mail_id", mailId)
         .eq("step_number", currentStep)
         .eq("assigned_to", user.id)
-        .in("status", ["pending", "proposed", "submitted"])
-        .limit(1);
-      if (!cancelled) setHasActiveAssignment(!!data && data.length > 0);
+        .in("status", ["pending", "proposed", "submitted"]);
+      if (!cancelled) {
+        setHasActiveAssignment(!!data && data.some((a) => a.access_mode === "contributor"));
+      }
     })();
     return () => { cancelled = true; };
   }, [user, mailId, currentStep]);
+
+  // Custodian (intérim step 2) + intérimaire via assigned_agent_id
+  useEffect(() => {
+    if (!user || !mailId) {
+      setHasCustodianAccess(false);
+      setIsInterimAssignee(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [{ data: custodianRows }, { data: mailRow }] = await Promise.all([
+        supabase
+          .from("mail_assignments")
+          .select("id")
+          .eq("mail_id", mailId)
+          .eq("assigned_to", user.id)
+          .eq("access_mode", "custodian")
+          .limit(1),
+        supabase
+          .from("mails")
+          .select("ministre_absent, assigned_agent_id")
+          .eq("id", mailId)
+          .maybeSingle(),
+      ]);
+      if (!cancelled) {
+        setHasCustodianAccess(!!custodianRows && custodianRows.length > 0);
+        setIsInterimAssignee(
+          !!mailRow?.ministre_absent && mailRow.assigned_agent_id === user.id
+        );
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, mailId]);
+
+  // Default responsible for current step
+  useEffect(() => {
+    if (!user || !currentStep) {
+      setIsDefaultResponsible(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("workflow_step_responsibles")
+        .select("id")
+        .eq("step_number", currentStep)
+        .eq("is_active", true)
+        .eq("default_user_id", user.id)
+        .limit(1);
+      if (!cancelled) setIsDefaultResponsible(!!data && data.length > 0);
+    })();
+    return () => { cancelled = true; };
+  }, [user, currentStep]);
 
   const canCreateReply = !!currentStepConfig?.allow_reply_creation && canAct;
 
@@ -304,37 +365,65 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   // Determine available actions based on current step
   const getActions = () => {
+    const stepLabels = (currentStepConfig?.action_labels || {}) as Record<string, string>;
+    const iconFor: Record<string, typeof CheckCircle> = {
+      approve: CheckCircle,
+      complete: Send,
+      acknowledge: CheckCircle,
+      reject: XCircle,
+      archive: Archive,
+    };
+    const variantFor: Record<string, "default" | "destructive" | "outline"> = {
+      reject: "destructive",
+      archive: "outline",
+    };
+
+    // Step 4: contributors submit "complete"; DG can dg_advance
+    if (currentStep === 4) {
+      const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
+      if (hasActiveAssignment) {
+        actions.push({
+          key: "complete",
+          label: stepLabels.complete || "Soumettre mon traitement",
+          icon: Send,
+          variant: "default",
+        });
+      }
+      if (isDgRole) {
+        actions.push({
+          key: "dg_advance",
+          label: "Valider (DG) — passer à l'étape suivante",
+          icon: ArrowRight,
+          variant: "default",
+        });
+      }
+      if (actions.length > 0) return actions;
+    }
+
+    // Step 7: acknowledgement only for assigned conseillers
+    if (currentStep === 7 && hasActiveAssignment) {
+      return [{
+        key: "acknowledge",
+        label: stepLabels.acknowledge || "Confirmer la consultation",
+        icon: CheckCircle,
+        variant: "default",
+      }];
+    }
+
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
 
-    // Data-driven: derive actions from workflow_steps.action_labels (jsonb).
-    // If the admin hasn't filled action_labels for this step, fall back to a
-    // sensible default based on step position (last step → archive, otherwise
-    // approve + reject with the previous step's name).
     if (currentStepConfig) {
-      const labels = (currentStepConfig.action_labels || {}) as Record<string, string>;
-      const iconFor: Record<string, typeof CheckCircle> = {
-        approve: CheckCircle,
-        complete: Send,
-        acknowledge: CheckCircle,
-        reject: XCircle,
-        archive: Archive,
-      };
-      const variantFor: Record<string, "default" | "destructive" | "outline"> = {
-        reject: "destructive",
-        archive: "outline",
-      };
-      const configuredKeys = Object.keys(labels);
+      const configuredKeys = Object.keys(stepLabels);
       if (configuredKeys.length > 0) {
         configuredKeys.forEach((key) => {
           actions.push({
             key,
-            label: labels[key] || key,
+            label: stepLabels[key] || key,
             icon: iconFor[key] || ArrowRight,
             variant: variantFor[key] || "default",
           });
         });
       } else {
-        // No action_labels configured: emit sensible defaults.
         const maxOrder = Math.max(...activeSteps.map((s) => s.step_order), 0);
         const isFinal = currentStep === maxOrder;
         if (isFinal) {
@@ -356,15 +445,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           });
         }
       }
-    }
-
-    if (currentStep === 4 && isDgRole) {
-      actions.push({
-        key: "dg_advance",
-        label: "Valider (DG) — passer à l'étape suivante",
-        icon: ArrowRight,
-        variant: "default",
-      });
     }
 
     return actions;
@@ -528,7 +608,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       }
 
       // Build advance options: pass assignee IDs for dynamic steps (step 3 → step 4)
-      // Also handle step 5 reassignment (DirCab modifies step 4 assignees before approve/reject)
+      // Also handle step 5 reassignment (DGA modifies step 4 assignees before approve/reject)
       const assigneeIds = ([2, 3, 5].includes(currentStep) && selectedAssignees.length > 0)
         ? selectedAssignees
         : undefined;
@@ -624,12 +704,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const showTreatment = currentStep === 4;
 
   const roleLabels: Record<string, string> = {
-    conseiller_juridique: "Conseiller Juridique",
-    dircab: "Directeur de Cabinet",
-    dircaba: "Dir. Cabinet Adjoint",
+    conseiller_juridique: getRoleLabel("conseiller_juridique"),
+    dircab: getRoleLabel("dircab"),
+    dircaba: getRoleLabel("dircaba"),
     agent: "Agent",
     ministre: getRoleLabel("ministre"),
     directeur: getRoleLabel("directeur"),
+    dg: getRoleLabel("dg"),
     secretariat: "Secrétariat",
     admin: "Administrateur",
     supervisor: "Superviseur",
@@ -638,9 +719,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const dialogTitle: Record<number, string> = {
     2: UI_LABELS.dgAnnotation,
-    3: "Filtrage & Confirmation — DirCab",
+    3: "Filtrage & Confirmation — DGA",
     4: "Traitement du dossier — Conseiller",
-    5: "Vérification — DirCab",
+    5: "Vérification — DGA",
     6: UI_LABELS.dgValidation,
     7: "Consultation — Conseiller",
     8: "Retour & Preuve de Dépôt — Secrétariat",
@@ -916,7 +997,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
-                  {currentStep === 2 ? `Annotation / Instructions du ${UI_LABELS.dgShort}` : currentStep === 6 ? "Commentaire de validation" : "Notes du DirCab"}
+                  {currentStep === 2 ? `Annotation / Instructions du ${UI_LABELS.dgShort}` : currentStep === 6 ? "Commentaire de validation" : "Notes du DGA"}
                 </Label>
                 <Textarea
                   placeholder={
@@ -924,7 +1005,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                       ? UI_LABELS.dgInstructions
                       : currentStep === 6
                         ? UI_LABELS.dgValidationComment
-                        : "Observations du DirCab sur les assignations..."
+                        : "Observations du DGA sur les assignations..."
                   }
                   value={annotation}
                   onChange={(e) => setAnnotation(e.target.value)}

@@ -62,8 +62,8 @@ function DetailItem({ label, value }: { label: string; value: string | null | un
 export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps) {
   const isOverdue = mail.deadline_at && new Date(mail.deadline_at) < new Date() && mail.status !== "archived";
   const { settings } = useSiteSettings();
-  const authShort = settings.authority_title_short || "Ministre";
-  const authLong = settings.authority_title_long || "Ministre";
+  const authShort = settings.authority_title_short || UI_LABELS.dgShort;
+  const authLong = settings.authority_title_long || UI_LABELS.dg;
 
   return (
     <div className="space-y-3">
@@ -122,7 +122,7 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
       {/* Étape 3: Filtrage Stratégique */}
       {(mail.current_step || 1) >= 3 && !mail.ministre_absent && (
         <FieldCategory title="Filtrage Stratégique" step={3} color="amber">
-          <p className="text-xs text-muted-foreground">DirCab a validé/filtré les assignations pour le traitement.</p>
+          <p className="text-xs text-muted-foreground">Le DGA a validé/filtré les assignations pour le traitement.</p>
         </FieldCategory>
       )}
 
@@ -141,8 +141,8 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
 
       {/* Étape 5: Vérification */}
       {(mail.current_step || 1) >= 5 && (
-        <FieldCategory title="Vérification DirCab" step={5} color="cyan">
-          <p className="text-xs text-muted-foreground">Vérification par le DirCab avant validation DG.</p>
+        <FieldCategory title="Vérification (DGA)" step={5} color="cyan">
+          <p className="text-xs text-muted-foreground">Vérification par le DGA avant validation DG.</p>
         </FieldCategory>
       )}
 
