@@ -132,10 +132,10 @@ export async function advanceWorkflow(
 
 const DEFAULT_MAIL_STATUSES = ["pending", "in_progress"] as const;
 
-/** Mails visible to current user (RLS + can_access_mail). */
-export async function listMyMails(statuses?: string[]) {
+/** Mails visible to current user (RLS + can_access_mail). Pas de fallback direct — évite fuite de visibilité. */
+export async function listMyMails(statuses?: string[]): Promise<any[]> {
   const statusList = statuses ?? [...DEFAULT_MAIL_STATUSES];
-  const { data, error } = await supabase.rpc("list_my_mails", {
+  const { data, error } = await (supabase as any).rpc("list_my_mails", {
     _statuses: statusList,
   });
   if (error) {
@@ -146,7 +146,7 @@ export async function listMyMails(statuses?: string[]) {
         : `Impossible de charger vos courriers : ${error.message}`
     );
   }
-  return data || [];
+  return (data as any[]) || [];
 }
 
 export interface Step4TreatmentResult {
