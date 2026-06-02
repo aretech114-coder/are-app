@@ -43,8 +43,8 @@ const MAIL_TYPES = [
 export default function MailEntry() {
   const { user } = useAuth();
   const { settings } = useSiteSettings();
-  const authShort = settings.authority_title_short || "Ministre";
-  const authLong = settings.authority_title_long || "Ministre";
+  const authShort = settings.authority_title_short || UI_LABELS.dgShort;
+  const authLong = settings.authority_title_long || UI_LABELS.dg;
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -213,8 +213,11 @@ export default function MailEntry() {
 
       let targetUserId: string | null = null;
 
+      let interimLabel: string | null = null;
       if (dgAbsent) {
         targetUserId = interimUserId || null;
+        const interimUser = assignableUsers?.find((u) => u.id === interimUserId);
+        interimLabel = interimUser?.full_name || interimUser?.email || null;
       } else {
         targetUserId = await resolveWorkflowStepAssignee(2, null);
       }
@@ -243,7 +246,7 @@ export default function MailEntry() {
         sender_country: form.sender_country || null,
         reception_date: form.reception_date || null,
         deposit_time: form.deposit_time || null,
-        addressed_to: null,
+        addressed_to: interimLabel,
         comments: form.comments || null,
         assigned_agent_id: targetUserId,
         ministre_absent: dgAbsent,
@@ -262,6 +265,7 @@ export default function MailEntry() {
           step_number: initialStep,
           instructions: form.comments || null,
           status: "pending",
+          access_mode: dgAbsent ? "custodian" : "contributor",
         });
         if (assignErr) console.error("Erreur assignation:", assignErr.message);
 

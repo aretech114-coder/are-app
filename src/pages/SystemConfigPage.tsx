@@ -113,8 +113,8 @@ export default function SystemConfigPage() {
     setFaviconUrl(settings.favicon_url);
     setSidebarLogoUrl(settings.sidebar_logo_url);
     setPwaIconUrl((settings as any).pwa_icon_url || "");
-    setAuthorityShort((settings as any).authority_title_short || "Ministre");
-    setAuthorityLong((settings as any).authority_title_long || "Ministre");
+    setAuthorityShort((settings as any).authority_title_short || "DG");
+    setAuthorityLong((settings as any).authority_title_long || "Directeur général");
     setLoginBgColor((settings as any).login_bg_color || "#FFFFFF");
     setLoginBgImageUrl((settings as any).login_bg_image_url || "");
     setLoginLogoUrl((settings as any).login_logo_url || "");
@@ -530,7 +530,7 @@ export default function SystemConfigPage() {
             <div className="space-y-2 sm:col-span-2">
               <Label className="text-sm font-semibold">Titre de l'autorité supérieure</Label>
               <p className="text-xs text-muted-foreground">
-                Définit l'appellation utilisée dans toute la plateforme (workflow, écrans, étiquettes) pour désigner l'autorité supérieure de l'institution. Par défaut : « Ministre ». Adaptez selon votre contexte : DG, Directeur Général, Secrétaire Général, etc.
+                Définit l'appellation utilisée dans toute la plateforme (workflow, écrans, étiquettes) pour désigner l'autorité supérieure de l'institution. Par défaut : « DG / Directeur général ».
               </p>
             </div>
             <div className="space-y-2">
@@ -539,7 +539,7 @@ export default function SystemConfigPage() {
                 id="authority_short"
                 value={authorityShort}
                 onChange={(e) => setAuthorityShort(e.target.value)}
-                placeholder="Ex : DG, Ministre, SG"
+                placeholder="Ex : DG, SG"
                 maxLength={20}
               />
               <p className="text-[11px] text-muted-foreground">Utilisée dans les boutons et étiquettes compactes.</p>
@@ -550,7 +550,7 @@ export default function SystemConfigPage() {
                 id="authority_long"
                 value={authorityLong}
                 onChange={(e) => setAuthorityLong(e.target.value)}
-                placeholder="Ex : Directeur Général, Ministre"
+                placeholder="Ex : Directeur général"
                 maxLength={60}
               />
               <p className="text-[11px] text-muted-foreground">Utilisée dans les phrases descriptives.</p>

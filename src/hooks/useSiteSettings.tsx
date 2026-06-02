@@ -59,8 +59,8 @@ const defaults: SiteSettings = {
   login_bg_image_url: "",
   login_logo_url: "",
   show_login_title: "true",
-  authority_title_short: "Ministre",
-  authority_title_long: "Ministre",
+  authority_title_short: "DG",
+  authority_title_long: "Directeur général",
 };
 
 const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
@@ -177,12 +177,12 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
   authority_title_short: {
     label: "Titre de l'autorité (court)",
     setting_type: "text",
-    description: "Forme courte du titre de l'autorité supérieure (ex. DG, Ministre).",
+    description: "Forme courte du titre de l'autorité supérieure (ex. DG).",
   },
   authority_title_long: {
     label: "Titre de l'autorité (long)",
     setting_type: "text",
-    description: "Forme longue du titre de l'autorité supérieure (ex. Directeur Général, Ministre).",
+    description: "Forme longue du titre de l'autorité supérieure (ex. Directeur général).",
   },
 };
 

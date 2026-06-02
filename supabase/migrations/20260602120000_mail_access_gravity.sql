@@ -288,10 +288,12 @@ DROP POLICY IF EXISTS "Conseillers can update assigned mail via assignments" ON 
 DROP POLICY IF EXISTS "Reception can update own registered mail" ON public.mails;
 
 -- Keep insert/delete for admins + reception policies added elsewhere if needed
+DROP POLICY IF EXISTS "mails_select_by_access" ON public.mails;
 CREATE POLICY "mails_select_by_access"
   ON public.mails FOR SELECT TO authenticated
   USING (public.can_access_mail(id, 'read'));
 
+DROP POLICY IF EXISTS "mails_update_by_access" ON public.mails;
 CREATE POLICY "mails_update_by_access"
   ON public.mails FOR UPDATE TO authenticated
   USING (public.can_access_mail(id, 'write'))
@@ -310,10 +312,12 @@ DROP POLICY IF EXISTS "Users see own assignments" ON public.mail_assignments;
 DROP POLICY IF EXISTS "Admins see all assignments" ON public.mail_assignments;
 DROP POLICY IF EXISTS "Direction sees all assignments" ON public.mail_assignments;
 
+DROP POLICY IF EXISTS "mail_assignments_select_by_mail_access" ON public.mail_assignments;
 CREATE POLICY "mail_assignments_select_by_mail_access"
   ON public.mail_assignments FOR SELECT TO authenticated
   USING (public.can_access_mail(mail_id, 'read'));
 
+DROP POLICY IF EXISTS "mail_assignments_insert_authorized" ON public.mail_assignments;
 CREATE POLICY "mail_assignments_insert_authorized"
   ON public.mail_assignments FOR INSERT TO authenticated
   WITH CHECK (
@@ -321,6 +325,7 @@ CREATE POLICY "mail_assignments_insert_authorized"
     AND public.can_access_mail(mail_id, 'write')
   );
 
+DROP POLICY IF EXISTS "mail_assignments_update_own_or_admin" ON public.mail_assignments;
 CREATE POLICY "mail_assignments_update_own_or_admin"
   ON public.mail_assignments FOR UPDATE TO authenticated
   USING (
@@ -339,10 +344,12 @@ DROP POLICY IF EXISTS "Privileged roles read all transitions" ON public.workflow
 DROP POLICY IF EXISTS "Direction insert transitions" ON public.workflow_transitions;
 DROP POLICY IF EXISTS "Direction read all transitions" ON public.workflow_transitions;
 
+DROP POLICY IF EXISTS "workflow_transitions_select_by_mail_access" ON public.workflow_transitions;
 CREATE POLICY "workflow_transitions_select_by_mail_access"
   ON public.workflow_transitions FOR SELECT TO authenticated
   USING (public.can_access_mail(mail_id, 'read'));
 
+DROP POLICY IF EXISTS "workflow_transitions_insert_by_mail_write" ON public.workflow_transitions;
 CREATE POLICY "workflow_transitions_insert_by_mail_write"
   ON public.workflow_transitions FOR INSERT TO authenticated
   WITH CHECK (
