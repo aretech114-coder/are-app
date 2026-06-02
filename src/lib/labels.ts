@@ -58,7 +58,14 @@ export const WORKFLOW_STEP_LABELS: Record<number, { name: string; description: s
   9: { name: "Archivage Final", description: "Clôture définitive et transfert au dépôt central" },
 };
 
-export type MailAttachmentMeta = { name: string; path: string; url: string };
+export type MailStorageBucket = "mail-incoming" | "mail-documents";
+
+export type MailAttachmentMeta = {
+  name: string;
+  path: string;
+  url: string;
+  bucket?: MailStorageBucket;
+};
 
 /** Resolve attachment URLs from mail row (jsonb + legacy single url). */
 export function getMailAttachmentUrls(mail: {
