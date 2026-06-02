@@ -127,7 +127,7 @@ export function useStepAssigneeCount(mailId: string | undefined, stepNumber: num
     }
     let cancelled = false;
     (async () => {
-      const { count: n } = await supabase
+      const { count: n } = await (supabase as any)
         .from("mail_assignments")
         .select("id", { count: "exact", head: true })
         .eq("mail_id", mailId)
