@@ -36,7 +36,7 @@ function parseUrlsFromString(raw: string): string[] {
 
 function resolveUrls(props: AttachmentViewerProps): string[] {
   if (props.urls?.length) return props.urls;
-  if (props.mail) return getMailAttachmentUrls(props.mail);
+  if (props.mail) return getMailAttachmentUrls(props.mail as any);
   if (props.url) return parseUrlsFromString(props.url);
   return [];
 }

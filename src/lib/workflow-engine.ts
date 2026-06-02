@@ -131,20 +131,20 @@ export async function advanceWorkflow(
 const DEFAULT_MAIL_STATUSES = ["pending", "in_progress"] as const;
 
 /** Mails visible to current user (RLS + can_access_mail). Falls back to direct query if RPC unavailable. */
-export async function listMyMails(statuses?: string[]) {
+export async function listMyMails(statuses?: string[]): Promise<any[]> {
   const statusList = statuses ?? [...DEFAULT_MAIL_STATUSES];
-  const { data, error } = await supabase.rpc("list_my_mails", {
+  const { data, error } = await (supabase as any).rpc("list_my_mails", {
     _statuses: statusList,
   });
-  if (!error) return data || [];
+  if (!error) return (data as any[]) || [];
 
-  const { data: rows, error: queryError } = await supabase
+  const { data: rows, error: queryError } = await (supabase as any)
     .from("mails")
     .select("*")
-    .in("status", statusList)
+    .in("status", statusList as any)
     .order("created_at", { ascending: false });
   if (queryError) throw queryError;
-  return rows ?? [];
+  return (rows as any[]) ?? [];
 }
 
 export interface Step4TreatmentResult {
@@ -163,12 +163,12 @@ export async function submitStep4Treatment(
   attachmentUrls: { url: string; name?: string }[] = [],
   notes?: string
 ): Promise<Step4TreatmentResult> {
-  const { data, error } = await supabase.rpc("submit_step4_treatment", {
+  const { data, error } = await (supabase as any).rpc("submit_step4_treatment", {
     _mail_id: mailId,
     _body: body,
     _attachment_urls: attachmentUrls,
     _notes: notes ?? null,
-  } as any);
+  });
 
   if (error) {
     return { success: false, error: error.message };
@@ -202,10 +202,10 @@ export async function submitStep7Acknowledgement(
   mailId: string,
   notes?: string
 ): Promise<Step7AckResult> {
-  const { data, error } = await supabase.rpc("submit_step7_acknowledgement", {
+  const { data, error } = await (supabase as any).rpc("submit_step7_acknowledgement", {
     _mail_id: mailId,
     _notes: notes ?? null,
-  } as any);
+  });
 
   if (error) {
     return { success: false, error: error.message };
