@@ -277,12 +277,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           priority: form.priority as any,
           mail_type: form.mail_type || null,
           registered_by: user.id,
-          current_step: assignee ? targetStep : 1,
-          status: (assignee ? "in_progress" : "pending") as any,
+          current_step: 1,
+          status: "pending" as any,
           attachment_url: attachmentUrl,
           attachment_urls: attachmentUrls,
           ministre_absent: titulaireAbsent,
-          assigned_agent_id: assignee,
+          assigned_agent_id: null,
           reception_date: form.reception_date || null,
           addressed_to: addressedToLabel,
           direction,
@@ -331,6 +331,14 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             ? `Routage intérim : ${addressedToLabel} (titulaire absent)`
             : `Routage automatique vers ${addressedToLabel}`,
         });
+        await supabase
+          .from("mails")
+          .update({
+            current_step: targetStep,
+            status: "in_progress" as any,
+            assigned_agent_id: assignee,
+          })
+          .eq("id", inserted.id);
       }
 
       toast.success(
