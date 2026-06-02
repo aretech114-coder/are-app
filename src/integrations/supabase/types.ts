@@ -184,7 +184,6 @@ export type Database = {
       }
       mail_assignments: {
         Row: {
-          access_mode: string
           assigned_by: string
           assigned_to: string
           completed_at: string | null
@@ -199,7 +198,6 @@ export type Database = {
           tenant_id: string | null
         }
         Insert: {
-          access_mode?: string
           assigned_by: string
           assigned_to: string
           completed_at?: string | null
@@ -214,7 +212,6 @@ export type Database = {
           tenant_id?: string | null
         }
         Update: {
-          access_mode?: string
           assigned_by?: string
           assigned_to?: string
           completed_at?: string | null
@@ -241,53 +238,6 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      mail_contributions: {
-        Row: {
-          attachment_urls: Json
-          body: string | null
-          created_at: string
-          id: string
-          mail_id: string
-          processed_at: string | null
-          status: string
-          step_number: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          attachment_urls?: Json
-          body?: string | null
-          created_at?: string
-          id?: string
-          mail_id: string
-          processed_at?: string | null
-          status?: string
-          step_number?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          attachment_urls?: Json
-          body?: string | null
-          created_at?: string
-          id?: string
-          mail_id?: string
-          processed_at?: string | null
-          status?: string
-          step_number?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mail_contributions_mail_id_fkey"
-            columns: ["mail_id"]
-            isOneToOne: false
-            referencedRelation: "mails"
             referencedColumns: ["id"]
           },
         ]
@@ -414,7 +364,6 @@ export type Database = {
           ai_draft: string | null
           assigned_agent_id: string | null
           attachment_url: string | null
-          attachment_urls: Json | null
           comments: string | null
           created_at: string | null
           current_step: number | null
@@ -456,7 +405,6 @@ export type Database = {
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
-          attachment_urls?: Json | null
           comments?: string | null
           created_at?: string | null
           current_step?: number | null
@@ -498,7 +446,6 @@ export type Database = {
           ai_draft?: string | null
           assigned_agent_id?: string | null
           attachment_url?: string | null
-          attachment_urls?: Json | null
           comments?: string | null
           created_at?: string | null
           current_step?: number | null
@@ -1088,29 +1035,7 @@ export type Database = {
           _notes?: string
           _performed_by: string
           _skip_auto_assign?: boolean
-          _viewer_ids?: string[]
         }
-        Returns: Json
-      }
-      can_access_mail: {
-        Args: { _mail_id: string; _mode?: string }
-        Returns: boolean
-      }
-      list_my_mails: {
-        Args: { _statuses?: string[] }
-        Returns: Database["public"]["Tables"]["mails"]["Row"][]
-      }
-      submit_step4_treatment: {
-        Args: {
-          _attachment_urls?: Json
-          _body?: string | null
-          _mail_id: string
-          _notes?: string | null
-        }
-        Returns: Json
-      }
-      submit_step7_acknowledgement: {
-        Args: { _mail_id: string; _notes?: string | null }
         Returns: Json
       }
       can_transition_update_mail: {
