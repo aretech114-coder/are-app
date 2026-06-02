@@ -392,6 +392,7 @@ export type Database = {
           sender_name: string
           sender_organization: string | null
           sender_phone: string | null
+          sender_province: string | null
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
           target_service_id: string | null
@@ -433,6 +434,7 @@ export type Database = {
           sender_name: string
           sender_organization?: string | null
           sender_phone?: string | null
+          sender_province?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
           target_service_id?: string | null
@@ -474,6 +476,7 @@ export type Database = {
           sender_name?: string
           sender_organization?: string | null
           sender_phone?: string | null
+          sender_province?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
           target_service_id?: string | null

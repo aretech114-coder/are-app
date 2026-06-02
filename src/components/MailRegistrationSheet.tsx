@@ -27,6 +27,7 @@ import { Loader2, Reply, Upload, X, Paperclip } from "lucide-react";
 import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
+import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 
 type Props = {
@@ -107,6 +108,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     reference_number: "",
     sender_name: "",
     sender_organization: "",
+    sender_phone: "",
+    sender_email: "",
+    sender_address: "",
+    sender_city: "",
+    sender_province: "",
+    sender_country: "République démocratique du Congo",
     subject: "",
     description: "",
     reception_date: new Date().toISOString().slice(0, 10),
@@ -159,6 +166,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       reference_number: "",
       sender_name: "",
       sender_organization: "",
+      sender_phone: "",
+      sender_email: "",
+      sender_address: "",
+      sender_city: "",
+      sender_province: "",
+      sender_country: "République démocratique du Congo",
       subject: "",
       description: "",
       reception_date: new Date().toISOString().slice(0, 10),
@@ -253,6 +266,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           qr_code_data: qrCodeData,
           sender_name: form.sender_name,
           sender_organization: form.sender_organization || null,
+          sender_phone: form.sender_phone.trim() || null,
+          sender_email: form.sender_email.trim() || null,
+          sender_address: form.sender_address.trim() || null,
+          sender_city: form.sender_city.trim() || null,
+          sender_province: form.sender_province.trim() || null,
+          sender_country: form.sender_country || null,
           subject: form.subject,
           description: form.description || null,
           priority: form.priority as any,
@@ -333,6 +352,9 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   };
 
   const peopleLabel = direction === "entrant" ? "Expéditeur" : "Destinataire";
+  const addressSectionLabel =
+    direction === "sortant" ? "Adresse du destinataire" : "Adresse de l'expéditeur";
+  const isRdc = form.sender_country === "République démocratique du Congo";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -391,6 +413,96 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               <Input
                 value={form.sender_organization}
                 onChange={(e) => update("sender_organization", e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Téléphone de l&apos;expéditeur</Label>
+                <Input
+                  type="tel"
+                  value={form.sender_phone}
+                  onChange={(e) => update("sender_phone", e.target.value)}
+                  placeholder="+243 …"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>E-mail de l&apos;expéditeur</Label>
+                <Input
+                  type="email"
+                  value={form.sender_email}
+                  onChange={(e) => update("sender_email", e.target.value)}
+                  placeholder="exemple@domaine.com"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Adresse */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">{addressSectionLabel}</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Pays</Label>
+                <Select
+                  value={form.sender_country}
+                  onValueChange={(v) => {
+                    update("sender_country", v);
+                    if (v !== "République démocratique du Congo") {
+                      update("sender_province", "");
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un pays" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Province / État</Label>
+                {isRdc ? (
+                  <Select value={form.sender_province} onValueChange={(v) => update("sender_province", v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir une province" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {RDC_PROVINCES.map((p) => (
+                        <SelectItem key={p.code} value={p.label}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={form.sender_province}
+                    onChange={(e) => update("sender_province", e.target.value)}
+                    placeholder="Province ou région"
+                  />
+                )}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ville</Label>
+              <Input
+                value={form.sender_city}
+                onChange={(e) => update("sender_city", e.target.value)}
+                placeholder="Ville"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Adresse</Label>
+              <Textarea
+                value={form.sender_address}
+                onChange={(e) => update("sender_address", e.target.value)}
+                placeholder="Numéro, avenue, quartier…"
+                rows={2}
               />
             </div>
           </section>
