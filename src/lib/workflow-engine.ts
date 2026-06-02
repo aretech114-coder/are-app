@@ -165,12 +165,12 @@ export async function submitStep4Treatment(
   attachmentUrls: { url: string; name?: string }[] = [],
   notes?: string
 ): Promise<Step4TreatmentResult> {
-  const { data, error } = await supabase.rpc("submit_step4_treatment", {
+  const { data, error } = await (supabase as any).rpc("submit_step4_treatment", {
     _mail_id: mailId,
     _body: body,
     _attachment_urls: attachmentUrls,
     _notes: notes ?? null,
-  } as any);
+  });
 
   if (error) {
     return { success: false, error: error.message };
@@ -204,10 +204,10 @@ export async function submitStep7Acknowledgement(
   mailId: string,
   notes?: string
 ): Promise<Step7AckResult> {
-  const { data, error } = await supabase.rpc("submit_step7_acknowledgement", {
+  const { data, error } = await (supabase as any).rpc("submit_step7_acknowledgement", {
     _mail_id: mailId,
     _notes: notes ?? null,
-  } as any);
+  });
 
   if (error) {
     return { success: false, error: error.message };
@@ -289,4 +289,3 @@ async function sendStepEmailNotification(
     console.error("Email notification error (non-blocking):", err);
   }
 }
-
