@@ -50,5 +50,5 @@ USING (
 );
 
 GRANT EXECUTE ON FUNCTION public.advance_workflow_step(
-  uuid, text, uuid, text, boolean, uuid[]
+  uuid, text, uuid, text, boolean, uuid[], uuid[]
 ) TO authenticated;
