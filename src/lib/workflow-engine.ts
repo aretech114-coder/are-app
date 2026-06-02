@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { WORKFLOW_BUCKET, createSignedUrlForPath } from "@/lib/mail-storage";
+import type { MailAttachmentMeta } from "@/lib/labels";
 import { sendWorkflowNotificationEmail, isStepNotificationEnabled } from "@/lib/workflow-notifications";
 import { WORKFLOW_STEP_LABELS, getRoleLabel, ROLE_LABELS } from "@/lib/labels";
 
@@ -230,7 +232,7 @@ export async function uploadMailDocument(
   mailId: string,
   file: File,
   subfolder: "annotations" | "treatments" = "treatments"
-): Promise<{ url: string; name: string }> {
+): Promise<Pick<MailAttachmentMeta, "url" | "name" | "path" | "bucket">> {
   const sanitizedName = file.name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -238,16 +240,14 @@ export async function uploadMailDocument(
     .replace(/_+/g, "_");
   const filePath = `${subfolder}/${mailId}/${Date.now()}_${sanitizedName}`;
   const { error: uploadErr } = await supabase.storage
-    .from("mail-documents")
+    .from(WORKFLOW_BUCKET)
     .upload(filePath, file);
   if (uploadErr) throw uploadErr;
 
-  const { data: urlData } = await supabase.storage
-    .from("mail-documents")
-    .createSignedUrl(filePath, 60 * 60 * 24 * 365);
-  if (!urlData?.signedUrl) throw new Error("Impossible de générer l'URL du fichier");
+  const url = await createSignedUrlForPath(WORKFLOW_BUCKET, filePath);
+  if (!url) throw new Error("Impossible de générer l'URL du fichier");
 
-  return { url: urlData.signedUrl, name: file.name };
+  return { url, name: file.name, path: filePath, bucket: WORKFLOW_BUCKET };
 }
 
 /**

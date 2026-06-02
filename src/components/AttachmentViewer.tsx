@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Paperclip, FileText, Download, ExternalLink } from "lucide-react";
-import { getMailAttachmentUrls } from "@/lib/labels";
+import { Paperclip, FileText, Download, ExternalLink, Loader2 } from "lucide-react";
+import { getMailAttachmentUrls, type MailAttachmentMeta } from "@/lib/labels";
+import { resolveAttachmentUrls } from "@/lib/mail-storage";
 
 interface AttachmentViewerProps {
   url?: string | null;
   urls?: string[];
-  mail?: { attachment_url?: string | null; attachment_urls?: { url: string; name?: string }[] | null };
+  mail?: {
+    attachment_url?: string | null;
+    attachment_urls?: MailAttachmentMeta[] | null;
+  };
   /** Render just the trigger button (inline mode) */
   inline?: boolean;
 }
@@ -39,6 +43,13 @@ function resolveUrls(props: AttachmentViewerProps): string[] {
   if (props.mail) return getMailAttachmentUrls(props.mail as any);
   if (props.url) return parseUrlsFromString(props.url);
   return [];
+}
+
+function hasRefreshableMeta(mail?: AttachmentViewerProps["mail"]): boolean {
+  return (
+    Array.isArray(mail?.attachment_urls) &&
+    mail.attachment_urls.some((a) => a.bucket && a.path)
+  );
 }
 
 function AttachmentPreview({ url }: { url: string }) {
@@ -87,12 +98,40 @@ function AttachmentPreview({ url }: { url: string }) {
 }
 
 export function AttachmentViewer({ url, urls, mail, inline }: AttachmentViewerProps) {
-  const allUrls = resolveUrls({ url, urls, mail });
+  const fallbackUrls = resolveUrls({ url, urls, mail });
+  const [displayUrls, setDisplayUrls] = useState<string[]>(fallbackUrls);
+  const [refreshing, setRefreshing] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  if (allUrls.length === 0) return null;
+  useEffect(() => {
+    setDisplayUrls(fallbackUrls);
+  }, [fallbackUrls.join("|")]);
 
+  useEffect(() => {
+    if (!open || !mail?.attachment_urls?.length || !hasRefreshableMeta(mail)) return;
+
+    let cancelled = false;
+    setRefreshing(true);
+    resolveAttachmentUrls(mail.attachment_urls)
+      .then((fresh) => {
+        if (!cancelled && fresh.length > 0) setDisplayUrls(fresh);
+      })
+      .catch(() => {
+        /* keep fallback urls */
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mail?.attachment_urls]);
+
+  if (fallbackUrls.length === 0 && displayUrls.length === 0) return null;
+
+  const allUrls = displayUrls.length > 0 ? displayUrls : fallbackUrls;
   const activeUrl = allUrls[activeIndex] ?? allUrls[0];
   const label = allUrls.length > 1 ? `Voir pièces jointes (${allUrls.length})` : "Voir pièce jointe";
 
@@ -135,7 +174,14 @@ export function AttachmentViewer({ url, urls, mail, inline }: AttachmentViewerPr
             </div>
           )}
           <div className="min-h-[500px] flex flex-col">
-            <AttachmentPreview url={activeUrl} />
+            {refreshing ? (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Chargement…
+              </div>
+            ) : (
+              <AttachmentPreview url={activeUrl} />
+            )}
           </div>
         </DialogContent>
       </Dialog>

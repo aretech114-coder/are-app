@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Reply, Upload, X, Paperclip } from "lucide-react";
-import { compressFile, formatFileSize } from "@/lib/file-compressor";
+import { formatFileSize } from "@/lib/file-compressor";
+import { uploadIncomingMailFiles } from "@/lib/mail-storage";
+import type { MailAttachmentMeta } from "@/lib/labels";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 
 type Props = {
@@ -202,27 +204,21 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       // Routage par défaut : étape 2 (Traitement DG)
       const targetStep = 2;
 
-      // Upload pièces jointes (multi)
-      const uploadedUrls: string[] = [];
-      for (const original of files) {
-        const { file, originalSize, compressedSize, wasCompressed } = await compressFile(original);
-        if (wasCompressed) {
-          toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
-        }
-        const sanitized = file.name
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9._-]/g, "_")
-          .replace(/_+/g, "_");
-        const filePath = `mail-attachments/${ref.replace(/[^a-zA-Z0-9/_-]/g, "_")}/${Date.now()}_${sanitized}`;
-        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, file);
-        if (uploadErr) throw uploadErr;
-        const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
-        if (urlData?.signedUrl) uploadedUrls.push(urlData.signedUrl);
-      }
-      const attachmentUrl: string | null =
-        uploadedUrls.length === 0 ? null :
-        uploadedUrls.length === 1 ? uploadedUrls[0] :
-        JSON.stringify(uploadedUrls);
+      // Upload pièces jointes (multi) → bucket mail-incoming / YYYY/MM/REF/
+      const attachmentUrls: MailAttachmentMeta[] =
+        files.length > 0
+          ? await uploadIncomingMailFiles(
+              ref,
+              files,
+              form.reception_date || null,
+              (_name, originalSize, compressedSize) => {
+                toast.info(
+                  `Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`
+                );
+              }
+            )
+          : [];
+      const attachmentUrl: string | null = attachmentUrls[0]?.url ?? null;
 
       // Résolution du destinataire pour l'étape 2
       let assignee: string | null = null;
@@ -265,6 +261,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           current_step: assignee ? targetStep : 1,
           status: (assignee ? "in_progress" : "pending") as any,
           attachment_url: attachmentUrl,
+          attachment_urls: attachmentUrls,
           ministre_absent: titulaireAbsent,
           assigned_agent_id: assignee,
           reception_date: form.reception_date || null,

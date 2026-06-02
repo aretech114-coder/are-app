@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { compressFile, formatFileSize } from "@/lib/file-compressor";
+import { formatFileSize } from "@/lib/file-compressor";
+import { uploadIncomingMailFiles } from "@/lib/mail-storage";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveWorkflowStepAssignee, fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
 import { UI_LABELS, type MailAttachmentMeta } from "@/lib/labels";
@@ -182,28 +183,20 @@ export default function MailEntry() {
     const qrCodeData = JSON.stringify({ ref, date: new Date().toISOString(), agent: user.id });
 
     try {
-      const attachmentUrls: MailAttachmentMeta[] = [];
-      let attachmentUrl: string | null = null;
-
-      for (const originalFile of files) {
-        const { file, originalSize, compressedSize, wasCompressed } = await compressFile(originalFile);
-        if (wasCompressed) {
-          toast.info(`${file.name} compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
-        }
-        const sanitizedName = file.name
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9._-]/g, "_")
-          .replace(/_+/g, "_");
-        const filePath = `mail-attachments/${ref.replace(/[^a-zA-Z0-9/_-]/g, "_")}/${Date.now()}_${sanitizedName}`;
-        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, file);
-        if (uploadErr) throw uploadErr;
-        const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
-        const url = urlData?.signedUrl || "";
-        if (url) {
-          attachmentUrls.push({ name: file.name, path: filePath, url });
-          if (!attachmentUrl) attachmentUrl = url;
-        }
-      }
+      const attachmentUrls: MailAttachmentMeta[] =
+        files.length > 0
+          ? await uploadIncomingMailFiles(
+              ref,
+              files,
+              form.reception_date || null,
+              (name, originalSize, compressedSize) => {
+                toast.info(
+                  `${name} compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`
+                );
+              }
+            )
+          : [];
+      const attachmentUrl = attachmentUrls[0]?.url ?? null;
 
       // Always start at step 2 (Routage Hiérarchique)
       const initialStep = 2;
