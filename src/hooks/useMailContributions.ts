@@ -25,7 +25,7 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("mail_contributions")
       .select("*")
       .eq("mail_id", mailId)
@@ -39,7 +39,7 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
       return;
     }
 
-    const rows = data || [];
+    const rows: any[] = data || [];
     const userIds = [...new Set(rows.map((r) => r.user_id))];
     let profileMap = new Map<string, { full_name: string; email: string }>();
     if (userIds.length > 0) {
@@ -47,16 +47,16 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
         .from("profiles")
         .select("id, full_name, email")
         .in("id", userIds);
-      profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
     }
 
     setContributions(
-      rows.map((r) => ({
+      rows.map((r: any) => ({
         ...r,
         processed_at: r.processed_at ?? null,
         attachment_urls: (r.attachment_urls as MailContribution["attachment_urls"]) || [],
         profile: profileMap.get(r.user_id),
-      }))
+      })) as MailContribution[]
     );
     setLoading(false);
   }, [mailId, stepNumber]);
@@ -96,7 +96,7 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
     status: "draft" | "submitted" = "draft"
   ) => {
     if (!mailId) return { error: "missing mail" };
-    const { error } = await supabase.from("mail_contributions").upsert(
+    const { error } = await (supabase as any).from("mail_contributions").upsert(
       {
         mail_id: mailId,
         user_id: userId,
