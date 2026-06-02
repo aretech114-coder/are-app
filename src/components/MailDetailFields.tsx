@@ -85,7 +85,14 @@ export function MailDetailFields({ mail, getProfileName }: MailDetailFieldsProps
           {mail.sender_address && (
             <DetailItem
               label="Adresse"
-              value={`${mail.sender_address}${mail.sender_city ? `, ${mail.sender_city}` : ""}${mail.sender_country ? ` — ${mail.sender_country}` : ""}`}
+              value={[
+                mail.sender_address,
+                mail.sender_city,
+                mail.sender_province,
+                mail.sender_country,
+              ]
+                .filter(Boolean)
+                .join(", ")}
             />
           )}
         </div>
