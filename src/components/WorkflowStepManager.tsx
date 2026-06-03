@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ROLE_OPTIONS = [
-  "secretariat", "ministre", "directeur", "dircab", "dircaba",
+  "secretariat", "directeur", "dg", "autorite_1", "dircab", "dircaba",
   "conseiller_juridique", "conseiller", "supervisor", "agent",
 ];
 

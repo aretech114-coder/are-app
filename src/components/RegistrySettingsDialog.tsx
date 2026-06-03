@@ -47,6 +47,8 @@ export function RegistrySettingsDialog({ open, onOpenChange }: Props) {
 
   const [newType, setNewType] = useState({ code: "", label: "", direction: "both" });
   const [newService, setNewService] = useState({ code: "", label: "" });
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editingServiceLabel, setEditingServiceLabel] = useState("");
 
   const addType = async () => {
     if (!newType.code.trim() || !newType.label.trim()) {
@@ -105,6 +107,25 @@ export function RegistrySettingsDialog({ open, onOpenChange }: Props) {
     if (!confirm("Supprimer ce service ?")) return;
     const { error } = await supabase.from("services_concernes").delete().eq("id", id);
     if (error) return toast.error(error.message);
+    refetchServices();
+    qc.invalidateQueries({ queryKey: ["services_concernes"] });
+  };
+
+  const startEditService = (s: { id: string; label: string }) => {
+    setEditingServiceId(s.id);
+    setEditingServiceLabel(s.label);
+  };
+
+  const saveServiceLabel = async () => {
+    if (!editingServiceId || !editingServiceLabel.trim()) return;
+    const { error } = await supabase
+      .from("services_concernes")
+      .update({ label: editingServiceLabel.trim() })
+      .eq("id", editingServiceId);
+    if (error) return toast.error(error.message);
+    toast.success("Libellé mis à jour.");
+    setEditingServiceId(null);
+    setEditingServiceLabel("");
     refetchServices();
     qc.invalidateQueries({ queryKey: ["services_concernes"] });
   };
@@ -212,14 +233,44 @@ export function RegistrySettingsDialog({ open, onOpenChange }: Props) {
                   key={s.id}
                   className="flex items-center justify-between gap-3 p-2 border rounded-md"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{s.label}</p>
-                    <p className="text-xs text-muted-foreground">{s.code}</p>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    {editingServiceId === s.id ? (
+                      <div className="flex gap-2">
+                        <Input
+                          value={editingServiceLabel}
+                          onChange={(e) => setEditingServiceLabel(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                        <Button size="sm" variant="secondary" onClick={saveServiceLabel}>
+                          OK
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingServiceId(null);
+                            setEditingServiceLabel("");
+                          }}
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-medium text-sm truncate">{s.label}</p>
+                        <p className="text-xs text-muted-foreground">{s.code}</p>
+                      </>
+                    )}
                   </div>
                   <Switch
                     checked={s.is_active}
                     onCheckedChange={(v) => toggleService(s.id, v)}
                   />
+                  {editingServiceId !== s.id && (
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => startEditService(s)}>
+                      Modifier
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => deleteService(s.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>

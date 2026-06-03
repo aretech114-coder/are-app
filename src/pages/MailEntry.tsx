@@ -4,6 +4,7 @@ import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveWorkflowStepAssignee, fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
+import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
 import { UI_LABELS, type MailAttachmentMeta } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,15 +199,14 @@ export default function MailEntry() {
           : [];
       const attachmentUrl = attachmentUrls[0]?.url ?? null;
 
-      // Always start at step 2 (Routage Hiérarchique)
-      const initialStep = 2;
+      const routing = await getWorkflowRoutingContext();
+      const initialStep = routing.routingStep;
 
-      // SLA for step 2
       const { data: slaData } = await supabase
         .from("sla_config")
         .select("default_hours")
-        .eq("step_number", 2)
-        .single();
+        .eq("step_number", initialStep)
+        .maybeSingle();
       const deadlineHours = slaData?.default_hours || 24;
       const deadline = new Date();
       deadline.setHours(deadline.getHours() + deadlineHours);
@@ -219,10 +219,9 @@ export default function MailEntry() {
         const interimUser = assignableUsers?.find((u) => u.id === interimUserId);
         interimLabel = interimUser?.full_name || interimUser?.email || null;
       } else {
-        targetUserId = await resolveWorkflowStepAssignee(2, null);
+        targetUserId = await resolveWorkflowStepAssignee(initialStep, null);
       }
 
-      // Insert mail at step 2
       const { data: insertedMail, error } = await supabase.from("mails").insert({
         reference_number: ref,
         qr_code_data: qrCodeData,
@@ -277,17 +276,27 @@ export default function MailEntry() {
           mail_id: insertedMail.id,
         });
 
-        // Workflow transition: reception → step 2
         await supabase.from("workflow_transitions").insert({
           mail_id: insertedMail.id,
-          from_step: 1,
+          from_step: routing.step1Active ? 1 : null,
           to_step: initialStep,
-          action: "approve",
+          action: routing.step1Active ? "approve" : "register",
           performed_by: user.id,
-          notes: dgAbsent ? UI_LABELS.routedInterim : UI_LABELS.routedToDg,
+          notes: routing.step1Active
+            ? (dgAbsent ? UI_LABELS.routedInterim : UI_LABELS.routedToDg)
+            : `Enregistrement — étape Réception désactivée (bypass étape ${initialStep})`,
         });
 
         routed = true;
+      } else {
+        await supabase
+          .from("mails")
+          .update({
+            current_step: initialStep,
+            status: "in_progress" as any,
+            deadline_at: deadline.toISOString(),
+          })
+          .eq("id", insertedMail.id);
       }
 
       setQrData({ ref, data: qrCodeData });

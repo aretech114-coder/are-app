@@ -30,6 +30,7 @@ import type { MailAttachmentMeta } from "@/lib/labels";
 import { UI_LABELS } from "@/lib/labels";
 import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
+import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
 
 type Props = {
   open: boolean;
@@ -91,14 +92,15 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     },
   });
 
-  // Step 2 (premier traitement) config — label affiché et routage par défaut
+  // Première étape active de routage (souvent 2 si étape 1 désactivée)
   const { data: treatmentStep } = useQuery({
-    queryKey: ["workflow-step-2"],
+    queryKey: ["workflow-routing-step"],
     queryFn: async () => {
+      const ctx = await getWorkflowRoutingContext();
       const { data } = await supabase
         .from("workflow_steps")
         .select("step_order, name")
-        .eq("step_order", 2)
+        .eq("step_order", ctx.routingStep)
         .eq("is_active", true)
         .maybeSingle();
       return data;
@@ -201,8 +203,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         direction,
       });
 
-      // Routage par défaut : étape 2 (Traitement DG)
-      const targetStep = 2;
+      const routing = await getWorkflowRoutingContext();
+      const targetStep = routing.routingStep;
 
       // Upload pièces jointes (multi) → bucket mail-incoming / YYYY/MM/REF/
       const attachmentUrls: MailAttachmentMeta[] =
@@ -235,7 +237,19 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         ? interimLabel
         : (treatmentStep?.name || "Traitement DG");
 
-      // Insert mail
+      const bypassReception = !routing.step1Active;
+      const insertStep = bypassReception ? targetStep : 1;
+
+      const { data: slaData } = await supabase
+        .from("sla_config")
+        .select("default_hours")
+        .eq("step_number", targetStep)
+        .maybeSingle();
+      const deadlineHours = slaData?.default_hours || 24;
+      const deadline = new Date();
+      deadline.setHours(deadline.getHours() + deadlineHours);
+
+      // Insert mail (étape 1 si active, sinon bypass direct vers targetStep)
       const { data: inserted, error } = await supabase
         .from("mails")
         .insert({
@@ -254,18 +268,20 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           priority: form.priority as any,
           mail_type: form.mail_type || null,
           registered_by: user.id,
-          current_step: 1,
-          status: "pending" as any,
+          current_step: insertStep,
+          status: (bypassReception ? "in_progress" : "pending") as any,
           attachment_url: attachmentUrl,
           attachment_urls: attachmentUrls,
           ministre_absent: titulaireAbsent,
-          assigned_agent_id: null,
+          assigned_agent_id: assignee,
           reception_date: form.reception_date || null,
           addressed_to: addressedToLabel,
           direction,
           target_service_id: form.target_service_id || null,
           province_code: (profile as any)?.province_code || null,
           parent_mail_id: parentMail?.id || null,
+          deadline_at: bypassReception ? deadline.toISOString() : null,
+          workflow_started_at: bypassReception ? new Date().toISOString() : null,
         } as any)
         .select("id")
         .single();
@@ -273,14 +289,15 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       if (error) throw error;
       if (!inserted) throw new Error("Insertion sans retour");
 
-      // Workflow transition (register — ne verrouille pas)
       await supabase.from("workflow_transitions").insert({
         mail_id: inserted.id,
         from_step: null,
-        to_step: 1,
+        to_step: insertStep,
         action: "register",
         performed_by: user.id,
-        notes: `Courrier ${direction} enregistré`,
+        notes: bypassReception
+          ? `Courrier ${direction} enregistré — étape Réception désactivée (bypass vers étape ${targetStep})`
+          : `Courrier ${direction} enregistré`,
       });
 
       if (assignee) {
@@ -299,6 +316,20 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           message: `Courrier "${form.subject}" (Réf: ${ref}) vous a été assigné.`,
           mail_id: inserted.id,
         });
+      }
+
+      if (bypassReception) {
+        if (targetStep !== insertStep) {
+          await supabase.from("workflow_transitions").insert({
+            mail_id: inserted.id,
+            from_step: insertStep,
+            to_step: targetStep,
+            action: "skip",
+            performed_by: user.id,
+            notes: "Bypass étape inactive",
+          });
+        }
+      } else {
         await supabase.from("workflow_transitions").insert({
           mail_id: inserted.id,
           from_step: 1,
@@ -306,25 +337,28 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           action: "approve",
           performed_by: user.id,
           notes: titulaireAbsent
-            ? `Routage intérim : ${addressedToLabel} (titulaire absent)`
+            ? `Routage intérim : ${addressedToLabel}`
             : `Routage automatique vers ${addressedToLabel}`,
         });
-        await supabase
-          .from("mails")
-          .update({
-            current_step: targetStep,
-            status: "in_progress" as any,
-            assigned_agent_id: assignee,
-          })
-          .eq("id", inserted.id);
       }
+
+      await supabase
+        .from("mails")
+        .update({
+          current_step: targetStep,
+          status: "in_progress" as any,
+          assigned_agent_id: assignee,
+          deadline_at: deadline.toISOString(),
+          workflow_started_at: new Date().toISOString(),
+        })
+        .eq("id", inserted.id);
 
       toast.success(
         parentMail
           ? `Réponse créée (Réf: ${ref}) — liée au courrier ${parentMail.reference_number}.`
           : assignee
-            ? `Courrier ${direction} enregistré et routé (Réf: ${ref}).`
-            : `Courrier ${direction} enregistré (Réf: ${ref}) — routage non effectué, vérifiez la configuration.`,
+            ? `Courrier ${direction} enregistré et routé (étape ${targetStep}, Réf: ${ref}).`
+            : `Courrier enregistré à l'étape ${targetStep} — assignation DG à configurer (Réf: ${ref}).`,
       );
       reset();
       onOpenChange(false);
