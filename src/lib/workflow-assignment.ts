@@ -102,7 +102,18 @@ export async function fetchWorkflowAssignableUsers(): Promise<AssignableUser[]> 
   if (rolesError) throw rolesError;
   if (!roles?.length) return [];
 
-  const userIds = [...new Set(roles.map((r) => r.user_id))];
+  const roleByUser = new Map<string, string>();
+  for (const row of roles) {
+    const r = String(row.role);
+    if (r === "superadmin") continue;
+    if (!roleByUser.has(row.user_id)) {
+      roleByUser.set(row.user_id, r);
+    }
+  }
+
+  const userIds = [...roleByUser.keys()];
+  if (userIds.length === 0) return [];
+
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
     .select("id, full_name, email")
@@ -110,10 +121,14 @@ export async function fetchWorkflowAssignableUsers(): Promise<AssignableUser[]> 
 
   if (profilesError) throw profilesError;
 
-  return (profiles || []).map((profile) => ({
-    id: profile.id,
-    full_name: profile.full_name,
-    email: profile.email,
-    role: roles.find((r) => r.user_id === profile.id)?.role || "agent",
-  }));
+  return (profiles || [])
+    .map((profile) => ({
+      id: profile.id,
+      full_name: profile.full_name || profile.email || "Utilisateur",
+      email: profile.email,
+      role: roleByUser.get(profile.id) || "agent",
+    }))
+    .sort((a, b) =>
+      a.full_name.localeCompare(b.full_name, "fr", { sensitivity: "base" })
+    );
 }
