@@ -23,6 +23,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | E | `20260601120000_dg_storage_directeur_rls.sql` | Storage DG |
 | F | `20260602200000_workflow_action_labels_bootstrap.sql` | action_labels + responsible_roles |
 | G | `20260602210000_can_access_dg_interim_steps.sql` | DG étapes 2-6 + intérim + notif step 4 |
+| H | `20260603130000_workflow_inactive_step_bypass.sql` | Bypass étape 1 inactive + libellés ARE + réparation courriers bloqués |
 
 ## Audit
 

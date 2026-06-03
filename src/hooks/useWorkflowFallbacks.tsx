@@ -18,8 +18,8 @@ export interface WorkflowFallback {
 export const FALLBACK_CONDITIONS = [
   {
     key: "ministre_absent",
-    label: "Ministre absent",
-    description: "Le courrier est marqué « Ministre absent ». Le suppléant prend le relais sur cette étape.",
+    label: "DG absent",
+    description: "Le courrier est marqué « DG absent ». Le suppléant prend le relais sur cette étape.",
   },
   {
     key: "responsible_unavailable",

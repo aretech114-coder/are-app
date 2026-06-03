@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { ROLE_LABELS } from "@/lib/labels";
+import { filterVisibleRoleOptions, isHiddenAppRole } from "@/lib/role-config";
 
 const RDC_PROVINCES: { code: string; label: string }[] = [
   { code: "KN", label: "Kinshasa" },
@@ -154,7 +155,7 @@ export default function AdminPage() {
         value,
         label: DEFAULT_ROLE_LABELS[value] || value,
       }));
-      setAllRoles(roles);
+      setAllRoles(filterVisibleRoleOptions(roles));
 
       try {
         const res = await supabase.functions.invoke("manage-roles", {
@@ -167,13 +168,17 @@ export default function AdminPage() {
           }));
           const existingValues = new Set(roles.map((r: any) => r.value));
           const merged = [...roles, ...dynamicRoles.filter((r: any) => !existingValues.has(r.value))];
-          setAllRoles(merged);
+          setAllRoles(filterVisibleRoleOptions(merged));
         }
       } catch {
         // Edge function failed, enum values are already set
       }
     } catch {
-      setAllRoles(Object.entries(DEFAULT_ROLE_LABELS).map(([value, label]) => ({ value, label })));
+      setAllRoles(
+        filterVisibleRoleOptions(
+          Object.entries(DEFAULT_ROLE_LABELS).map(([value, label]) => ({ value, label }))
+        )
+      );
     } finally {
       setRolesLoading(false);
     }
@@ -654,7 +659,10 @@ export default function AdminPage() {
                   <Select value={role} onValueChange={setRole} disabled={creating}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {allRoles.filter(r => r.value !== "superadmin" || isSuperAdmin).map((r) => (
+                      {allRoles
+                        .filter((r) => r.value !== "superadmin" || isSuperAdmin)
+                        .filter((r) => !isHiddenAppRole(r.value))
+                        .map((r) => (
                         <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                       ))}
                     </SelectContent>
