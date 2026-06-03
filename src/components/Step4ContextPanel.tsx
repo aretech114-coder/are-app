@@ -1,18 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, MessageSquare, CalendarDays, Navigation } from "lucide-react";
+import { Navigation } from "lucide-react";
 import { UI_LABELS } from "@/lib/labels";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { DgDecisionSummary, type DgAssignmentRow } from "@/components/DgDecisionSummary";
+import { parseWorkflowTransitionNotes } from "@/lib/workflow-notes";
 
 interface Step4ContextPanelProps {
   mailId: string;
-}
-
-interface AssignedPerson {
-  full_name: string;
-  instructions: string | null;
 }
 
 interface Meeting {
@@ -27,12 +22,11 @@ interface Meeting {
 
 export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
   const { settings } = useSiteSettings();
-  const authShort = settings.authority_title_short || UI_LABELS.dgShort;
-  const [ministerAnnotation, setMinisterAnnotation] = useState("");
+  const [dgNotes, setDgNotes] = useState<string | null>(null);
   const [dircabOrientation, setDircabOrientation] = useState("");
   const [dircabVerification, setDircabVerification] = useState("");
   const [ministerValidation, setMinisterValidation] = useState("");
-  const [assignedPersons, setAssignedPersons] = useState<AssignedPerson[]>([]);
+  const [dgAssignments, setDgAssignments] = useState<DgAssignmentRow[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +37,6 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
   const fetchContext = async () => {
     setLoading(true);
 
-    // Fetch all transitions for this mail in parallel
     const [transitionsRes, assignmentsRes, meetingsRes] = await Promise.all([
       supabase
         .from("workflow_transitions")
@@ -52,65 +45,62 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
         .order("created_at", { ascending: true }),
       supabase
         .from("mail_assignments")
-        .select("assigned_to, instructions, status")
+        .select("assigned_to, access_mode, status")
         .eq("mail_id", mailId)
-        .eq("step_number", 4),
+        .eq("step_number", 4)
+        .in("status", ["proposed", "pending", "completed"]),
       supabase
         .from("calendar_events")
         .select("title, event_date, event_time, end_time, location, description, participants")
         .eq("mail_id", mailId),
     ]);
 
-    // Extract minister annotation (step 2 → 3)
-    const ministerTransition = transitionsRes.data?.find(
-      (t) => t.from_step === 2 && t.to_step === 3
+    const dgTransition = transitionsRes.data?.find(
+      (t) =>
+        t.from_step === 2 &&
+        (t.to_step === 3 || t.to_step === 4) &&
+        (t.action === "approve" || t.action === "complete")
     );
-    if (ministerTransition?.notes) {
-      // Extract just the annotation text from the formatted notes
-      const match = ministerTransition.notes.match(/📝 Annotation:\s*(.+?)(?:\n|$)/);
-      setMinisterAnnotation(match ? match[1].trim() : ministerTransition.notes);
+    if (dgTransition?.notes) {
+      setDgNotes(dgTransition.notes);
     }
 
-    // Extract DirCab orientation (step 3 → 4)
     const dircabTransition = transitionsRes.data?.find(
       (t) => t.from_step === 3 && t.to_step === 4
     );
     if (dircabTransition?.notes) {
-      const match = dircabTransition.notes.match(/📝 Annotation:\s*(.+?)(?:\n|$)/);
-      setDircabOrientation(match ? match[1].trim() : dircabTransition.notes);
+      const parsed = parseWorkflowTransitionNotes(dircabTransition.notes);
+      setDircabOrientation(parsed?.annotation || dircabTransition.notes);
     }
 
-    // Extract DirCab verification (step 5 → 6)
     const verificationTransition = transitionsRes.data?.find(
       (t) => t.from_step === 5 && t.to_step === 6
     );
     if (verificationTransition?.notes) {
-      const match = verificationTransition.notes.match(/💬 Notes:\s*(.+?)(?:\n|$)/);
-      setDircabVerification(match ? match[1].trim() : verificationTransition.notes);
+      const parsed = parseWorkflowTransitionNotes(verificationTransition.notes);
+      setDircabVerification(parsed?.additionalNotes || parsed?.annotation || verificationTransition.notes);
     }
 
-    // Extract Minister validation (step 6 → 7 or 6 → 8)
     const validationTransition = transitionsRes.data?.find(
       (t) => t.from_step === 6 && (t.to_step === 7 || t.to_step === 8)
     );
     if (validationTransition?.notes) {
-      const match = validationTransition.notes.match(/📝 Annotation:\s*(.+?)(?:\n|$)/);
-      setMinisterValidation(match ? match[1].trim() : validationTransition.notes);
+      const parsed = parseWorkflowTransitionNotes(validationTransition.notes);
+      setMinisterValidation(parsed?.annotation || validationTransition.notes);
     }
 
-    // Fetch assigned person names
     if (assignmentsRes.data && assignmentsRes.data.length > 0) {
-      const userIds = assignmentsRes.data.map((a) => a.assigned_to);
+      const userIds = [...new Set(assignmentsRes.data.map((a) => a.assigned_to))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name")
         .in("id", userIds);
 
-      const persons: AssignedPerson[] = assignmentsRes.data.map((a) => ({
+      const rows: DgAssignmentRow[] = assignmentsRes.data.map((a) => ({
         full_name: profiles?.find((p) => p.id === a.assigned_to)?.full_name || "Inconnu",
-        instructions: a.instructions,
+        access_mode: a.access_mode || "contributor",
       }));
-      setAssignedPersons(persons);
+      setDgAssignments(rows);
     }
 
     setMeetings(meetingsRes.data || []);
@@ -123,101 +113,59 @@ export function Step4ContextPanel({ mailId }: Step4ContextPanelProps) {
     );
   }
 
-  const hasContent = ministerAnnotation || dircabOrientation || dircabVerification || ministerValidation || assignedPersons.length > 0 || meetings.length > 0;
-  if (!hasContent) return null;
+  const hasDgBlock = !!dgNotes || dgAssignments.length > 0 || meetings.length > 0;
+  const hasOther =
+    dircabOrientation || dircabVerification || ministerValidation;
+
+  if (!hasDgBlock && !hasOther) return null;
 
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-semibold text-primary">Contexte du dossier</h4>
 
-      {/* Minister annotation */}
-      {ministerAnnotation && (
-        <div className="flex gap-2.5 p-3 rounded-lg border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-          <MessageSquare className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{UI_LABELS.dgAnnotation}</p>
-            <p className="text-sm mt-0.5 whitespace-pre-wrap">{ministerAnnotation}</p>
-          </div>
+      {hasDgBlock && (
+        <div className="rounded-lg border bg-card p-3 space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Décision du {settings.authority_title_short || UI_LABELS.dgShort} (étape 2)
+          </p>
+          <DgDecisionSummary
+            notes={dgNotes}
+            assignments={dgAssignments}
+            meetings={meetings}
+          />
         </div>
       )}
 
-      {/* DirCab verification */}
       {dircabVerification && (
         <div className="flex gap-2.5 p-3 rounded-lg border bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
-          <Navigation className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+          <Navigation className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-orange-700 dark:text-orange-300">Vérification du DGA (Étape 5)</p>
-            <p className="text-sm mt-0.5 whitespace-pre-wrap">{dircabVerification}</p>
+            <p className="text-xs font-semibold text-orange-700 dark:text-orange-300">
+              Vérification du DGA (étape 5)
+            </p>
+            <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{dircabVerification}</p>
           </div>
         </div>
       )}
 
-      {/* Minister validation */}
       {ministerValidation && (
         <div className="flex gap-2.5 p-3 rounded-lg border bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
-          <MessageSquare className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+          <Navigation className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{UI_LABELS.dgValidation} (Étape 6)</p>
-            <p className="text-sm mt-0.5 whitespace-pre-wrap">{ministerValidation}</p>
+            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+              {UI_LABELS.dgValidation} (étape 6)
+            </p>
+            <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{ministerValidation}</p>
           </div>
         </div>
       )}
 
-      {/* DirCab orientation */}
       {dircabOrientation && (
         <div className="flex gap-2.5 p-3 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-          <Navigation className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <Navigation className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Orientations du DGA</p>
-            <p className="text-sm mt-0.5 whitespace-pre-wrap">{dircabOrientation}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Assigned persons */}
-      {assignedPersons.length > 0 && (
-        <div className="flex gap-2.5 p-3 rounded-lg border bg-muted/30">
-          <Users className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold">Personnes assignées</p>
-            <ul className="mt-1 space-y-0.5">
-              {assignedPersons.map((p, i) => (
-                <li key={i} className="text-sm">
-                  <span className="font-medium">{p.full_name}</span>
-                  {p.instructions && (
-                    <span className="text-muted-foreground ml-1">— {p.instructions}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Scheduled meetings */}
-      {meetings.length > 0 && (
-        <div className="flex gap-2.5 p-3 rounded-lg border bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-          <CalendarDays className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-green-700 dark:text-green-300">Réunion(s) prévue(s)</p>
-            <ul className="mt-1 space-y-1.5">
-              {meetings.map((m, i) => (
-                <li key={i} className="text-sm">
-                  <p className="font-medium">{m.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(m.event_date), "dd MMMM yyyy", { locale: fr })}
-                    {m.event_time && ` à ${m.event_time}`}
-                    {m.end_time && ` — ${m.end_time}`}
-                    {m.location && ` • ${m.location}`}
-                  </p>
-                  {m.participants && m.participants.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Participants : {m.participants.join(", ")}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{dircabOrientation}</p>
           </div>
         </div>
       )}

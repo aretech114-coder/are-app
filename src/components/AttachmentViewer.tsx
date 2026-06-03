@@ -17,7 +17,12 @@ interface AttachmentViewerProps {
 }
 
 function isPDF(url: string) {
-  return /\.pdf/i.test(url);
+  try {
+    const path = new URL(url).pathname;
+    return /\.pdf$/i.test(path) || /\.pdf/i.test(url);
+  } catch {
+    return /\.pdf/i.test(url);
+  }
 }
 
 function isImage(url: string) {
@@ -133,7 +138,13 @@ export function AttachmentViewer({ url, urls, mail, inline }: AttachmentViewerPr
 
   const allUrls = displayUrls.length > 0 ? displayUrls : fallbackUrls;
   const activeUrl = allUrls[activeIndex] ?? allUrls[0];
-  const label = allUrls.length > 1 ? `Voir pièces jointes (${allUrls.length})` : "Voir pièce jointe";
+  const defaultLabel =
+    allUrls.length > 1
+      ? `Voir pièces jointes (${allUrls.length})`
+      : isPDF(activeUrl)
+        ? "Voir le PDF"
+        : "Voir pièce jointe";
+  const label = inline && allUrls.length === 1 && isPDF(activeUrl) ? "Voir le PDF" : defaultLabel;
 
   return (
     <>

@@ -378,7 +378,7 @@ export default function InboxPage() {
                 <TreatmentsList mailId={selected.id} />
 
                 {/* Step 4 context: annotations, assignees, meetings, orientations */}
-                {(selected.current_step >= 3 && selected.current_step <= 9) && (
+                {(selected.current_step >= 2 && selected.current_step <= 9) && (
                   <Step4ContextPanel mailId={selected.id} />
                 )}
 

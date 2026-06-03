@@ -27,6 +27,8 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { getRoleLabel, UI_LABELS } from "@/lib/labels";
+import { fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
+import { DgDecisionSummary, type DgAssignmentRow } from "@/components/DgDecisionSummary";
 import { useMailContributions } from "@/hooks/useMailContributions";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 
@@ -211,7 +213,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   }, [canCreateReply, mailId, replyParentMail]);
 
   // Minister annotation from step 2 (visible at step 3)
-  const [ministerAnnotation, setMinisterAnnotation] = useState("");
+  const [dgStep2Context, setDgStep2Context] = useState<{
+    notes: string | null;
+    assignments: DgAssignmentRow[];
+    meetings: { title: string; event_date: string; event_time: string | null; location: string | null }[];
+  } | null>(null);
 
   // Check if current user already completed their step 4 or step 7 (acknowledgement)
   useEffect(() => {
@@ -282,7 +288,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       fetchAssignableUsers();
     }
     if (showDialog && currentStep === 3) {
-      fetchMinisterAnnotation();
+      fetchDgStep2Context();
       fetchProposedAssignees();
     }
     if (showDialog && currentStep === 5) {
@@ -290,50 +296,98 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     }
   }, [showDialog, currentStep]);
 
-  const fetchMinisterAnnotation = async () => {
-    const { data } = await supabase
-      .from("workflow_transitions")
-      .select("notes")
-      .eq("mail_id", mailId)
-      .eq("from_step", 2)
-      .eq("to_step", 3)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    if (data?.notes) setMinisterAnnotation(data.notes);
+  const fetchDgStep2Context = async () => {
+    const [transRes, assignRes, meetRes] = await Promise.all([
+      supabase
+        .from("workflow_transitions")
+        .select("notes, to_step")
+        .eq("mail_id", mailId)
+        .eq("from_step", 2)
+        .in("to_step", [3, 4])
+        .eq("action", "approve")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("mail_assignments")
+        .select("assigned_to, access_mode")
+        .eq("mail_id", mailId)
+        .eq("step_number", 4)
+        .in("status", ["proposed", "pending"]),
+      supabase
+        .from("calendar_events")
+        .select("title, event_date, event_time, location")
+        .eq("mail_id", mailId),
+    ]);
+
+    const notes = transRes.data?.notes ?? null;
+    let assignments: DgAssignmentRow[] = [];
+    if (assignRes.data?.length) {
+      const ids = assignRes.data.map((a) => a.assigned_to);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", ids);
+      assignments = assignRes.data.map((a) => ({
+        full_name: profiles?.find((p) => p.id === a.assigned_to)?.full_name || "Inconnu",
+        access_mode: a.access_mode || "contributor",
+      }));
+    }
+
+    setDgStep2Context({
+      notes,
+      assignments,
+      meetings: meetRes.data || [],
+    });
   };
 
   const fetchAssignableUsers = async () => {
-    let rolesQuery;
-    if (currentStep === 2) {
-      // Minister sees all users except superadmin
-      rolesQuery = supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .neq("role", "superadmin" as any);
-    } else {
-      const targetRoles = ["conseiller_juridique", "dircab", "dircaba", "agent"];
-      rolesQuery = supabase
+    try {
+      if (currentStep === 2) {
+        const users = await fetchWorkflowAssignableUsers();
+        setAssignableUsers(users);
+        return;
+      }
+
+      const targetRoles = ["conseiller_juridique", "dircab", "dircaba", "agent", "daf", "dt", "dg", "dga"];
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .in("role", targetRoles as any);
-    }
 
-    const { data: roles } = await rolesQuery;
-    if (!roles) return;
+      if (rolesError) throw rolesError;
+      if (!roles?.length) {
+        setAssignableUsers([]);
+        return;
+      }
 
-    const userIds = roles.map(r => r.user_id);
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", userIds);
+      const roleByUser = new Map<string, string>();
+      for (const row of roles) {
+        if (!roleByUser.has(row.user_id)) roleByUser.set(row.user_id, String(row.role));
+      }
 
-    if (profiles) {
-      const merged = profiles.map(p => ({
-        ...p,
-        role: roles.find(r => r.user_id === p.id)?.role || "",
-      }));
+      const userIds = [...roleByUser.keys()];
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", userIds);
+
+      if (profilesError) throw profilesError;
+
+      const merged = (profiles || [])
+        .map((p) => ({
+          id: p.id,
+          full_name: p.full_name || p.email || "Utilisateur",
+          email: p.email,
+          role: roleByUser.get(p.id) || "",
+        }))
+        .sort((a, b) =>
+          a.full_name.localeCompare(b.full_name, "fr", { sensitivity: "base" })
+        );
       setAssignableUsers(merged);
+    } catch {
+      setAssignableUsers([]);
+      toast.error("Impossible de charger la liste des utilisateurs assignables.");
     }
   };
 
@@ -703,19 +757,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 8;
   const showTreatment = currentStep === 4;
 
-  const roleLabels: Record<string, string> = {
-    conseiller_juridique: getRoleLabel("conseiller_juridique"),
-    dircab: getRoleLabel("dircab"),
-    dircaba: getRoleLabel("dircaba"),
-    agent: "Agent",
-    ministre: getRoleLabel("ministre"),
-    directeur: getRoleLabel("directeur"),
-    dg: getRoleLabel("dg"),
-    secretariat: "Secrétariat",
-    admin: "Administrateur",
-    supervisor: "Superviseur",
-    conseiller: "Conseiller",
-  };
+  const roleLabel = (slug: string) => getRoleLabel(slug);
 
   const dialogTitle: Record<number, string> = {
     2: UI_LABELS.dgAnnotation,
@@ -759,13 +801,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       </div>
 
       <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) resetForm(); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-auto">
-          <DialogHeader>
+        <DialogContent className="w-[min(96vw,52rem)] max-w-[52rem] max-h-[90vh] overflow-y-auto overflow-x-hidden flex flex-col gap-0 p-6 sm:p-8">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {dialogTitle[currentStep] || "Confirmer l'action"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0 flex-1 py-2">
             <p className="text-sm text-muted-foreground">
               Étape actuelle : <strong>{stepInfo?.name}</strong>
             </p>
@@ -984,11 +1026,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               </div>
             )}
 
-            {/* Show Minister's annotation at Step 3 */}
-            {currentStep === 3 && ministerAnnotation && (
-              <div className="p-3 rounded-lg border bg-accent/30 space-y-1">
-                <p className="text-xs font-semibold text-primary">📝 {UI_LABELS.dgAnnotation}</p>
-                <p className="text-sm whitespace-pre-wrap">{ministerAnnotation}</p>
+            {currentStep === 3 && dgStep2Context?.notes && (
+              <div className="rounded-lg border bg-muted/30 p-3 min-w-0">
+                <p className="text-xs font-semibold text-primary mb-2">
+                  Rappel — décision du {UI_LABELS.dgShort}
+                </p>
+                <DgDecisionSummary
+                  notes={dgStep2Context.notes}
+                  assignments={dgStep2Context.assignments}
+                  meetings={dgStep2Context.meetings}
+                  compact
+                />
               </div>
             )}
 
@@ -1039,8 +1087,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5 min-w-0">
                         <Label className="text-sm flex items-center gap-1">
                           <CalendarIcon className="h-3 w-3" /> Date
                         </Label>
@@ -1082,8 +1130,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5 min-w-0">
                         <Label className="text-sm flex items-center gap-1">
                           <Clock className="h-3 w-3" /> Heure de fin
                         </Label>
@@ -1174,7 +1222,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{u.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{roleLabels[u.role] || u.role}</p>
+                          {currentStep !== 2 && (
+                            <p className="text-xs text-muted-foreground">{roleLabel(u.role)}</p>
+                          )}
                         </div>
                       </label>
                     ))}
@@ -1223,9 +1273,16 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>Annuler</Button>
+          <DialogFooter className="shrink-0 flex-col-reverse sm:flex-row gap-2 sm:gap-2 pt-4 border-t mt-2">
             <Button
+              className="w-full sm:w-auto"
+              variant="outline"
+              onClick={() => { setShowDialog(false); resetForm(); }}
+            >
+              Annuler
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
               onClick={handleAction}
               disabled={loading || (showTreatment && action === "complete" && (!treatmentType || !treatmentContent)) || (currentStep === 8 && !attachmentFile)}
               variant={action === "reject" ? "destructive" : "default"}
