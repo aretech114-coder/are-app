@@ -718,7 +718,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setSelectedViewers([]);
     setTreatmentType("");
     setTreatmentContent("");
-    setMinisterAnnotation("");
+    setDgStep2Context(null);
     setScheduleRdv(false);
     setRdvDate(undefined);
     setRdvTime("");
