@@ -31,6 +31,12 @@ import { UI_LABELS } from "@/lib/labels";
 import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
+import {
+  generateSystemReference,
+  getDefaultDepositTime,
+  resolveDepositTime,
+} from "@/lib/mail-registration";
+import { RegistrationAiAssistant } from "@/components/MailAiAssistant";
 
 type Props = {
   open: boolean;
@@ -44,12 +50,6 @@ type Props = {
     sender_organization?: string | null;
     subject: string;
   } | null;
-};
-
-const generateRef = () => {
-  const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `CR-${d}-${rand}`;
 };
 
 export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated, parentMail }: Props) {
@@ -109,6 +109,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
 
   const [form, setForm] = useState({
     reference_number: "",
+    registry_reference: "",
+    deposit_time: getDefaultDepositTime(),
     sender_name: "",
     sender_organization: "",
     sender_phone: "",
@@ -129,6 +131,28 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [titulaireAbsent, setTitulaireAbsent] = useState(false);
+  const [systemRefPreview, setSystemRefPreview] = useState(generateSystemReference);
+
+  const { data: registrarProfile } = useQuery({
+    queryKey: ["registrar-profile", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("province_code, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && open,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setSystemRefPreview(generateSystemReference());
+      setForm((f) => ({ ...f, deposit_time: f.deposit_time || getDefaultDepositTime() }));
+    }
+  }, [open]);
 
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   useEffect(() => {
@@ -153,6 +177,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   {
     setForm({
       reference_number: "",
+      registry_reference: "",
+      deposit_time: getDefaultDepositTime(),
       sender_name: "",
       sender_organization: "",
       sender_phone: "",
@@ -181,23 +207,36 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       toast.error("Expéditeur/Destinataire et Objet sont obligatoires.");
       return;
     }
+    if (!form.reference_number.trim()) {
+      toast.error("Le numéro du courrier est obligatoire.");
+      return;
+    }
     if (titulaireAbsent && !form.assigned_to) {
       toast.error("Désignez l'intérimaire — autorité absente.");
       return;
     }
     setLoading(true);
     try {
-      const ref = form.reference_number.trim() || generateRef();
+      const ref = form.reference_number.trim();
+      const systemRef = systemRefPreview || generateSystemReference();
+      const depositTime = resolveDepositTime(form.deposit_time);
 
-      // Province from profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("province_code")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: existing } = await supabase
+        .from("mails")
+        .select("id")
+        .eq("reference_number", ref)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        toast.error("Ce numéro de courrier existe déjà.");
+        setLoading(false);
+        return;
+      }
+
+      const profile = registrarProfile;
 
       const qrCodeData = JSON.stringify({
-        ref,
+        ref: systemRef,
+        mailNumber: ref,
         date: new Date().toISOString(),
         agent: user.id,
         direction,
@@ -254,6 +293,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
         .from("mails")
         .insert({
           reference_number: ref,
+          registry_reference: form.registry_reference.trim() || null,
+          system_reference: systemRef,
           qr_code_data: qrCodeData,
           sender_name: form.sender_name,
           sender_organization: form.sender_organization || null,
@@ -275,6 +316,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           ministre_absent: titulaireAbsent,
           assigned_agent_id: assignee,
           reception_date: form.reception_date || null,
+          deposit_time: depositTime,
           addressed_to: addressedToLabel,
           direction,
           target_service_id: form.target_service_id || null,
@@ -401,13 +443,34 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           {/* Identité */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground">Identité</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>N° courrier (optionnel)</Label>
+                <Label>N° courrier *</Label>
                 <Input
                   value={form.reference_number}
                   onChange={(e) => update("reference_number", e.target.value)}
-                  placeholder="Auto si vide"
+                  placeholder="Numéro attribué au courrier"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Référence registre</Label>
+                <Input
+                  value={form.registry_reference}
+                  onChange={(e) => update("registry_reference", e.target.value)}
+                  placeholder="Référence du registre papier (optionnel)"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>ID système (auto)</Label>
+                <Input value={systemRefPreview} disabled className="bg-muted font-mono text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Heure de dépôt</Label>
+                <Input
+                  type="time"
+                  value={form.deposit_time}
+                  onChange={(e) => update("deposit_time", e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
@@ -418,6 +481,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
                   onChange={(e) => update("reception_date", e.target.value)}
                 />
               </div>
+              {registrarProfile?.province_code && (
+                <div className="space-y-1.5">
+                  <Label>Province enregistreur</Label>
+                  <Input value={registrarProfile.province_code} disabled className="bg-muted text-xs" />
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>{peopleLabel} *</Label>
@@ -539,7 +608,21 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Description / commentaires</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Description / commentaires</Label>
+                <RegistrationAiAssistant
+                  context={{
+                    subject: form.subject,
+                    description: form.description,
+                    senderName: form.sender_name,
+                  }}
+                  onApplyToComments={(text) => {
+                    const current = form.description?.trim();
+                    update("description", current ? `${current}\n\n${text}` : text);
+                    toast.success("Texte inséré dans la description");
+                  }}
+                />
+              </div>
               <Textarea
                 value={form.description}
                 onChange={(e) => update("description", e.target.value)}
@@ -583,13 +666,13 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Service concerné</Label>
+              <Label>Circuit / registre</Label>
               <Select
                 value={form.target_service_id}
                 onValueChange={(v) => update("target_service_id", v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir un service" />
+                  <SelectValue placeholder="Choisir un circuit (DG, PCA, pôle…)" />
                 </SelectTrigger>
                 <SelectContent>
                   {services.map((s: any) => (

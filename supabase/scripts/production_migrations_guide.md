@@ -26,8 +26,22 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | H | `20260603130000_workflow_inactive_step_bypass.sql` | Bypass étape 1 inactive + libellés ARE + réparation courriers bloqués |
 | I | `20260603140000_dg_assignment_rls_expand.sql` | DG/directeur/autorité : lire tous profils + rôles (liste assignation étape 2) |
 | J | `20260603150000_workflow_are_unified.sql` | Étapes 1/3/5/7 off ; réparation courriers ; `can_access_mail` ; garde-fous assignation ; `list_assignable_users` |
+| K | `20260603160000_workflow_viewers_preserve.sql` | **Copie lecture seule** : ne plus supprimer les `viewer` à l'étape 4 ; notifications dédiées |
+| L | `20260604100000_mail_registry_fields.sql` | `registry_reference` + `system_reference` (registre / ID QR) |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
+
+Après **K** : pour les courriers déjà passés en étape 4+ sans lignes `viewer`, réassigner manuellement ou utiliser [`repair_mail_viewers.sql`](repair_mail_viewers.sql).
+
+Après **L** : `NOTIFY pgrst, 'reload schema';` — formulaire Registre avec N° courrier, référence registre, heure dépôt auto.
+
+## Assistant IA (OpenAI)
+
+```bash
+supabase secrets set OPENAI_API_KEY=sk-...
+# optionnel : supabase secrets set OPENAI_MODEL=gpt-4o-mini
+supabase functions deploy ai-assistant
+```
 
 ## Audit
 

@@ -101,11 +101,9 @@ supabase functions deploy ai-assistant --no-verify-jwt
 
 ### 3.3 ⚠️ Migration de l'Assistant IA (IMPORTANT)
 
-L'assistant IA utilise actuellement l'API Lovable AI (`LOVABLE_API_KEY` + `https://ai.gateway.lovable.dev`), qui **ne sera pas disponible** en dehors de Lovable.
+L'assistant IA utilise **OpenAI** (`OPENAI_API_KEY` + `https://api.openai.com/v1/chat/completions`). Modèle par défaut : `gpt-4o-mini` (surcharge via secret `OPENAI_MODEL`).
 
-**Vous devez remplacer par un fournisseur IA compatible OpenAI** :
-
-**Option A — OpenAI directement :**
+**Configuration prod :**
 ```bash
 supabase secrets set OPENAI_API_KEY=sk-xxxxxxxxxxxx
 ```

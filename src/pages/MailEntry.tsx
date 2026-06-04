@@ -2,6 +2,11 @@ import { useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
+import {
+  generateSystemReference,
+  getDefaultDepositTime,
+  resolveDepositTime,
+} from "@/lib/mail-registration";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveWorkflowStepAssignee, fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
 import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
@@ -134,11 +139,7 @@ export default function MailEntry() {
     setShowSuggestions(false);
   };
 
-  const generateRef = () => {
-    const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `CR-${d}-${rand}`;
-  };
+  const generateRef = () => generateSystemReference();
 
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -244,7 +245,7 @@ export default function MailEntry() {
         sender_city: form.sender_city || null,
         sender_country: form.sender_country || null,
         reception_date: form.reception_date || null,
-        deposit_time: form.deposit_time || null,
+        deposit_time: resolveDepositTime(form.deposit_time) || null,
         addressed_to: interimLabel,
         comments: form.comments || null,
         assigned_agent_id: targetUserId,

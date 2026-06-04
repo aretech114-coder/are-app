@@ -10,13 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { WorkflowStepper } from "@/components/WorkflowStepper";
-import { WorkflowTimeline } from "@/components/WorkflowTimeline";
-import { MailContributionsPanel } from "@/components/MailContributionsPanel";
-import { Step4ContextPanel } from "@/components/Step4ContextPanel";
+import { MailDossierView } from "@/components/MailDossierView";
+import { useMailCircuitLabel } from "@/hooks/useMailCircuitLabel";
 import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContributions";
-import { TreatmentsList } from "@/components/TreatmentsList";
-import { MailDetailFields } from "@/components/MailDetailFields";
+import { isDgRole } from "@/lib/workflow-display";
 import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
 import { getStepLabel, getStepColor, WORKFLOW_STEPS, listMyMails } from "@/lib/workflow-engine";
 import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip } from "lucide-react";
@@ -63,6 +60,7 @@ export default function SuiviPage() {
   const [selectedMail, setSelectedMail] = useState<any>(null);
   const { contributions: detailContributions } = useMailContributions(selectedMail?.id, 4);
   const detailStep4AssigneeCount = useStepAssigneeCount(selectedMail?.id, 4);
+  const { data: circuitLabel } = useMailCircuitLabel(selectedMail?.target_service_id);
   const [editMail, setEditMail] = useState<any>(null);
   const [deleteMail, setDeleteMail] = useState<any>(null);
   const [showStats, setShowStats] = useState(true);
@@ -418,30 +416,27 @@ export default function SuiviPage() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedMail} onOpenChange={(open) => !open && setSelectedMail(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-0 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
               Détails du dossier — {selectedMail?.reference_number}
             </DialogTitle>
           </DialogHeader>
           {selectedMail && (
-            <div className="space-y-4">
-              <WorkflowStepper currentStep={selectedMail.current_step || 1} />
-              <MailDetailFields mail={selectedMail} getProfileName={getProfileName} />
-              <TreatmentsList mailId={selectedMail.id} />
-              <Step4ContextPanel mailId={selectedMail.id} />
-              {(selectedMail.current_step || 0) >= 4 && (
-                <MailContributionsPanel
-                  contributions={detailContributions}
-                  assigneeCount={detailStep4AssigneeCount}
-                  showDrafts
-                />
-              )}
-              <div className="p-3 rounded-lg border bg-muted/20">
-                <h4 className="text-sm font-semibold mb-2">Historique du workflow</h4>
-                <WorkflowTimeline mailId={selectedMail.id} />
-              </div>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <MailDossierView
+                mail={selectedMail}
+                role={role}
+                getProfileName={getProfileName}
+                circuitLabel={circuitLabel ?? null}
+                showContributionsPanel={
+                  isDgRole(role) && (selectedMail.current_step || 0) >= 2
+                }
+                contributions={detailContributions}
+                step4AssigneeCount={detailStep4AssigneeCount}
+                defaultStepperCollapsed={false}
+              />
             </div>
           )}
         </DialogContent>

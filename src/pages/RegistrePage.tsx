@@ -129,7 +129,7 @@ export default function RegistrePage() {
     queryFn: async () => {
       const res: any = await (supabase.from("mails") as any)
         .select(
-          "id, reference_number, subject, sender_name, sender_organization, mail_type, priority, status, created_at, reception_date, addressed_to, current_step, deadline_at, locked_for_edit, direction, target_service_id, registered_by, province_code"
+          "id, reference_number, registry_reference, system_reference, subject, sender_name, sender_organization, mail_type, priority, status, created_at, reception_date, deposit_time, addressed_to, current_step, deadline_at, locked_for_edit, direction, target_service_id, registered_by, province_code"
         )
         .eq("direction", direction)
         .order("created_at", { ascending: false })
@@ -167,7 +167,9 @@ export default function RegistrePage() {
         const hit =
           m.subject?.toLowerCase().includes(q) ||
           m.sender_name?.toLowerCase().includes(q) ||
-          m.reference_number?.toLowerCase().includes(q);
+          m.reference_number?.toLowerCase().includes(q) ||
+          m.registry_reference?.toLowerCase().includes(q) ||
+          m.system_reference?.toLowerCase().includes(q);
         if (!hit) return false;
       }
       if (filterStatus !== "all" && m.status !== filterStatus) return false;
@@ -282,11 +284,25 @@ export default function RegistrePage() {
 
   // Exports
   const exportCSV = () => {
-    const headers = ["N°", "Date", "Expéditeur/Destinataire", "Objet", "Type", "Urgence", "Statut"];
+    const headers = [
+      "N° courrier",
+      "Réf. registre",
+      "ID système",
+      "Date",
+      "Heure dépôt",
+      "Expéditeur/Destinataire",
+      "Objet",
+      "Type",
+      "Urgence",
+      "Statut",
+    ];
     const rows = filtered.map((m: any) =>
       [
         m.reference_number,
+        m.registry_reference || "",
+        m.system_reference || "",
         format(new Date(m.created_at), "dd/MM/yyyy HH:mm"),
+        m.deposit_time || "",
         m.sender_name,
         m.subject?.replace(/[,;\n]/g, " "),
         m.mail_type || "",
@@ -310,8 +326,11 @@ export default function RegistrePage() {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet(`Registre ${direction}`);
     ws.columns = [
-      { header: "N°", key: "ref", width: 18 },
+      { header: "N° courrier", key: "ref", width: 18 },
+      { header: "Réf. registre", key: "registryRef", width: 18 },
+      { header: "ID système", key: "systemRef", width: 20 },
       { header: "Date", key: "date", width: 18 },
+      { header: "Heure dépôt", key: "depositTime", width: 12 },
       { header: direction === "entrant" ? "Expéditeur" : "Destinataire", key: "from", width: 24 },
       { header: "Objet", key: "subject", width: 36 },
       { header: "Type", key: "type", width: 16 },
@@ -321,7 +340,10 @@ export default function RegistrePage() {
     filtered.forEach((m: any) =>
       ws.addRow({
         ref: m.reference_number,
+        registryRef: m.registry_reference || "",
+        systemRef: m.system_reference || "",
         date: format(new Date(m.created_at), "dd/MM/yyyy HH:mm", { locale: fr }),
+        depositTime: m.deposit_time || "",
         from: m.sender_name,
         subject: m.subject,
         type: m.mail_type || "",

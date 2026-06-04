@@ -305,7 +305,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       fetchDgStep2Context();
       fetchProposedAssignees();
     }
-    if (showDialog && currentStep === 5) {
+    if (showDialog && (currentStep === 2 || currentStep === 5)) {
       fetchProposedAssignees();
     }
   }, [showDialog, currentStep]);
@@ -408,12 +408,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const fetchProposedAssignees = async () => {
     const { data } = await supabase
       .from("mail_assignments")
-      .select("assigned_to")
+      .select("assigned_to, access_mode")
       .eq("mail_id", mailId)
       .eq("step_number", 4)
       .in("status", ["proposed", "pending"]);
     if (data && data.length > 0) {
-      setSelectedAssignees(data.map(a => a.assigned_to));
+      setSelectedAssignees(
+        data.filter((a) => a.access_mode === "contributor").map((a) => a.assigned_to)
+      );
+      setSelectedViewers(
+        data.filter((a) => a.access_mode === "viewer").map((a) => a.assigned_to)
+      );
     }
   };
 
@@ -554,6 +559,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         annotation && `📝 Annotation: ${annotation}`,
         annotationAttachmentUrl && `📎 Document joint: ${annotationAttachmentUrl}`,
         selectedAssignees.length > 0 && `👥 Personnes assignées: ${selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean).join(", ")}`,
+        selectedViewers.length > 0 && `👁 Copie lecture seule: ${selectedViewers.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean).join(", ")}`,
         treatmentType && `📄 Type de document: ${treatmentType === "note_technique" ? "Note Technique" : "Accusé de Réception"}`,
         treatmentContent && `📋 Contenu:\n${treatmentContent}`,
         notes && `💬 Notes: ${notes}`,
