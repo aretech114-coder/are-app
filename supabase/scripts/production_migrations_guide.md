@@ -25,6 +25,9 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | G | `20260602210000_can_access_dg_interim_steps.sql` | DG étapes 2-6 + intérim + notif step 4 |
 | H | `20260603130000_workflow_inactive_step_bypass.sql` | Bypass étape 1 inactive + libellés ARE + réparation courriers bloqués |
 | I | `20260603140000_dg_assignment_rls_expand.sql` | DG/directeur/autorité : lire tous profils + rôles (liste assignation étape 2) |
+| J | `20260603150000_workflow_are_unified.sql` | Étapes 1/3/5/7 off ; réparation courriers ; `can_access_mail` ; garde-fous assignation ; `list_assignable_users` |
+
+Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
 ## Audit
 
