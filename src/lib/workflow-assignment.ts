@@ -93,7 +93,13 @@ export async function upsertWorkflowStepResponsible(config: {
   if (error) throw error;
 }
 
-export async function fetchWorkflowAssignableUsers(): Promise<AssignableUser[]> {
+function sortAssignableUsers(users: AssignableUser[]): AssignableUser[] {
+  return [...users].sort((a, b) =>
+    a.full_name.localeCompare(b.full_name, "fr", { sensitivity: "base" })
+  );
+}
+
+async function fetchAssignableUsersViaClientQuery(): Promise<AssignableUser[]> {
   const { data: roles, error: rolesError } = await supabase
     .from("user_roles")
     .select("user_id, role")
@@ -121,14 +127,34 @@ export async function fetchWorkflowAssignableUsers(): Promise<AssignableUser[]> 
 
   if (profilesError) throw profilesError;
 
-  return (profiles || [])
-    .map((profile) => ({
+  return sortAssignableUsers(
+    (profiles || []).map((profile) => ({
       id: profile.id,
       full_name: profile.full_name || profile.email || "Utilisateur",
       email: profile.email,
       role: roleByUser.get(profile.id) || "agent",
     }))
-    .sort((a, b) =>
-      a.full_name.localeCompare(b.full_name, "fr", { sensitivity: "base" })
+  );
+}
+
+/** Liste complète des utilisateurs assignables (RPC prioritaire, fallback client). */
+export async function fetchWorkflowAssignableUsers(): Promise<AssignableUser[]> {
+  const { data, error } = await (supabase as any).rpc("list_assignable_users");
+
+  if (!error && Array.isArray(data) && data.length > 0) {
+    return sortAssignableUsers(
+      data.map((row: { id: string; full_name: string; email: string; role: string }) => ({
+        id: row.id,
+        full_name: row.full_name || row.email || "Utilisateur",
+        email: row.email,
+        role: row.role || "agent",
+      }))
     );
+  }
+
+  if (error && !/Could not find the function/i.test(error.message || "")) {
+    console.warn("list_assignable_users RPC:", error.message);
+  }
+
+  return fetchAssignableUsersViaClientQuery();
 }

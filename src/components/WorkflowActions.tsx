@@ -71,6 +71,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const isDgRole =
     role === "directeur" || role === "ministre" || role === "dg" || role === "autorite_1";
 
+  const isDgaRole =
+    role === "dircab" ||
+    role === "dircaba" ||
+    role === "autorite_2" ||
+    role === "autorite_3" ||
+    role === "dga";
+
   // Step 4: treatment type
   const [treatmentType, setTreatmentType] = useState<string>("");
   const [treatmentContent, setTreatmentContent] = useState("");
@@ -118,8 +125,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     if (isDefaultResponsible) return true;
     if (isInterimAssignee && currentStep >= 2 && currentStep <= 6) return true;
     if (isDgRole && currentStep >= 2 && currentStep <= 6) return true;
+    if (isDgaRole && (currentStep === 3 || currentStep === 5)) return true;
     return false;
   })();
+
+  const requiresAssigneesOnConfirm =
+    showDialog &&
+    currentStep === 2 &&
+    (action === "approve" || action === "complete") &&
+    selectedAssignees.length === 0;
 
   // Detect any active assignment for the current user at the current step
   useEffect(() => {
@@ -1284,7 +1298,12 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             <Button
               className="w-full sm:w-auto"
               onClick={handleAction}
-              disabled={loading || (showTreatment && action === "complete" && (!treatmentType || !treatmentContent)) || (currentStep === 8 && !attachmentFile)}
+              disabled={
+                loading ||
+                requiresAssigneesOnConfirm ||
+                (showTreatment && action === "complete" && (!treatmentType || !treatmentContent)) ||
+                (currentStep === 8 && !attachmentFile)
+              }
               variant={action === "reject" ? "destructive" : "default"}
             >
               {loading ? "En cours..." : action === "reject" ? "Confirmer le rejet" : "Confirmer"}
