@@ -7,12 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { WorkflowStepper } from "@/components/WorkflowStepper";
-import { WorkflowTimeline } from "@/components/WorkflowTimeline";
-import { TreatmentsList } from "@/components/TreatmentsList";
-import { Step4ContextPanel } from "@/components/Step4ContextPanel";
+import { MailDossierView } from "@/components/MailDossierView";
+import { useMailCircuitLabel } from "@/hooks/useMailCircuitLabel";
 import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
-import { MailDetailFields } from "@/components/MailDetailFields";
 import { Search, Eye, CheckCircle, Clock, Paperclip } from "lucide-react";
 import { AttachmentIndicator, AttachmentViewer } from "@/components/AttachmentViewer";
 import { getMailAttachmentUrls } from "@/lib/labels";
@@ -76,6 +73,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<GroupedEntry | null>(null);
   const [workflowAttachments, setWorkflowAttachments] = useState<{ step: number; url: string; performer: string }[]>([]);
+  const { data: circuitLabel } = useMailCircuitLabel(selectedEntry?.mail?.target_service_id);
 
   useEffect(() => {
     if (!user) return;
@@ -88,7 +86,7 @@ export default function HistoryPage() {
 
     const { data, error } = await supabase
       .from("mail_assignments")
-      .select("id, mail_id, step_number, status, completed_at, created_at, instructions, mails(id, subject, reference_number, sender_name, priority, status, current_step, mail_type, addressed_to, deadline_at, created_at, description, comments, attachment_url, ai_draft, sender_organization, sender_phone, sender_email, sender_address, sender_city, sender_country, reception_date, deposit_time, ministre_absent)")
+      .select("id, mail_id, step_number, status, completed_at, created_at, instructions, mails(id, subject, reference_number, registry_reference, system_reference, target_service_id, sender_name, priority, status, current_step, mail_type, addressed_to, deadline_at, created_at, description, comments, attachment_url, ai_draft, sender_organization, sender_phone, sender_email, sender_address, sender_city, sender_country, sender_province, reception_date, deposit_time, ministre_absent, assigned_agent_id)")
       .eq("assigned_to", user.id)
       .order("created_at", { ascending: false });
 
@@ -301,84 +299,88 @@ export default function HistoryPage() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedEntry} onOpenChange={(open) => !open && setSelectedEntry(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-0 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
               Détails — {selectedEntry?.mail?.reference_number}
             </DialogTitle>
           </DialogHeader>
           {selectedEntry?.mail && (
-            <div className="space-y-4">
-              {/* Workflow progress */}
-              <WorkflowStepper currentStep={selectedEntry.mail.current_step || 1} />
-
-              {/* My assignments summary */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mes interventions</h4>
-                {selectedEntry.assignments
-                  .sort((a, b) => a.step_number - b.step_number)
-                  .map((a, idx) => (
-                    <div key={idx} className={`p-3 rounded-lg border ${
-                      a.status === "completed" ? "bg-success/5 border-success/30" :
-                      a.status === "pending" ? "bg-warning/5 border-warning/30" :
-                      a.status === "acknowledged" ? "bg-primary/5 border-primary/30" :
-                      "bg-muted/30"
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">
-                          Étape {a.step_number} — {getStepLabel(a.step_number)}
-                        </p>
-                        <Badge variant="outline" className={`text-[10px] ${statusColors[a.status] || ""}`}>
-                          {a.status === "completed" ? "✅ Terminé" :
-                           a.status === "pending" ? "⏳ En attente" :
-                           a.status === "acknowledged" ? "👁 Consulté" :
-                           statusLabels[a.status] || a.status}
-                        </Badge>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <MailDossierView
+                mail={selectedEntry.mail}
+                circuitLabel={circuitLabel ?? null}
+                defaultStepperCollapsed={false}
+                extraBeforeTimeline={
+                  <>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Mes interventions
+                      </h4>
+                      {selectedEntry.assignments
+                        .sort((a, b) => a.step_number - b.step_number)
+                        .map((a, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-3 rounded-lg border ${
+                              a.status === "completed"
+                                ? "bg-success/5 border-success/30"
+                                : a.status === "pending"
+                                  ? "bg-warning/5 border-warning/30"
+                                  : a.status === "acknowledged"
+                                    ? "bg-primary/5 border-primary/30"
+                                    : "bg-muted/30"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium">
+                                Étape {a.step_number} — {getStepLabel(a.step_number)}
+                              </p>
+                              <Badge variant="outline" className={`text-[10px] ${statusColors[a.status] || ""}`}>
+                                {a.status === "completed"
+                                  ? "Terminé"
+                                  : a.status === "pending"
+                                    ? "En attente"
+                                    : a.status === "acknowledged"
+                                      ? "Consulté"
+                                      : statusLabels[a.status] || a.status}
+                              </Badge>
+                            </div>
+                            {a.completed_at && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Complété le{" "}
+                                {format(new Date(a.completed_at), "dd MMMM yyyy à HH:mm", { locale: fr })}
+                              </p>
+                            )}
+                            {a.instructions && (
+                              <p className="text-xs text-muted-foreground mt-1 italic">
+                                Instructions: {a.instructions}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                    {workflowAttachments.length > 0 && (
+                      <div className="p-4 rounded-lg border bg-muted/20 space-y-3">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                          <Paperclip className="h-4 w-4" />
+                          Documents joints au workflow
+                        </h4>
+                        {workflowAttachments.map((wa, i) => (
+                          <div key={i} className="flex items-center gap-3 p-2 rounded border bg-background/50">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getStepColor(wa.step)}`}>
+                              É{wa.step}
+                            </span>
+                            <span className="text-xs text-muted-foreground flex-1 truncate">{wa.performer}</span>
+                            <AttachmentViewer url={wa.url} inline />
+                          </div>
+                        ))}
                       </div>
-                      {a.completed_at && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Complété le {format(new Date(a.completed_at), "dd MMMM yyyy à HH:mm", { locale: fr })}
-                        </p>
-                      )}
-                      {a.instructions && (
-                        <p className="text-xs text-muted-foreground mt-1 italic">Instructions: {a.instructions}</p>
-                      )}
-                    </div>
-                  ))}
-              </div>
-
-              {/* Mail details categorized by step */}
-              <MailDetailFields mail={selectedEntry.mail} />
-
-              {/* Workflow attachments from transitions */}
-              {workflowAttachments.length > 0 && (
-                <div className="p-4 rounded-lg border bg-muted/20 space-y-3">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                    <Paperclip className="h-4 w-4" />
-                    Documents joints au workflow
-                  </h4>
-                  {workflowAttachments.map((wa, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 rounded border bg-background/50">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getStepColor(wa.step)}`}>É{wa.step}</span>
-                      <span className="text-xs text-muted-foreground flex-1 truncate">{wa.performer}</span>
-                      <AttachmentViewer url={wa.url} inline />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Treatments */}
-              <TreatmentsList mailId={selectedEntry.mail_id} />
-
-              {/* Context panel */}
-              <Step4ContextPanel mailId={selectedEntry.mail_id} />
-
-              {/* Full workflow timeline */}
-              <div className="p-3 rounded-lg border bg-muted/20">
-                <h4 className="text-sm font-semibold mb-2">Historique complet du workflow</h4>
-                <WorkflowTimeline mailId={selectedEntry.mail_id} />
-              </div>
+                    )}
+                  </>
+                }
+              />
             </div>
           )}
         </DialogContent>

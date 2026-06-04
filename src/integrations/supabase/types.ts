@@ -384,6 +384,8 @@ export type Database = {
           qr_code_data: string
           reception_date: string | null
           reference_number: string
+          registry_reference: string | null
+          system_reference: string | null
           registered_by: string
           sender_address: string | null
           sender_city: string | null
@@ -426,6 +428,8 @@ export type Database = {
           qr_code_data: string
           reception_date?: string | null
           reference_number: string
+          registry_reference?: string | null
+          system_reference?: string | null
           registered_by: string
           sender_address?: string | null
           sender_city?: string | null
@@ -468,6 +472,8 @@ export type Database = {
           qr_code_data?: string
           reception_date?: string | null
           reference_number?: string
+          registry_reference?: string | null
+          system_reference?: string | null
           registered_by?: string
           sender_address?: string | null
           sender_city?: string | null

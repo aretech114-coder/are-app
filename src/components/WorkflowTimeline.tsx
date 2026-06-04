@@ -9,6 +9,8 @@ import {
   formatTransitionNotesForDisplay,
   parseWorkflowTransitionNotes,
 } from "@/lib/workflow-notes";
+import type { WorkflowStep } from "@/hooks/useWorkflowSteps";
+import { getDisplayStepLabel, getVisualWorkflowStepNumber } from "@/lib/workflow-display";
 
 interface Transition {
   id: string;
@@ -20,7 +22,17 @@ interface Transition {
   performed_by: string;
 }
 
-export function WorkflowTimeline({ mailId }: { mailId: string }) {
+interface WorkflowTimelineProps {
+  mailId: string;
+  activeSteps?: WorkflowStep[];
+  groupByStep?: boolean;
+}
+
+export function WorkflowTimeline({
+  mailId,
+  activeSteps = [],
+  groupByStep = false,
+}: WorkflowTimelineProps) {
   const [transitions, setTransitions] = useState<Transition[]>([]);
 
   useEffect(() => {
@@ -61,6 +73,80 @@ export function WorkflowTimeline({ mailId }: { mailId: string }) {
 
   if (transitions.length === 0) {
     return <p className="text-xs text-muted-foreground py-2">Aucune transition enregistrée</p>;
+  }
+
+  const renderTransition = (t: Transition) => {
+    const parsed = parseWorkflowTransitionNotes(t.notes);
+    const lines = formatTransitionNotesForDisplay(t.notes);
+    const stepLabel =
+      activeSteps.length > 0 && t.from_step != null
+        ? getDisplayStepLabel(activeSteps, t.from_step)
+        : getStepLabel(t.from_step ?? t.to_step);
+
+    return (
+      <div key={t.id} className="flex items-start gap-3 text-xs">
+        <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+          {actionIcon(t.action)}
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="font-medium">
+            {actionLabel(t.action)}
+            {t.from_step != null && ` — ${stepLabel}`}
+            {" → "}
+            {activeSteps.length > 0
+              ? getDisplayStepLabel(activeSteps, t.to_step)
+              : getStepLabel(t.to_step)}
+          </p>
+          {lines.length > 0 && (
+            <ul className="text-muted-foreground space-y-0.5 list-none">
+              {lines.map((line, i) => (
+                <li key={i} className="break-words">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+          {parsed?.attachmentUrl && (
+            <div className="pt-1">
+              <AttachmentViewer url={parsed.attachmentUrl} inline />
+            </div>
+          )}
+          <p className="text-muted-foreground">
+            {format(new Date(t.created_at), "dd MMM yyyy à HH:mm", { locale: fr })}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  if (groupByStep && activeSteps.length > 0) {
+    const byStep = new Map<number, Transition[]>();
+    for (const t of transitions) {
+      const key = t.from_step ?? t.to_step;
+      if (!byStep.has(key)) byStep.set(key, []);
+      byStep.get(key)!.push(t);
+    }
+    const orderedKeys = [...byStep.keys()].sort((a, b) => a - b);
+
+    return (
+      <div className="space-y-4">
+        {orderedKeys.map((stepKey) => {
+          const visual =
+            stepKey === 1 ? 1 : getVisualWorkflowStepNumber(activeSteps, stepKey);
+          const stepName =
+            activeSteps.find((s) => s.step_order === stepKey)?.name ||
+            getStepLabel(stepKey);
+          return (
+            <div key={stepKey} className="rounded-lg border bg-background/50 p-2.5 space-y-2">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase">
+                É{visual} — {stepName}
+              </p>
+              <div className="space-y-3">{byStep.get(stepKey)!.map(renderTransition)}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   return (

@@ -136,14 +136,14 @@ export function RegistrySettingsDialog({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>Paramètres du registre</DialogTitle>
           <DialogDescription>
-            Gérez les types de courriers et les services concernés disponibles à l'enregistrement.
+            Gérez les types de courriers et les circuits / registres disponibles à l'enregistrement.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="types">
           <TabsList>
             <TabsTrigger value="types">Types de courriers</TabsTrigger>
-            <TabsTrigger value="services">Services concernés</TabsTrigger>
+            <TabsTrigger value="services">Circuits / registres</TabsTrigger>
           </TabsList>
 
           <TabsContent value="types" className="space-y-4">
@@ -210,14 +210,14 @@ export function RegistrySettingsDialog({ open, onOpenChange }: Props) {
             <div className="grid grid-cols-12 gap-2 items-end border-b pb-3">
               <div className="col-span-4">
                 <Input
-                  placeholder="Code (ex: finance)"
+                  placeholder="Code (ex: dg, pca, kinshasa)"
                   value={newService.code}
                   onChange={(e) => setNewService({ ...newService, code: e.target.value })}
                 />
               </div>
               <div className="col-span-6">
                 <Input
-                  placeholder="Libellé visible"
+                  placeholder="Libellé circuit (ex: Direction générale, PCA, Pôle Kinshasa)"
                   value={newService.label}
                   onChange={(e) => setNewService({ ...newService, label: e.target.value })}
                 />
