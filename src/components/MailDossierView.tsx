@@ -16,8 +16,10 @@ import {
   priorityLabels,
   shouldShowWorkflowBlock,
   statusLabels,
+  isDgRole,
 } from "@/lib/workflow-display";
 import type { MailContribution } from "@/hooks/useMailContributions";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface MailDossierViewProps {
   mail: any;
@@ -45,6 +47,7 @@ export function MailDossierView({
   defaultStepperCollapsed = true,
   extraBeforeTimeline,
 }: MailDossierViewProps) {
+  const { user } = useAuth();
   const { data: activeSteps = [] } = useActiveWorkflowSteps();
   const [stepperOpen, setStepperOpen] = useState(!defaultStepperCollapsed);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -137,7 +140,7 @@ export function MailDossierView({
           onViewAttachments={onViewAttachments}
         />
 
-        {showTreatments && <TreatmentsList mailId={mail.id} />}
+        {showTreatments && !showContributionsPanel && <TreatmentsList mailId={mail.id} />}
 
         <SubAssignmentPanel mailId={mail.id} currentStep={currentStep} />
 
@@ -145,7 +148,13 @@ export function MailDossierView({
           <MailContributionsPanel
             contributions={contributions}
             assigneeCount={step4AssigneeCount}
-            showDrafts
+            showAllDrafts={isDgRole(role)}
+            currentUserId={user?.id}
+            title={
+              isDgRole(role)
+                ? "Contributions des assignés"
+                : "Traitements des collaborateurs"
+            }
           />
         )}
 

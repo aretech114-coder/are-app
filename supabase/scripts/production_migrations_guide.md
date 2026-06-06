@@ -29,8 +29,15 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | K | `20260603160000_workflow_viewers_preserve.sql` | **Copie lecture seule** : ne plus supprimer les `viewer` à l'étape 4 ; notifications dédiées |
 | L | `20260604100000_mail_registry_fields.sql` | `registry_reference` + `system_reference` (registre / ID QR) |
 | M | `20260606170000_fix_viewer_notification_ambiguous.sql` | **Hotfix** : `v_aid` ambiguous à l'étape 2 avec lecteurs seuls |
+| N | `20260606210000_profiles_mail_collaborators_visible.sql` | Noms visibles des co-assignés / copie lecture seule sur courriers accessibles |
+| O | `20260606220000_storage_collaborators_mail_scoped.sql` | Co-assignés : lecture PJ traitements (`mail-documents`) via `can_access_mail` sur le mail du chemin |
+| P | `20260606230000_fix_step4_assignment_duplicates.sql` | **Doublons étape 4** : dédoublonnage + index unique + fix `advance_workflow_step` |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
+
+Après **O** (ou avec déploiement front associé) : à l'étape 4, contributors + viewers voient les traitements soumis des autres dans le dossier.
+
+Après **P** : exécuter la requête §4 de [`repair_mail_assignment_duplicates.sql`](repair_mail_assignment_duplicates.sql) pour vérifier qu'il reste 3 viewers + 5 contributors sur le courrier test.
 
 Après **K** (ou **M** si K déjà appliquée sans correctif) : pour les courriers déjà passés en étape 4+ sans lignes `viewer`, réassigner manuellement ou utiliser [`repair_mail_viewers.sql`](repair_mail_viewers.sql).
 

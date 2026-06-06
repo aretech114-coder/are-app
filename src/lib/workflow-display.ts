@@ -55,6 +55,34 @@ export function shouldHideDgSummaryCard(
   return currentStep === 2 && isDgRole(role);
 }
 
+/**
+ * Panneau contributions : DG dès l'étape 2 ; tous les collaborateurs assignés dès l'étape 4
+ * (contributors + viewers voient les traitements soumis des uns et des autres).
+ */
+export function shouldShowContributionsPanel(
+  currentStep: number,
+  role: string | null | undefined
+): boolean {
+  if (isDgRole(role) && currentStep >= 2) return true;
+  return currentStep >= 4;
+}
+
+/** Brouillons visibles : DG voit tout ; les autres ne voient que le leur. */
+export function filterVisibleContributions<
+  T extends { status: string; user_id: string }
+>(
+  contributions: T[],
+  opts: { showAllDrafts?: boolean; currentUserId?: string | null }
+): T[] {
+  const { showAllDrafts = false, currentUserId } = opts;
+  return contributions.filter(
+    (c) =>
+      c.status === "submitted" ||
+      showAllDrafts ||
+      (!!currentUserId && c.user_id === currentUserId)
+  );
+}
+
 export const statusLabels: Record<string, string> = {
   pending: "En attente",
   in_progress: "En cours",

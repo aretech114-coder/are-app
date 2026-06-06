@@ -839,9 +839,10 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 title={
                   isDgRole
                     ? "Contributions des assignés (temps réel)"
-                    : "Contributions au traitement"
+                    : "Traitements des collaborateurs"
                 }
-                showDrafts={isDgRole}
+                showAllDrafts={isDgRole}
+                currentUserId={user?.id}
               />
             )}
 

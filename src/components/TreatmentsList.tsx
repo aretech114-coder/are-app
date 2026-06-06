@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { resolveAttachmentUrls } from "@/lib/mail-storage";
+import type { MailAttachmentMeta } from "@/lib/labels";
 
 const CONTRIBUTOR_COLORS = [
   { border: "border-l-blue-500", bg: "bg-blue-50/50 dark:bg-blue-950/20", text: "text-blue-700 dark:text-blue-300" },
@@ -22,6 +24,7 @@ interface Treatment {
   authorId: string;
   content: string;
   attachmentUrl: string | null;
+  attachmentMeta: MailAttachmentMeta[];
   documentType: string | null;
   submittedAt: string | null;
 }
@@ -36,6 +39,53 @@ export function TreatmentsList({ mailId }: { mailId: string }) {
 
   const fetchTreatments = async () => {
     setLoading(true);
+
+    const { data: contributionRows } = await (supabase as any)
+      .from("mail_contributions")
+      .select("user_id, body, attachment_urls, processed_at, updated_at, status")
+      .eq("mail_id", mailId)
+      .eq("step_number", 4)
+      .eq("status", "submitted")
+      .order("updated_at", { ascending: true });
+
+    if (contributionRows && contributionRows.length > 0) {
+      const userIds = [...new Set(contributionRows.map((r: any) => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", userIds);
+      const profileMap = new Map(profiles?.map((p) => [p.id, p.full_name]) || []);
+
+      const fromContributions: Treatment[] = await Promise.all(
+        contributionRows.map(async (r: any) => {
+          const attachments: MailAttachmentMeta[] = Array.isArray(r.attachment_urls)
+            ? r.attachment_urls
+            : [];
+          let attachmentUrl: string | null = attachments[0]?.url ?? null;
+          if (attachments.some((a) => a.bucket && a.path)) {
+            try {
+              const fresh = await resolveAttachmentUrls(attachments);
+              attachmentUrl = fresh[0] ?? attachmentUrl;
+            } catch {
+              /* keep stored url */
+            }
+          }
+          return {
+            authorName: profileMap.get(r.user_id) || "Conseiller",
+            authorId: r.user_id,
+            content: (r.body || "").trim(),
+            attachmentUrl,
+            attachmentMeta: attachments,
+            documentType: null,
+            submittedAt: r.processed_at || r.updated_at,
+          };
+        })
+      );
+
+      setTreatments(fromContributions.filter((t) => t.content || t.attachmentUrl));
+      setLoading(false);
+      return;
+    }
 
     const { data: allTransitions } = await supabase
       .from("workflow_transitions")
@@ -79,12 +129,13 @@ export function TreatmentsList({ mailId }: { mailId: string }) {
         authorId: t.performed_by,
         content,
         attachmentUrl,
+        attachmentMeta: attachmentUrl ? [{ url: attachmentUrl }] : [],
         documentType,
         submittedAt: t.created_at,
       };
     });
 
-    setTreatments(parsed.filter(t => t.content));
+    setTreatments(parsed.filter((t) => t.content || t.attachmentUrl));
     setLoading(false);
   };
 
@@ -126,7 +177,15 @@ export function TreatmentsList({ mailId }: { mailId: string }) {
               <div className="flex items-center gap-2 p-2 rounded border bg-background/50">
                 <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span className="text-xs truncate flex-1">Pièce jointe</span>
-                <AttachmentViewer url={t.attachmentUrl} inline />
+                <AttachmentViewer
+                  url={t.attachmentUrl}
+                  mail={
+                    t.attachmentMeta.length > 0
+                      ? { attachment_urls: t.attachmentMeta }
+                      : undefined
+                  }
+                  inline
+                />
               </div>
             )}
           </div>
