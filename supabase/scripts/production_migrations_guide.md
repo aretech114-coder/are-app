@@ -32,6 +32,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | N | `20260606210000_profiles_mail_collaborators_visible.sql` | Noms visibles des co-assignés / copie lecture seule sur courriers accessibles |
 | O | `20260606220000_storage_collaborators_mail_scoped.sql` | Co-assignés : lecture PJ traitements (`mail-documents`) via `can_access_mail` sur le mail du chemin |
 | P | `20260606230000_fix_step4_assignment_duplicates.sql` | **Doublons étape 4** : dédoublonnage + index unique + fix `advance_workflow_step` |
+| Q | `20260606240000_storage_validations_deposits_paths.sql` | Storage : chemins `validations/` (DG étape 6) et `deposits/` (secrétariat étape 8) |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
