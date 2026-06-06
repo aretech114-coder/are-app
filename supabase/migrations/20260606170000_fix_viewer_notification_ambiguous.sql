@@ -1,6 +1,9 @@
--- Préserver les assignations « lecture seule » (access_mode = viewer) à l'entrée en étape 4.
--- Bug : DELETE … step_number = 4 AND status = 'proposed' supprimait aussi les viewers.
+-- Correctif prod : erreur 42702 « column reference v_aid is ambiguous »
+-- à l'étape 2 quand _viewer_ids est renseigné (alias unnest ≠ variable FOREACH v_aid).
+-- À exécuter en prod si migration K déjà appliquée avec l'ancienne version.
+-- Fix : SELECT viewer_uid … FROM unnest(_viewer_ids) AS viewer_uid
 
+-- Préserver les assignations « lecture seule » (access_mode = viewer) à l'entrée en étape 4.
 CREATE OR REPLACE FUNCTION public.advance_workflow_step(
   _mail_id uuid,
   _action text,

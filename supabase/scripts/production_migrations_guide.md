@@ -28,10 +28,11 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | J | `20260603150000_workflow_are_unified.sql` | Étapes 1/3/5/7 off ; réparation courriers ; `can_access_mail` ; garde-fous assignation ; `list_assignable_users` |
 | K | `20260603160000_workflow_viewers_preserve.sql` | **Copie lecture seule** : ne plus supprimer les `viewer` à l'étape 4 ; notifications dédiées |
 | L | `20260604100000_mail_registry_fields.sql` | `registry_reference` + `system_reference` (registre / ID QR) |
+| M | `20260606170000_fix_viewer_notification_ambiguous.sql` | **Hotfix** : `v_aid` ambiguous à l'étape 2 avec lecteurs seuls |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
-Après **K** : pour les courriers déjà passés en étape 4+ sans lignes `viewer`, réassigner manuellement ou utiliser [`repair_mail_viewers.sql`](repair_mail_viewers.sql).
+Après **K** (ou **M** si K déjà appliquée sans correctif) : pour les courriers déjà passés en étape 4+ sans lignes `viewer`, réassigner manuellement ou utiliser [`repair_mail_viewers.sql`](repair_mail_viewers.sql).
 
 Après **L** : `NOTIFY pgrst, 'reload schema';` — formulaire Registre avec N° courrier, référence registre, heure dépôt auto.
 
@@ -53,4 +54,4 @@ Exécuter `supabase/scripts/production_audit.sql` — requêtes séparées, une 
 |--------|--------|
 | `policy "X" already exists` | Exécuter `20260602190000` ou ajouter `DROP POLICY IF EXISTS` avant CREATE |
 | `column/table not in schema cache` | Migration bootstrap manquante + `NOTIFY pgrst, 'reload schema'` |
-| `42702 ambiguous column` | Utiliser le script audit corrigé (alias `expected.bucket_id`) |
+| `42702 ambiguous column` | Migration **M** (`v_aid` → `viewer_uid`) ou script audit corrigé (alias `expected.bucket_id`) |
