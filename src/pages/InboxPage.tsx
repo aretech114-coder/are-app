@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -14,19 +14,30 @@ import { getStepColor, getStepLabel, listMyMails } from "@/lib/workflow-engine";
 import { getMailAttachmentUrls } from "@/lib/labels";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { RecoverMailButton } from "@/components/RecoverMailButton";
-import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContributions";
 import { MailDossierView } from "@/components/MailDossierView";
 import { MailAiAssistant, MailAttachmentDocButton } from "@/components/MailAiAssistant";
 import { useMailCircuitLabel } from "@/hooks/useMailCircuitLabel";
 import { isDgRole } from "@/lib/workflow-display";
+import { MailInboxFilters, INBOX_QUICK_FILTER_LABELS } from "@/components/MailInboxFilters";
+import {
+  filterInboxMails,
+  isMailOverdue,
+  type InboxQuickFilter,
+  type InboxSortOrder,
+} from "@/lib/mail-inbox-filters";
+import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 
 export default function InboxPage() {
   const { user, role } = useAuth();
   const isMobile = useIsMobile();
+  const { data: activeSteps = [] } = useActiveWorkflowSteps();
   const [mails, setMails] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
   const [search, setSearch] = useState("");
+  const [quickFilter, setQuickFilter] = useState<InboxQuickFilter>("new");
+  const [stepFilter, setStepFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState<InboxSortOrder>("recent");
   const [showDoc, setShowDoc] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +49,7 @@ export default function InboxPage() {
     setLoading(true);
     let data: any[] = [];
     try {
-      data = await listMyMails(["pending", "in_progress"]);
+      data = await listMyMails(["pending", "in_progress", "processed", "archived"]);
       setMails(data || []);
     } catch (error: any) {
       console.error("Erreur fetch mails:", error?.message);
@@ -57,6 +68,17 @@ export default function InboxPage() {
   const showContributionsPanel = isDgRole(role) && (selected?.current_step || 0) >= 2;
   const { data: circuitLabel } = useMailCircuitLabel(selected?.target_service_id);
 
+  const filtered = useMemo(
+    () =>
+      filterInboxMails(mails, {
+        quickFilter,
+        stepFilter,
+        search,
+        sortOrder,
+      }),
+    [mails, quickFilter, stepFilter, search, sortOrder]
+  );
+
   const markAsRead = async (mail: any) => {
     setSelected(mail);
     if (!mail.is_read) {
@@ -65,13 +87,6 @@ export default function InboxPage() {
     }
   };
 
-  const filtered = mails.filter(
-    (m) =>
-      m.subject?.toLowerCase().includes(search.toLowerCase()) ||
-      m.sender_name?.toLowerCase().includes(search.toLowerCase()) ||
-      m.reference_number?.toLowerCase().includes(search.toLowerCase())
-  );
-
   const priorityColors: Record<string, string> = {
     low: "bg-muted text-muted-foreground",
     normal: "bg-info/10 text-info",
@@ -79,10 +94,10 @@ export default function InboxPage() {
     urgent: "bg-destructive/10 text-destructive",
   };
 
-  const isOverdue = (mail: any) => {
-    if (!mail.deadline_at) return false;
-    return new Date(mail.deadline_at) < new Date();
-  };
+  const subtitle =
+    quickFilter === "all"
+      ? `${filtered.length} courrier(s)`
+      : `${filtered.length} courrier(s) — ${INBOX_QUICK_FILTER_LABELS[quickFilter]}`;
 
   const renderDocDialog = () => {
     const docUrls = selected ? getMailAttachmentUrls(selected) : [];
@@ -189,12 +204,12 @@ export default function InboxPage() {
     <div className="animate-fade-in h-[calc(100vh-8rem)]">
       <div className="mb-4">
         <h1 className="page-header">Boîte de Réception</h1>
-        <p className="page-description">{filtered.length} courrier(s) à traiter</p>
+        <p className="page-description">{subtitle}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,32%)_1fr] gap-4 h-[calc(100%-4rem)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,36%)_1fr] gap-4 h-[calc(100%-4rem)]">
         <div className="flex flex-col border rounded-lg bg-card overflow-hidden min-h-[280px] lg:min-h-0">
-          <div className="p-3 border-b">
+          <div className="p-3 border-b space-y-3 shrink-0">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -204,8 +219,18 @@ export default function InboxPage() {
                 className="pl-9"
               />
             </div>
+            <MailInboxFilters
+              mails={mails}
+              quickFilter={quickFilter}
+              onQuickFilterChange={setQuickFilter}
+              stepFilter={stepFilter}
+              onStepFilterChange={setStepFilter}
+              sortOrder={sortOrder}
+              onSortOrderChange={setSortOrder}
+              activeSteps={activeSteps}
+            />
           </div>
-          <div className="flex-1 overflow-auto scrollbar-thin">
+          <div className="flex-1 overflow-auto scrollbar-thin min-h-0">
             {loading ? (
               <p className="text-sm text-muted-foreground p-4 text-center">Chargement...</p>
             ) : filtered.length === 0 ? (
@@ -234,15 +259,20 @@ export default function InboxPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded border ${getStepColor(mail.current_step || 1)}`}
                     >
                       {getStepLabel(mail.current_step || 1)}
                     </span>
-                    {isOverdue(mail) && (
+                    {isMailOverdue(mail) && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium">
                         En retard
+                      </span>
+                    )}
+                    {!mail.is_read && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                        Nouveau
                       </span>
                     )}
                   </div>
@@ -259,6 +289,7 @@ export default function InboxPage() {
               <MailDossierView
                 mail={selected}
                 role={role}
+                circuitLabel={circuitLabel ?? null}
                 showContributionsPanel={showContributionsPanel}
                 contributions={contributions}
                 step4AssigneeCount={step4AssigneeCount}
