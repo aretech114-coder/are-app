@@ -11,6 +11,9 @@ export interface WorkflowStepResponsible {
   is_active: boolean;
   created_by: string | null;
   notify_enabled: boolean;
+  notification_subject_template?: string | null;
+  notification_body_template?: string | null;
+  notification_body_viewer_template?: string | null;
 }
 
 export interface AssignableUser {

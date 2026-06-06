@@ -1,6 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
-import { APP_URL } from "@/lib/constants";
-import { UI_LABELS, WORKFLOW_STEP_LABELS } from "@/lib/labels";
+import { UI_LABELS } from "@/lib/labels";
+import {
+  applyNotificationTemplate,
+  buildEmailFromStepTemplates,
+  formatNotificationSubject,
+  getDefaultNotificationBody,
+  getDefaultNotificationSubject,
+} from "@/lib/notification-template";
 
 export type WorkflowNotificationType =
   | "transition"
@@ -11,6 +17,8 @@ export type WorkflowNotificationType =
 interface StepNotificationConfig {
   notifyEnabled: boolean;
   subjectTemplate: string | null;
+  bodyTemplate: string | null;
+  bodyViewerTemplate: string | null;
 }
 
 async function getStepName(stepNumber: number): Promise<{ name: string } | null> {
@@ -22,44 +30,25 @@ async function getStepName(stepNumber: number): Promise<{ name: string } | null>
     .maybeSingle();
 
   if (data?.name) return { name: data.name };
-  const fallback = WORKFLOW_STEP_LABELS[stepNumber as keyof typeof WORKFLOW_STEP_LABELS];
-  return fallback ? { name: fallback.name } : null;
+  return { name: `Étape ${stepNumber}` };
 }
 
-/**
- * Sends a workflow notification email via the send-notification-email edge function.
- * Non-blocking: errors are logged but don't interrupt workflow.
- */
 export async function sendWorkflowNotificationEmail(params: {
   recipientEmail: string;
   recipientName: string;
   subject: string;
+  bodyHtml: string;
   mailId: string;
   stepNumber: number;
-  stepName: string;
-  mailSubject: string;
-  referenceNumber?: string;
   notificationType: WorkflowNotificationType;
-  customMessage?: string;
 }) {
   try {
-    const bodyHtml = buildNotificationHtml({
-      recipientName: params.recipientName,
-      stepName: params.stepName,
-      stepNumber: params.stepNumber,
-      mailSubject: params.mailSubject,
-      referenceNumber: params.referenceNumber,
-      notificationType: params.notificationType,
-      customMessage: params.customMessage,
-      mailId: params.mailId,
-    });
-
     const { error } = await supabase.functions.invoke("send-notification-email", {
       body: {
         recipient_email: params.recipientEmail,
         recipient_name: params.recipientName,
         subject: params.subject,
-        body_html: bodyHtml,
+        body_html: params.bodyHtml,
         mail_id: params.mailId,
         step_number: params.stepNumber,
         notification_type: params.notificationType,
@@ -79,13 +68,17 @@ export async function getStepNotificationConfig(
 ): Promise<StepNotificationConfig> {
   const { data } = await supabase
     .from("workflow_step_responsibles" as any)
-    .select("notify_enabled, notification_subject_template")
+    .select(
+      "notify_enabled, notification_subject_template, notification_body_template, notification_body_viewer_template"
+    )
     .eq("step_number", stepNumber)
     .maybeSingle();
 
   return {
     notifyEnabled: (data as any)?.notify_enabled ?? true,
     subjectTemplate: (data as any)?.notification_subject_template ?? null,
+    bodyTemplate: (data as any)?.notification_body_template ?? null,
+    bodyViewerTemplate: (data as any)?.notification_body_viewer_template ?? null,
   };
 }
 
@@ -94,28 +87,23 @@ export async function isStepNotificationEnabled(stepNumber: number): Promise<boo
   return config.notifyEnabled;
 }
 
-export function formatNotificationSubject(
-  template: string | null,
-  vars: {
-    stepName: string;
-    stepNumber: number;
-    mailSubject?: string;
-    referenceNumber?: string;
-  },
-  fallback: string
-): string {
-  if (!template?.trim()) return fallback;
-  return template
-    .replace(/\{\{step_name\}\}/g, vars.stepName)
-    .replace(/\{\{step_number\}\}/g, String(vars.stepNumber))
-    .replace(/\{\{mail_subject\}\}/g, vars.mailSubject || "")
-    .replace(/\{\{reference_number\}\}/g, vars.referenceNumber || "");
+const TYPE_TITLES: Record<string, string> = {
+  transition: "Nouvelle tâche assignée",
+  pre_assignment: UI_LABELS.preAssignmentByDg,
+  sla_alert: "Dépassement de délai SLA",
+  rejection: "Dossier renvoyé",
+};
+
+function resolveAccessMode(
+  assignment: { access_mode: string } | undefined,
+  isDefaultAssignee: boolean
+): "contributor" | "viewer" | "default" {
+  if (assignment?.access_mode === "viewer") return "viewer";
+  if (assignment?.access_mode === "contributor") return "contributor";
+  if (isDefaultAssignee) return "default";
+  return "contributor";
 }
 
-/**
- * Notifie par e-mail tous les assignés actifs d'une étape (contributors + viewers).
- * Complète le seul assigned_to renvoyé par advance_workflow_step.
- */
 export async function notifyMailStepRecipients(
   mailId: string,
   stepNumber: number,
@@ -159,44 +147,62 @@ export async function notifyMailStepRecipients(
       .select("id, full_name, email")
       .in("id", [...recipientIds]);
 
+    const assigneeNames = (profiles || [])
+      .map((p) => p.full_name || p.email || "Utilisateur")
+      .join(", ");
+
     const isRejection = action === "reject";
     const notificationType: WorkflowNotificationType = isRejection ? "rejection" : "transition";
-    const defaultSubject = isRejection
-      ? `🔙 Dossier renvoyé — ${stepInfo.name}`
-      : `📬 Courrier en attente — ${stepInfo.name}`;
-
-    const subject = formatNotificationSubject(
-      config.subjectTemplate,
-      {
-        stepName: stepInfo.name,
-        stepNumber,
-        mailSubject: mailData.subject,
-        referenceNumber: mailData.reference_number,
-      },
-      defaultSubject
-    );
+    const fallbackSubject = isRejection
+      ? `Dossier renvoyé — ${stepInfo.name}`
+      : `Courrier en attente — ${stepInfo.name}`;
 
     await Promise.all(
       (profiles || [])
         .filter((p) => p.email)
         .map((p) => {
           const assignment = assignments?.find((a) => a.assigned_to === p.id);
-          const isViewer = assignment?.access_mode === "viewer";
-          const customMessage = isViewer
-            ? `Un courrier vous est transmis en copie lecture seule à l'étape « ${stepInfo.name} ».`
-            : undefined;
+          const isDefaultOnly =
+            !assignment &&
+            (p.id === fallbackUserId || p.id === mailData.assigned_agent_id);
+          const accessMode = resolveAccessMode(assignment, isDefaultOnly);
+
+          const { subject, bodyHtml } = buildEmailFromStepTemplates({
+            stepNumber,
+            stepName: stepInfo.name,
+            subjectTemplate: config.subjectTemplate,
+            bodyTemplate: config.bodyTemplate,
+            bodyViewerTemplate: config.bodyViewerTemplate,
+            notificationType,
+            recipientName: p.full_name || "Utilisateur",
+            recipientEmail: p.email!,
+            mailSubject: mailData.subject,
+            referenceNumber: mailData.reference_number ?? undefined,
+            mailId,
+            accessMode,
+            assigneesList: assigneeNames,
+            assigneesCount: recipientIds.size,
+            fallbackTitle: TYPE_TITLES[notificationType] || "Notification ARE App",
+            fallbackSubject: formatNotificationSubject(
+              config.subjectTemplate,
+              {
+                stepName: stepInfo.name,
+                stepNumber,
+                mailSubject: mailData.subject,
+                referenceNumber: mailData.reference_number ?? undefined,
+              },
+              fallbackSubject
+            ),
+          });
 
           return sendWorkflowNotificationEmail({
             recipientEmail: p.email!,
             recipientName: p.full_name || "Utilisateur",
             subject,
+            bodyHtml,
             mailId,
             stepNumber,
-            stepName: stepInfo.name,
-            mailSubject: mailData.subject,
-            referenceNumber: mailData.reference_number,
             notificationType,
-            customMessage,
           });
         })
     );
@@ -205,9 +211,6 @@ export async function notifyMailStepRecipients(
   }
 }
 
-/**
- * Pré-assignation étape 2 → e-mails aux futurs assignés (step 4 proposed/pending).
- */
 export async function notifyPreAssignmentRecipients(mailId: string) {
   try {
     const config = await getStepNotificationConfig(4);
@@ -239,36 +242,54 @@ export async function notifyPreAssignmentRecipients(mailId: string) {
       .select("id, full_name, email")
       .in("id", userIds);
 
-    const subject = formatNotificationSubject(
-      config.subjectTemplate,
-      {
-        stepName: stepInfo.name,
-        stepNumber: 4,
-        mailSubject: mailData.subject,
-        referenceNumber: mailData.reference_number,
-      },
-      `📋 ${UI_LABELS.preAssignmentByDg} — ${stepInfo.name}`
-    );
+    const assigneeNames = (profiles || [])
+      .map((p) => p.full_name || p.email || "Utilisateur")
+      .join(", ");
 
     await Promise.all(
       (profiles || [])
         .filter((p) => p.email)
         .map((p) => {
           const mode = assignments.find((a) => a.assigned_to === p.id)?.access_mode;
+          const accessMode: "contributor" | "viewer" =
+            mode === "viewer" ? "viewer" : "contributor";
+
+          const { subject, bodyHtml } = buildEmailFromStepTemplates({
+            stepNumber: 4,
+            stepName: stepInfo.name,
+            subjectTemplate: config.subjectTemplate,
+            bodyTemplate: config.bodyTemplate,
+            bodyViewerTemplate: config.bodyViewerTemplate,
+            notificationType: "pre_assignment",
+            recipientName: p.full_name || "Utilisateur",
+            recipientEmail: p.email!,
+            mailSubject: mailData.subject,
+            referenceNumber: mailData.reference_number ?? undefined,
+            mailId,
+            accessMode,
+            assigneesList: assigneeNames,
+            assigneesCount: userIds.length,
+            fallbackTitle: UI_LABELS.preAssignmentByDg,
+            fallbackSubject: formatNotificationSubject(
+              config.subjectTemplate,
+              {
+                stepName: stepInfo.name,
+                stepNumber: 4,
+                mailSubject: mailData.subject,
+                referenceNumber: mailData.reference_number ?? undefined,
+              },
+              `${UI_LABELS.preAssignmentByDg} — ${stepInfo.name}`
+            ),
+          });
+
           return sendWorkflowNotificationEmail({
             recipientEmail: p.email!,
             recipientName: p.full_name || "Utilisateur",
             subject,
+            bodyHtml,
             mailId,
             stepNumber: 4,
-            stepName: stepInfo.name,
-            mailSubject: mailData.subject,
-            referenceNumber: mailData.reference_number,
             notificationType: "pre_assignment",
-            customMessage:
-              mode === "viewer"
-                ? "Le Directeur général vous a mis en copie lecture seule sur ce courrier (pré-assignation)."
-                : "Le Directeur général vous a pré-assigné ce courrier pour traitement futur.",
           });
         })
     );
@@ -277,56 +298,5 @@ export async function notifyPreAssignmentRecipients(mailId: string) {
   }
 }
 
-function buildNotificationHtml(params: {
-  recipientName: string;
-  stepName: string;
-  stepNumber: number;
-  mailSubject: string;
-  referenceNumber?: string;
-  notificationType: string;
-  customMessage?: string;
-  mailId: string;
-}): string {
-  const typeLabels: Record<string, string> = {
-    transition: "Nouvelle tâche assignée",
-    pre_assignment: UI_LABELS.preAssignmentByDg,
-    sla_alert: "⚠️ Dépassement de délai SLA",
-    rejection: "Dossier renvoyé",
-  };
-
-  const title = typeLabels[params.notificationType] || "Notification ARE App";
-  const inboxUrl = `${APP_URL}/inbox?mail=${params.mailId}`;
-
-  return `
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f7; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-    <div style="background-color: #1a1a2e; padding: 24px 32px;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 20px;">${title}</h1>
-    </div>
-    <div style="padding: 32px;">
-      <p style="color: #333; font-size: 16px; margin: 0 0 16px;">
-        Bonjour <strong>${params.recipientName}</strong>,
-      </p>
-      <p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
-        ${params.customMessage || `Un courrier requiert votre attention à l'étape <strong>"${params.stepName}"</strong> (Étape ${params.stepNumber}).`}
-      </p>
-      <div style="background: #f8f9fa; border-left: 4px solid #1a1a2e; padding: 16px; border-radius: 4px; margin: 16px 0;">
-        <p style="margin: 0 0 8px; color: #333; font-size: 14px;">
-          <strong>Objet :</strong> ${params.mailSubject}
-        </p>
-        ${params.referenceNumber ? `<p style="margin: 0; color: #666; font-size: 13px;"><strong>Réf :</strong> ${params.referenceNumber}</p>` : ""}
-      </div>
-      <a href="${inboxUrl}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background-color: #1a1a2e; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">
-        Voir le courrier
-      </a>
-      <p style="color: #888; font-size: 12px; margin: 24px 0 0;">
-        Cet e-mail a été envoyé automatiquement par le système ARE App.
-      </p>
-    </div>
-  </div>
-</body>
-</html>`;
-}
+// Re-export for WorkflowPage editor preview consistency
+export { applyNotificationTemplate, getDefaultNotificationSubject, getDefaultNotificationBody };

@@ -38,8 +38,9 @@ supabase secrets set SMTP_FROM="ARE App <notifications@votre-domaine.org>"
 ## Comportement applicatif
 
 - Toggle **notify_enabled** par étape : page Workflow (admin).
-- Sujet personnalisable : `notification_subject_template` avec `{{step_name}}`, `{{step_number}}`, `{{mail_subject}}`, `{{reference_number}}`.
-- À chaque avancement : e-mail à **tous** les assignés `pending`/`proposed` de la nouvelle étape (contributors + viewers).
+- **Éditeur e-mail** : icône crayon à côté du toggle → sujet + corps HTML (traitement / lecture seule).
+- Shortcodes : `{{recipient_name}}`, `{{step_name}}`, `{{mail_subject}}`, `{{reference_number}}`, `{{access_mode_label}}`, `{{assignees_list}}`, `{{assignees_count}}`, `{{inbox_url}}`.
+- À chaque avancement : e-mail **individuel** à chaque assigné (contributors + viewers + responsable par défaut).
 - Rappels SLA (`sla-checker`) : autorisés via **service role** (cron).
 
 ## Tests
