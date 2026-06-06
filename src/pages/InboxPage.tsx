@@ -18,7 +18,7 @@ import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContr
 import { MailDossierView } from "@/components/MailDossierView";
 import { MailAiAssistant, MailAttachmentDocButton } from "@/components/MailAiAssistant";
 import { useMailCircuitLabel } from "@/hooks/useMailCircuitLabel";
-import { isDgRole } from "@/lib/workflow-display";
+import { shouldShowContributionsPanel } from "@/lib/workflow-display";
 import { MailInboxFilters, INBOX_QUICK_FILTER_LABELS } from "@/components/MailInboxFilters";
 import {
   filterInboxMails,
@@ -65,7 +65,7 @@ export default function InboxPage() {
 
   const { contributions } = useMailContributions(selected?.id, 4);
   const step4AssigneeCount = useStepAssigneeCount(selected?.id, 4);
-  const showContributionsPanel = isDgRole(role) && (selected?.current_step || 0) >= 2;
+  const showContributionsPanel = shouldShowContributionsPanel(selected?.current_step || 0, role);
   const { data: circuitLabel } = useMailCircuitLabel(selected?.target_service_id);
 
   const filtered = useMemo(

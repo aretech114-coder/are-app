@@ -13,7 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { MailDossierView } from "@/components/MailDossierView";
 import { useMailCircuitLabel } from "@/hooks/useMailCircuitLabel";
 import { useMailContributions, useStepAssigneeCount } from "@/hooks/useMailContributions";
-import { isDgRole } from "@/lib/workflow-display";
+import { shouldShowContributionsPanel } from "@/lib/workflow-display";
 import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
 import { getStepLabel, getStepColor, WORKFLOW_STEPS, listMyMails } from "@/lib/workflow-engine";
 import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip } from "lucide-react";
@@ -430,9 +430,10 @@ export default function SuiviPage() {
                 role={role}
                 getProfileName={getProfileName}
                 circuitLabel={circuitLabel ?? null}
-                showContributionsPanel={
-                  isDgRole(role) && (selectedMail.current_step || 0) >= 2
-                }
+                showContributionsPanel={shouldShowContributionsPanel(
+                  selectedMail.current_step || 0,
+                  role
+                )}
                 contributions={detailContributions}
                 step4AssigneeCount={detailStep4AssigneeCount}
                 defaultStepperCollapsed={false}
