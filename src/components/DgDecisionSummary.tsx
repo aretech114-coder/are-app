@@ -24,6 +24,9 @@ interface DgDecisionSummaryProps {
     participants?: string[] | null;
   }[];
   compact?: boolean;
+  annotationTitle?: string;
+  attachmentTitle?: string;
+  showAssignments?: boolean;
 }
 
 function splitNames(text: string | null): string[] {
@@ -40,6 +43,9 @@ export function DgDecisionSummary({
   assignments = [],
   meetings = [],
   compact = false,
+  annotationTitle = UI_LABELS.dgAnnotation,
+  attachmentTitle,
+  showAssignments = true,
 }: DgDecisionSummaryProps) {
   const parsed = parsedProp ?? parseWorkflowTransitionNotes(notes);
   if (!parsed && assignments.length === 0 && meetings.length === 0) return null;
@@ -60,7 +66,7 @@ export function DgDecisionSummary({
             <MessageSquare className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                {UI_LABELS.dgAnnotation}
+                {annotationTitle}
               </p>
               <p className="mt-1 whitespace-pre-wrap break-words">{parsed.annotation}</p>
             </div>
@@ -74,7 +80,7 @@ export function DgDecisionSummary({
             <div className="flex items-center gap-2 min-w-0">
               <FileText className="h-4 w-4 text-primary shrink-0" />
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Document joint par le {UI_LABELS.dgShort}
+                {attachmentTitle || `Document joint par le ${UI_LABELS.dgShort}`}
               </p>
             </div>
             <AttachmentViewer url={parsed.attachmentUrl} inline />
@@ -82,7 +88,7 @@ export function DgDecisionSummary({
         </section>
       )}
 
-      {(contributors.length > 0 || namesFromNotes.length > 0) && (
+      {showAssignments && (contributors.length > 0 || namesFromNotes.length > 0) && (
         <section className={`rounded-lg border ${pad}`}>
           <div className="flex gap-2 items-start">
             <Users className="h-4 w-4 text-primary shrink-0 mt-0.5" />
@@ -106,7 +112,7 @@ export function DgDecisionSummary({
         </section>
       )}
 
-      {viewers.length > 0 && (
+      {showAssignments && viewers.length > 0 && (
         <section className={`rounded-lg border border-dashed ${pad}`}>
           <div className="flex gap-2 items-start">
             <Eye className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />

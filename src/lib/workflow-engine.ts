@@ -227,11 +227,25 @@ export async function submitStep7Acknowledgement(
   };
 }
 
+export type MailDocumentSubfolder =
+  | "annotations"
+  | "treatments"
+  | "validations"
+  | "deposits";
+
+/** Sous-dossier mail-documents selon l'étape workflow. */
+export function mailDocumentSubfolderForStep(step: number): MailDocumentSubfolder {
+  if (step === 4) return "treatments";
+  if (step === 6) return "validations";
+  if (step === 8) return "deposits";
+  return "annotations";
+}
+
 /** Upload a workflow attachment to mail-documents bucket. */
 export async function uploadMailDocument(
   mailId: string,
   file: File,
-  subfolder: "annotations" | "treatments" = "treatments"
+  subfolder: MailDocumentSubfolder = "treatments"
 ): Promise<Pick<MailAttachmentMeta, "url" | "name" | "path" | "bucket">> {
   const sanitizedName = file.name
     .normalize("NFD")

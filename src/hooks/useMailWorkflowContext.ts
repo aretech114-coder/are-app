@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { DgAssignmentRow } from "@/components/DgDecisionSummary";
-import { parseWorkflowTransitionNotes } from "@/lib/workflow-notes";
+import {
+  parseWorkflowTransitionNotes,
+  type ParsedWorkflowNotes,
+} from "@/lib/workflow-notes";
 
 export interface WorkflowMeeting {
   title: string;
@@ -18,6 +21,8 @@ export interface MailWorkflowContext {
   dircabOrientation: string;
   dircabVerification: string;
   ministerValidation: string;
+  ministerValidationNotes: string | null;
+  ministerValidationParsed: ParsedWorkflowNotes | null;
   dgAssignments: DgAssignmentRow[];
   meetings: WorkflowMeeting[];
   loading: boolean;
@@ -28,6 +33,8 @@ const emptyContext: MailWorkflowContext = {
   dircabOrientation: "",
   dircabVerification: "",
   ministerValidation: "",
+  ministerValidationNotes: null,
+  ministerValidationParsed: null,
   dgAssignments: [],
   meetings: [],
   loading: true,
@@ -58,7 +65,8 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
           .select("assigned_to, access_mode, status")
           .eq("mail_id", mailId)
           .eq("step_number", 4)
-          .in("status", ["proposed", "pending", "completed"]),
+          .in("status", ["proposed", "pending", "completed"])
+          .in("access_mode", ["contributor", "viewer", "custodian"]),
         supabase
           .from("calendar_events")
           .select("title, event_date, event_time, end_time, location, description, participants")
@@ -71,6 +79,8 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
       let dircabOrientation = "";
       let dircabVerification = "";
       let ministerValidation = "";
+      let ministerValidationNotes: string | null = null;
+      let ministerValidationParsed: ParsedWorkflowNotes | null = null;
       let dgAssignments: DgAssignmentRow[] = [];
       const meetings = (meetingsRes.data || []) as WorkflowMeeting[];
 
@@ -102,11 +112,16 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
       }
 
       const validationTransition = transitionsRes.data?.find(
-        (t) => t.from_step === 6 && (t.to_step === 7 || t.to_step === 8)
+        (t) =>
+          t.from_step === 6 &&
+          (t.to_step === 7 || t.to_step === 8) &&
+          (t.action === "approve" || t.action === "complete")
       );
       if (validationTransition?.notes) {
-        const parsed = parseWorkflowTransitionNotes(validationTransition.notes);
-        ministerValidation = parsed?.annotation || validationTransition.notes;
+        ministerValidationNotes = validationTransition.notes;
+        ministerValidationParsed = parseWorkflowTransitionNotes(validationTransition.notes);
+        ministerValidation =
+          ministerValidationParsed?.annotation || validationTransition.notes;
       }
 
       if (assignmentsRes.data && assignmentsRes.data.length > 0) {
@@ -130,6 +145,8 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
           dircabOrientation,
           dircabVerification,
           ministerValidation,
+          ministerValidationNotes,
+          ministerValidationParsed,
           dgAssignments,
           meetings,
           loading: false,

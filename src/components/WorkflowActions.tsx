@@ -14,6 +14,7 @@ import {
   submitStep4Treatment,
   submitStep7Acknowledgement,
   uploadMailDocument,
+  mailDocumentSubfolderForStep,
 } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
@@ -31,6 +32,7 @@ import { fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
 import { DgDecisionSummary, type DgAssignmentRow } from "@/components/DgDecisionSummary";
 import { useMailContributions } from "@/hooks/useMailContributions";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
+import { MailSecretariatRecap } from "@/components/MailSecretariatRecap";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -284,7 +286,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     return () => { cancelled = true; };
   }, [currentStep, mailId, contributions.length]);
 
-  // Fetch mail data for step 8
+  // Fetch mail data for step 8 (dossier + preuve de dépôt)
   useEffect(() => {
     if (currentStep === 8 || (showDialog && currentStep === 8)) {
       supabase.from("mails").select("*").eq("id", mailId).single().then(({ data }) => {
@@ -528,30 +530,30 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setLoading(true);
 
     try {
-      // Upload attachment if provided (step 4 uploads handled in treatment RPC block)
+      // Upload attachment (step 4 uploads handled in treatment RPC block)
       let annotationAttachmentUrl: string | null = null;
       if (attachmentFile && currentStep !== 4) {
-        const { file: compressedFile, originalSize, compressedSize, wasCompressed } = await compressFile(attachmentFile);
+        const { file: compressedFile, originalSize, compressedSize, wasCompressed } =
+          await compressFile(attachmentFile);
         if (wasCompressed) {
           toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
         }
-        const sanitizedName = compressedFile.name
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9._-]/g, "_")
-          .replace(/_+/g, "_");
-        const filePath = `annotations/${mailId}/${Date.now()}_${sanitizedName}`;
-        const { error: uploadErr } = await supabase.storage.from("mail-documents").upload(filePath, compressedFile);
-        if (uploadErr) {
-          const msg = uploadErr.message || "";
+        try {
+          const meta = await uploadMailDocument(
+            mailId,
+            compressedFile,
+            mailDocumentSubfolderForStep(currentStep)
+          );
+          annotationAttachmentUrl = meta.url;
+        } catch (uploadErr: any) {
+          const msg = uploadErr?.message || "";
           if (/row-level security/i.test(msg)) {
             throw new Error(
-              "Impossible de joindre le fichier : votre rôle n'a pas les droits d'upload (directeur/DG). Appliquez la migration SQL 20260601120000 sur Supabase."
+              "Impossible de joindre le fichier : droits d'upload insuffisants. Vérifiez les policies Storage mail-documents."
             );
           }
           throw uploadErr;
         }
-        const { data: urlData } = await supabase.storage.from("mail-documents").createSignedUrl(filePath, 60 * 60 * 24 * 365);
-        annotationAttachmentUrl = urlData?.signedUrl || null;
       }
 
       // Build full notes
@@ -774,8 +776,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
   const showAssignment = currentStep === 2 || currentStep === 3 || currentStep === 5;
-  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 8;
+  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 6 || currentStep === 8;
   const showTreatment = currentStep === 4;
+
+  const attachmentUploadHint: Partial<Record<number, string>> = {
+    2: "Annotation, modèle ou document d'appui pour le traitement",
+    6: "Modèle, consignes ou document à transmettre au secrétariat pour la rédaction finale",
+    8: "Preuve de dépôt signée ou scan du courrier sortant (obligatoire)",
+  };
 
   const roleLabel = (slug: string) => getRoleLabel(slug);
 
@@ -886,9 +894,17 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               </>
             )}
 
-            {/* Step 8: Accusé de réception generation and proof of deposit */}
+            {/* Step 8: recap + proof of deposit */}
             {currentStep === 8 && (
               <div className="space-y-4">
+                <MailSecretariatRecap
+                  mailId={mailId}
+                  mail={mailData || { attachment_url: null }}
+                  contributions={contributions}
+                  step4AssigneeCount={step4AssigneeCount}
+                  compact
+                />
+
                 {mailData?.mail_type === "accuse_reception" || mailData?.mail_type === "accusé_reception" ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -1194,8 +1210,15 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <Upload className="h-3.5 w-3.5" />
-                  Joindre un document
+                  {currentStep === 8
+                    ? "Preuve de dépôt / courrier signé"
+                    : currentStep === 6
+                      ? "Document joint à la validation"
+                      : "Joindre un document"}
                 </Label>
+                {attachmentUploadHint[currentStep] && (
+                  <p className="text-xs text-muted-foreground">{attachmentUploadHint[currentStep]}</p>
+                )}
                 <div
                   className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => fileInputRef.current?.click()}

@@ -9,6 +9,7 @@ import { MailDetailFields } from "@/components/MailDetailFields";
 import { TreatmentsList } from "@/components/TreatmentsList";
 import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
+import { MailSecretariatRecap } from "@/components/MailSecretariatRecap";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 import { getMailAttachmentUrls } from "@/lib/labels";
@@ -62,6 +63,7 @@ export function MailDossierView({
   }, [mail.id, defaultStepperCollapsed]);
 
   const showTreatments = shouldShowWorkflowBlock(4, currentStep, activeSteps);
+  const showSecretariatRecap = currentStep >= 8;
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -139,6 +141,15 @@ export function MailDossierView({
           embedAttachments
           onViewAttachments={onViewAttachments}
         />
+
+        {showSecretariatRecap && (
+          <MailSecretariatRecap
+            mailId={mail.id}
+            mail={mail}
+            contributions={contributions}
+            step4AssigneeCount={step4AssigneeCount}
+          />
+        )}
 
         {showTreatments && !showContributionsPanel && <TreatmentsList mailId={mail.id} />}
 
