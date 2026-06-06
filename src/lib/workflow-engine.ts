@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WORKFLOW_BUCKET, createSignedUrlForPath } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
-import { sendWorkflowNotificationEmail, isStepNotificationEnabled } from "@/lib/workflow-notifications";
+import { notifyMailStepRecipients } from "@/lib/workflow-notifications";
 import { WORKFLOW_STEP_LABELS, getRoleLabel, ROLE_LABELS } from "@/lib/labels";
 
 export { getRoleLabel, ROLE_LABELS };
@@ -118,9 +118,7 @@ export async function advanceWorkflow(
   const newStep = result.new_step as number;
   const assignedTo = result.assigned_to as string | null;
 
-  if (assignedTo) {
-    sendStepEmailNotification(newStep, assignedTo, mailId, action).catch(console.error);
-  }
+  notifyMailStepRecipients(mailId, newStep, action, assignedTo).catch(console.error);
 
   return {
     success: true,
@@ -262,44 +260,4 @@ export async function uploadMailDocument(
   if (!url) throw new Error("Impossible de générer l'URL du fichier");
 
   return { url, name: file.name, path: filePath, bucket: WORKFLOW_BUCKET };
-}
-
-/**
- * Send email notification — now uses dynamic DB step info.
- */
-async function sendStepEmailNotification(
-  newStep: number,
-  assignedTo: string,
-  mailId: string,
-  action: string
-) {
-  try {
-    const emailEnabled = await isStepNotificationEnabled(newStep);
-    if (!emailEnabled) return;
-
-    const stepInfo = await getStepInfoFromDB(newStep);
-    if (!stepInfo) return;
-
-    const [{ data: recipientProfile }, { data: mailData }] = await Promise.all([
-      supabase.from("profiles").select("full_name, email").eq("id", assignedTo).single(),
-      supabase.from("mails").select("subject, reference_number").eq("id", mailId).single(),
-    ]);
-
-    if (!recipientProfile?.email || !mailData) return;
-
-    const isRejection = action === "reject";
-    await sendWorkflowNotificationEmail({
-      recipientEmail: recipientProfile.email,
-      recipientName: recipientProfile.full_name || "Utilisateur",
-      subject: `${isRejection ? "🔙 Dossier renvoyé" : "📬 Courrier en attente"} — ${stepInfo.name}`,
-      mailId,
-      stepNumber: newStep,
-      stepName: stepInfo.name,
-      mailSubject: mailData.subject,
-      referenceNumber: mailData.reference_number,
-      notificationType: isRejection ? "rejection" : "transition",
-    });
-  } catch (err) {
-    console.error("Email notification error (non-blocking):", err);
-  }
 }

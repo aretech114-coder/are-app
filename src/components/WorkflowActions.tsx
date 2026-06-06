@@ -697,9 +697,6 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       });
 
       if (result.success) {
-        // Step 2 proposed assignments handled atomically by advance_workflow_step RPC
-        // No more client-side direct updates to mails.current_step
-
         // Save calendar event if RDV was scheduled
         if (scheduleRdv && rdvDate && user) {
           const participants = selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean) as string[];
