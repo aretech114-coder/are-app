@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Workflow, Clock, Settings2, UserCog, Mail } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { WorkflowNotificationEditor, type NotificationTemplateConfig } from "@/components/WorkflowNotificationEditor";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { WorkflowStepManager } from "@/components/WorkflowStepManager";
 import { WorkflowFallbackManager } from "@/components/WorkflowFallbackManager";
@@ -55,6 +57,7 @@ export default function WorkflowPage() {
   const [users, setUsers] = useState<AssignableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingStep, setSavingStep] = useState<number | null>(null);
+  const [editorStep, setEditorStep] = useState<{ stepNumber: number; stepName: string } | null>(null);
 
   const canManageResponsibles = role === "superadmin" || (role === "admin" && hasPermission("manage_workflow_assignments"));
 
@@ -252,11 +255,21 @@ export default function WorkflowPage() {
                     <p className="text-xs text-muted-foreground">{step.description}</p>
                   </div>
                   {canManageResponsibles && (
-                    <div className="flex items-center gap-2 shrink-0" title={config?.notify_enabled !== false ? "Notifications e-mail activées" : "Notifications e-mail désactivées"}>
-                      <Mail className={`h-4 w-4 ${config?.notify_enabled !== false ? "text-primary" : "text-muted-foreground"}`} />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Configurer le modèle d'e-mail"
+                        onClick={() => setEditorStep({ stepNumber: step.step_order, stepName: step.name })}
+                      >
+                        <Mail className={`h-4 w-4 ${config?.notify_enabled !== false ? "text-primary" : "text-muted-foreground"}`} />
+                      </Button>
                       <Switch
                         checked={config?.notify_enabled !== false}
                         onCheckedChange={(checked) => handleNotifyToggle(step.step_order, checked)}
+                        title={config?.notify_enabled !== false ? "Notifications e-mail activées" : "Notifications e-mail désactivées"}
                       />
                     </div>
                   )}
@@ -306,6 +319,54 @@ export default function WorkflowPage() {
           )}
         </CardContent>
       </Card>
+
+      {editorStep && (
+        <WorkflowNotificationEditor
+          open={!!editorStep}
+          onOpenChange={(open) => !open && setEditorStep(null)}
+          stepNumber={editorStep.stepNumber}
+          stepName={editorStep.stepName}
+          createdBy={user?.id}
+          existingResponsible={responsibleByStep.get(editorStep.stepNumber) ?? null}
+          config={
+            responsibleByStep.get(editorStep.stepNumber)
+              ? ({
+                  step_number: editorStep.stepNumber,
+                  notify_enabled: responsibleByStep.get(editorStep.stepNumber)!.notify_enabled,
+                  notification_subject_template:
+                    responsibleByStep.get(editorStep.stepNumber)!.notification_subject_template ?? null,
+                  notification_body_template:
+                    responsibleByStep.get(editorStep.stepNumber)!.notification_body_template ?? null,
+                  notification_body_viewer_template:
+                    responsibleByStep.get(editorStep.stepNumber)!.notification_body_viewer_template ?? null,
+                } satisfies NotificationTemplateConfig)
+              : null
+          }
+          onSaved={(saved) => {
+            setResponsibles((prev) => {
+              const existing = prev.find((item) => item.step_number === saved.step_number);
+              if (existing) {
+                return prev.map((item) =>
+                  item.step_number === saved.step_number ? { ...item, ...saved } : item,
+                );
+              }
+              return [
+                ...prev,
+                {
+                  id: crypto.randomUUID(),
+                  step_number: saved.step_number,
+                  assignment_mode: STEP_DEFAULT_MODE[saved.step_number],
+                  default_user_id: null,
+                  fallback_step_number: saved.step_number === 6 ? 2 : null,
+                  created_by: user?.id ?? null,
+                  is_active: true,
+                  ...saved,
+                },
+              ];
+            });
+          }}
+        />
+      )}
 
       <Card>
         <CardHeader>
