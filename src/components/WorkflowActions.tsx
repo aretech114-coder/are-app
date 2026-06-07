@@ -701,7 +701,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         if (scheduleRdv && rdvDate && user) {
           const participants = selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean) as string[];
           const participantIds = selectedAssignees;
-          await supabase.from("calendar_events").insert({
+          const { error: calendarError } = await supabase.from("calendar_events").insert({
             mail_id: mailId,
             title: rdvTitle || "RDV — Courrier",
             description: rdvDescription || annotation || null,
@@ -713,6 +713,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             participant_ids: participantIds,
             created_by: user.id,
           } as any);
+
+          if (calendarError) {
+            console.error("calendar_events insert:", calendarError);
+            toast.error(`RDV non enregistré : ${calendarError.message}`);
+          } else {
+            toast.success("RDV / réunion planifié(e)");
+          }
         }
 
         toast.success(`Courrier avancé à l'étape ${result.newStep}`);

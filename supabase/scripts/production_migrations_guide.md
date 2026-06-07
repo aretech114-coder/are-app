@@ -33,12 +33,16 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | O | `20260606220000_storage_collaborators_mail_scoped.sql` | Co-assignés : lecture PJ traitements (`mail-documents`) via `can_access_mail` sur le mail du chemin |
 | P | `20260606230000_fix_step4_assignment_duplicates.sql` | **Doublons étape 4** : dédoublonnage + index unique + fix `advance_workflow_step` |
 | Q | `20260606240000_storage_validations_deposits_paths.sql` | Storage : chemins `validations/` (DG étape 6) et `deposits/` (secrétariat étape 8) |
+| R | `20260606250000_workflow_notification_body_templates.sql` | Templates corps e-mail par étape (`notification_body_template`, viewer) |
+| S | `20260606260000_calendar_events_bootstrap.sql` | **Table RDV/réunions** + RLS DG/directeur (manquait en prod) |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
 Après **O** (ou avec déploiement front associé) : à l'étape 4, contributors + viewers voient les traitements soumis des autres dans le dossier.
 
 Après **P** : exécuter la requête §4 de [`repair_mail_assignment_duplicates.sql`](repair_mail_assignment_duplicates.sql) pour vérifier qu'il reste 3 viewers + 5 contributors sur le courrier test.
+
+Après **S** : tester un RDV à l'étape 2 (DG) → page **Réunions** + dossier courrier. Vérifier : `SELECT count(*) FROM public.calendar_events;`
 
 Après **K** (ou **M** si K déjà appliquée sans correctif) : pour les courriers déjà passés en étape 4+ sans lignes `viewer`, réassigner manuellement ou utiliser [`repair_mail_viewers.sql`](repair_mail_viewers.sql).
 
