@@ -29,6 +29,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 import IntegrationsPage from "./pages/IntegrationsPage";
+import NotificationsTestPage from "./pages/NotificationsTestPage";
 import AccountPage from "./pages/AccountPage";
 
 const queryClient = new QueryClient();
@@ -103,6 +104,7 @@ function AppRoutes() {
       <Route path="/suivi" element={<ProtectedRoute><SuiviPage /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SuperAdminRoute><SystemConfigPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="/integrations" element={<ProtectedRoute><AdminRoute><IntegrationsPage /></AdminRoute></ProtectedRoute>} />
+      <Route path="/notifications-test" element={<ProtectedRoute><SuperAdminRoute><NotificationsTestPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

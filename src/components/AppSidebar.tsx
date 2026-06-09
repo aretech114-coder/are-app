@@ -1,5 +1,5 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList, Puzzle,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList, Puzzle, Send,
 } from "lucide-react";
 import { getRoleLabel } from "@/lib/workflow-engine";
 import { NavLink } from "@/components/NavLink";
@@ -181,6 +181,19 @@ export function AppSidebar() {
                     >
                       <Puzzle className="h-4 w-4 shrink-0" />
                       <span className="text-sm">Intégrations</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/notifications-test"
+                      end
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <Send className="h-4 w-4 shrink-0" />
+                      <span className="text-sm">Test e-mail</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
