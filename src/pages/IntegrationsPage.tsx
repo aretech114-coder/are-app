@@ -2,6 +2,8 @@ import {
   Mail, Bot, Plane, CalendarDays, Users, Briefcase, Receipt, Archive, Webhook,
   Building2, Lock, CheckCircle2, FileText, PenTool, BarChart3, Key,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { EmailNotificationTester } from "@/components/admin/EmailNotificationTester";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -13,7 +15,7 @@ interface ModuleCard {
 }
 
 const activeModules: ModuleCard[] = [
-  { name: "Notifications Email", description: "Envoi automatique via SMTP sur transitions et alertes SLA", icon: Mail, status: "active" },
+  { name: "Notifications Email", description: "Envoi via Resend/SMTP — testeur disponible ci-dessous (super admin)", icon: Mail, status: "active" },
   { name: "Assistant IA", description: "Analyse de documents et génération de brouillons via Gemini Flash", icon: Bot, status: "active" },
   { name: "Missions Officielles", description: "Suivi des déplacements et ordres de mission", icon: Plane, status: "active" },
   { name: "Réunions & RDV", description: "Planification d'événements liés aux courriers", icon: CalendarDays, status: "active" },
@@ -79,6 +81,9 @@ function ModuleGrid({ modules }: { modules: ModuleCard[] }) {
 }
 
 export default function IntegrationsPage() {
+  const { role } = useAuth();
+  const isSuperAdmin = role === "superadmin";
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
@@ -87,6 +92,13 @@ export default function IntegrationsPage() {
           Gérez les modules actifs et découvrez les fonctionnalités à venir
         </p>
       </div>
+
+      {isSuperAdmin && (
+        <div id="email-test" className="space-y-4">
+          <h2 className="text-lg font-semibold">Test notifications e-mail</h2>
+          <EmailNotificationTester />
+        </div>
+      )}
 
       {/* Active modules */}
       <div className="space-y-4">
