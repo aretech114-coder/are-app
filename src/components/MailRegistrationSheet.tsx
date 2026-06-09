@@ -23,7 +23,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Reply, Upload, X, Paperclip } from "lucide-react";
+import { CheckCircle2, Loader2, Reply, Upload, X, Paperclip, AlertCircle } from "lucide-react";
 import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
@@ -50,6 +50,14 @@ type Props = {
     sender_organization?: string | null;
     subject: string;
   } | null;
+};
+
+type PendingUpload = {
+  id: string;
+  file: File;
+  status: "uploading" | "done" | "error";
+  meta?: MailAttachmentMeta;
+  error?: string;
 };
 
 export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated, parentMail }: Props) {
@@ -128,7 +136,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     target_service_id: "",
     assigned_to: "",
   });
-  const [files, setFiles] = useState<File[]>([]);
+  const [uploads, setUploads] = useState<PendingUpload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [titulaireAbsent, setTitulaireAbsent] = useState(false);
   const [systemRefPreview, setSystemRefPreview] = useState(generateSystemReference);
@@ -167,11 +175,50 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     }
   }, [open, parentMail]);
 
-  const handleFiles = (incoming: FileList | null) => {
-    if (!incoming) return;
-    setFiles((prev) => [...prev, ...Array.from(incoming)]);
+  const uploadRef = form.reference_number.trim() || systemRefPreview;
+
+  const uploadOneFile = async (file: File) => {
+    const id = crypto.randomUUID();
+    setUploads((prev) => [...prev, { id, file, status: "uploading" }]);
+    try {
+      const metas = await uploadIncomingMailFiles(
+        uploadRef,
+        [file],
+        form.reception_date || null,
+        (_name, originalSize, compressedSize) => {
+          toast.info(
+            `Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`
+          );
+        }
+      );
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.id === id ? { ...u, status: "done", meta: metas[0] } : u
+        )
+      );
+      toast.success(`${file.name} importé`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Échec de l'import";
+      setUploads((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: "error", error: msg } : u))
+      );
+      toast.error(`Import échoué : ${file.name}`);
+    }
   };
-  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleFiles = (incoming: FileList | null) => {
+    if (!incoming?.length) return;
+    if (!uploadRef) {
+      toast.error("Saisissez le N° courrier avant d'ajouter des pièces jointes.");
+      return;
+    }
+    Array.from(incoming).forEach((file) => {
+      void uploadOneFile(file);
+    });
+  };
+
+  const removeUpload = (id: string) =>
+    setUploads((prev) => prev.filter((u) => u.id !== id));
 
   const reset = () =>
   {
@@ -196,7 +243,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       target_service_id: "",
       assigned_to: "",
     });
-    setFiles([]);
+    setUploads([]);
     setTitulaireAbsent(false);
   };
 
@@ -213,6 +260,25 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     }
     if (titulaireAbsent && !form.assigned_to) {
       toast.error("Désignez l'intérimaire — autorité absente.");
+      return;
+    }
+    if (uploads.length === 0) {
+      toast.error("Au moins une pièce jointe est obligatoire.");
+      return;
+    }
+    if (uploads.some((u) => u.status === "uploading")) {
+      toast.error("Import en cours — attendez la fin du téléversement.");
+      return;
+    }
+    if (uploads.some((u) => u.status === "error")) {
+      toast.error("Retirez ou réimportez les pièces jointes en erreur.");
+      return;
+    }
+    const attachmentUrls = uploads
+      .filter((u) => u.status === "done" && u.meta)
+      .map((u) => u.meta!);
+    if (attachmentUrls.length === 0) {
+      toast.error("Au moins une pièce jointe valide est obligatoire.");
       return;
     }
     setLoading(true);
@@ -245,20 +311,6 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       const routing = await getWorkflowRoutingContext();
       const targetStep = routing.routingStep;
 
-      // Upload pièces jointes (multi) → bucket mail-incoming / YYYY/MM/REF/
-      const attachmentUrls: MailAttachmentMeta[] =
-        files.length > 0
-          ? await uploadIncomingMailFiles(
-              ref,
-              files,
-              form.reception_date || null,
-              (_name, originalSize, compressedSize) => {
-                toast.info(
-                  `Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`
-                );
-              }
-            )
-          : [];
       const attachmentUrl: string | null = attachmentUrls[0]?.url ?? null;
 
       // Résolution du destinataire pour l'étape 2
@@ -733,7 +785,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
 
           {/* Pièces jointes */}
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Pièces jointes</h3>
+            <h3 className="text-sm font-semibold text-foreground">Pièces jointes *</h3>
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
@@ -752,16 +804,43 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
                 onChange={(e) => handleFiles(e.target.files)}
               />
             </div>
-            {files.length > 0 && (
+            {uploads.length > 0 && (
               <ul className="space-y-1">
-                {files.map((f, i) => (
-                  <li key={i} className="flex items-center justify-between rounded border bg-background px-2 py-1 text-xs">
-                    <span className="flex items-center gap-2 truncate">
-                      <Paperclip className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{f.name}</span>
-                      <span className="text-muted-foreground">({formatFileSize(f.size)})</span>
+                {uploads.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex items-center justify-between rounded border bg-background px-2 py-1.5 text-xs"
+                  >
+                    <span className="flex items-center gap-2 truncate min-w-0">
+                      {u.status === "uploading" && (
+                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                      )}
+                      {u.status === "done" && (
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                      )}
+                      {u.status === "error" && (
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                      )}
+                      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{u.file.name}</span>
+                      <span className="text-muted-foreground shrink-0">
+                        ({formatFileSize(u.file.size)})
+                      </span>
+                      {u.status === "done" && (
+                        <span className="text-green-600 shrink-0">Importé</span>
+                      )}
+                      {u.status === "error" && (
+                        <span className="text-destructive truncate">{u.error}</span>
+                      )}
                     </span>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(i)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      disabled={u.status === "uploading"}
+                      onClick={() => removeUpload(u.id)}
+                    >
                       <X className="h-3 w-3" />
                     </Button>
                   </li>

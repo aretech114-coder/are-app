@@ -35,6 +35,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | Q | `20260606240000_storage_validations_deposits_paths.sql` | Storage : chemins `validations/` (DG étape 6) et `deposits/` (secrétariat étape 8) |
 | R | `20260606250000_workflow_notification_body_templates.sql` | Templates corps e-mail par étape (`notification_body_template`, viewer) |
 | S | `20260606260000_calendar_events_bootstrap.sql` | **Table RDV/réunions** + RLS DG/directeur (manquait en prod) |
+| T | `20260608100000_lock_registry_after_dg_step.sql` | Verrou registre seulement après sortie étape 2 (DG) |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
