@@ -146,7 +146,12 @@ serve(async (req) => {
       }
     }
 
-    if (payload.recipient_user_id) {
+    // En mode test, l'e-mail direct prime (évite d'envoyer au super admin par erreur).
+    const useProfileEmail =
+      !!payload.recipient_user_id &&
+      !(payload.notification_type === "test" && payload.recipient_email?.trim());
+
+    if (useProfileEmail) {
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("email, full_name")
@@ -226,6 +231,7 @@ serve(async (req) => {
         success: true,
         recipient: payload.recipient_email,
         recipient_user_id: payload.recipient_user_id ?? null,
+        resolved_from: useProfileEmail ? "profile" : "direct",
         provider,
         provider_message_id: providerMessageId,
       }),
