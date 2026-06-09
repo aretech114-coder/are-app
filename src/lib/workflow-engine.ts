@@ -179,6 +179,15 @@ export async function submitStep4Treatment(
     return { success: false, error: (result?.error as string) || "Erreur inconnue" };
   }
 
+  if (result.advanced && typeof result.new_step === "number") {
+    notifyMailStepRecipients(
+      mailId,
+      result.new_step as number,
+      "complete",
+      null
+    ).catch(console.error);
+  }
+
   return {
     success: true,
     allCompleted: result.all_completed as boolean | undefined,
@@ -214,6 +223,15 @@ export async function submitStep7Acknowledgement(
   const result = data as Record<string, unknown>;
   if (!result?.success) {
     return { success: false, error: (result?.error as string) || "Erreur inconnue" };
+  }
+
+  if (result.advanced && typeof result.new_step === "number") {
+    notifyMailStepRecipients(
+      mailId,
+      result.new_step as number,
+      "complete",
+      null
+    ).catch(console.error);
   }
 
   return {

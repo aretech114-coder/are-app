@@ -51,9 +51,21 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 type Direction = "entrant" | "sortant";
 type SlaFilter = "all" | "ontime" | "soon" | "overdue";
+type PageSize = 25 | 50 | 100;
+
+const PAGE_SIZE_OPTIONS: PageSize[] = [25, 50, 100];
 
 const priorityColors: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
@@ -99,6 +111,8 @@ export default function RegistrePage() {
   const [filterSla, setFilterSla] = useState<SlaFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(25);
 
   const { data: types = [] } = useQuery({
     queryKey: ["mail_types"],
@@ -198,6 +212,52 @@ export default function RegistrePage() {
     dateFrom,
     dateTo,
   ]);
+
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    direction,
+    search,
+    filterStatus,
+    filterPriority,
+    filterType,
+    filterService,
+    filterSla,
+    dateFrom,
+    dateTo,
+    pageSize,
+  ]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  const rangeStart = totalFiltered === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, totalFiltered);
+
+  const pageNumbers = useMemo(() => {
+    const pages: (number | "ellipsis")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (page > 3) pages.push("ellipsis");
+    const start = Math.max(2, page - 1);
+    const end = Math.min(totalPages - 1, page + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (page < totalPages - 2) pages.push("ellipsis");
+    pages.push(totalPages);
+    return pages;
+  }, [page, totalPages]);
 
   // KPI cards
   const kpis = useMemo(() => {
@@ -566,7 +626,7 @@ export default function RegistrePage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((m: any) => (
+                paginated.map((m: any) => (
                   <tr key={m.id} className="border-b hover:bg-accent/20 transition-colors">
                     <td className="p-3 font-mono text-xs">{m.reference_number}</td>
                     <td className="p-3 text-xs whitespace-nowrap">
@@ -650,6 +710,80 @@ export default function RegistrePage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {totalFiltered === 0
+              ? "Aucun courrier à afficher"
+              : `Affichage ${rangeStart}–${rangeEnd} sur ${totalFiltered} courrier${totalFiltered > 1 ? "s" : ""}`}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Par page</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => setPageSize(Number(v) as PageSize)}
+              >
+                <SelectTrigger className="w-[80px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {totalPages > 1 && (
+              <Pagination className="mx-0 w-auto justify-end">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setPage((p) => Math.max(1, p - 1));
+                      }}
+                      className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  {pageNumbers.map((p, idx) =>
+                    p === "ellipsis" ? (
+                      <PaginationItem key={`ellipsis-${idx}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          href="#"
+                          isActive={p === page}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setPage(p);
+                          }}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setPage((p) => Math.min(totalPages, p + 1));
+                      }}
+                      className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </div>
         </div>
 
         {/* Drawer & Settings */}
