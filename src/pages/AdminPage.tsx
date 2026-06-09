@@ -563,7 +563,7 @@ export default function AdminPage() {
           },
           body: JSON.stringify({
             target_user_id: impersonateTarget.id,
-            redirect_url: window.location.origin,
+            redirect_url: `${window.location.origin}/auth/callback`,
           }),
         }
       );

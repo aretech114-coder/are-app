@@ -45,6 +45,17 @@ supabase secrets set SMTP_FROM="ARE App <notifications@votre-domaine.org>"
 
 ## Tests
 
+### 0. Test forcé Resend (prod)
+
+Guide détaillé : [`test_resend_forced.md`](test_resend_forced.md)  
+Script PowerShell : [`test_resend_forced.ps1`](test_resend_forced.ps1)
+
+Expéditeur prod attendu :
+
+```bash
+supabase secrets set RESEND_FROM="ARE App <noreply@are-app.cloud>"
+```
+
 ### 1. Test direct Edge Function (JWT utilisateur connecté)
 
 ```bash

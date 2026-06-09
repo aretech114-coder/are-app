@@ -129,7 +129,7 @@ export default function RegistrePage() {
     queryFn: async () => {
       const res: any = await (supabase.from("mails") as any)
         .select(
-          "id, reference_number, registry_reference, system_reference, subject, sender_name, sender_organization, mail_type, priority, status, created_at, reception_date, deposit_time, addressed_to, current_step, deadline_at, locked_for_edit, direction, target_service_id, registered_by, province_code"
+          "id, reference_number, registry_reference, system_reference, subject, sender_name, sender_organization, sender_phone, sender_email, sender_address, sender_city, sender_province, sender_country, description, comments, mail_type, priority, status, created_at, reception_date, deposit_time, addressed_to, current_step, deadline_at, locked_for_edit, direction, target_service_id, registered_by, province_code"
         )
         .eq("direction", direction)
         .order("created_at", { ascending: false })
@@ -276,7 +276,9 @@ export default function RegistrePage() {
 
   const handleEdit = (m: any) => {
     if (m.locked_for_edit) {
-      toast.error("Ce courrier est verrouillé (déjà pris en charge).");
+      toast.error(
+        "Ce courrier est verrouillé — modification impossible après validation à l'étape Traitement DG."
+      );
       return;
     }
     setEditingMail(m);

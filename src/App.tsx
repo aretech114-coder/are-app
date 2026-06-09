@@ -9,6 +9,7 @@ import { SiteSettingsProvider } from "@/hooks/useSiteSettings";
 
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import MailEntry from "./pages/MailEntry";
 import InboxPage from "./pages/InboxPage";
@@ -78,6 +79,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={user ? <Navigate to={defaultRoute} replace /> : <Auth />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/forgot-password" element={user ? <Navigate to={defaultRoute} replace /> : <ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={
