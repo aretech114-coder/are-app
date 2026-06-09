@@ -108,6 +108,10 @@ export function MailEditDialog({ mail, open, onOpenChange, onSaved }: MailEditDi
       toast.error("Le numéro du courrier est obligatoire.");
       return;
     }
+    if (!form.mail_type.trim()) {
+      toast.error("Le type de courrier est obligatoire.");
+      return;
+    }
 
     setSaving(true);
     const depositTime = resolveDepositTime(form.deposit_time);
@@ -323,7 +327,7 @@ export function MailEditDialog({ mail, open, onOpenChange, onSaved }: MailEditDi
             <h3 className="text-sm font-semibold">Classification & routage</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Type</Label>
+                <Label>Type *</Label>
                 <Select value={form.mail_type} onValueChange={(v) => update("mail_type", v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Type" />

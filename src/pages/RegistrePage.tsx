@@ -40,8 +40,10 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
+import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
 import { RegistrySettingsDialog } from "@/components/RegistrySettingsDialog";
 import { MailEditDialog } from "@/components/MailEditDialog";
+import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
 import {
   Dialog,
   DialogContent,
@@ -824,21 +826,12 @@ export default function RegistrePage() {
               </DialogDescription>
             </DialogHeader>
             <div className="py-2">
-              <Select
+              <SearchableUserSingleSelect
+                users={reassignableUsers}
                 value={reassignTargetUserId}
                 onValueChange={setReassignTargetUserId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir un utilisateur" />
-                </SelectTrigger>
-                <SelectContent>
-                  {reassignableUsers.map((u: any) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.full_name || u.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Rechercher un utilisateur"
+              />
             </div>
             <DialogFooter className="gap-2">
               <Button

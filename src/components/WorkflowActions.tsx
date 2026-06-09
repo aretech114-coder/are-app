@@ -29,6 +29,7 @@ import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { getRoleLabel, UI_LABELS } from "@/lib/labels";
 import { fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
+import { SearchableUserMultiSelect } from "@/components/SearchableUserPicker";
 import { DgDecisionSummary, type DgAssignmentRow } from "@/components/DgDecisionSummary";
 import { useMailContributions } from "@/hooks/useMailContributions";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
@@ -1258,30 +1259,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 {assignableUsers.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Chargement des utilisateurs...</p>
                 ) : (
-                  <div className="space-y-1 max-h-48 overflow-auto border rounded-lg p-2">
-                    {assignableUsers.map((u) => (
-                      <label
-                        key={u.id}
-                        className="flex items-center gap-2 p-2 rounded hover:bg-accent/50 cursor-pointer transition-colors"
-                      >
-                        <Checkbox
-                          checked={selectedAssignees.includes(u.id)}
-                          onCheckedChange={() => toggleAssignee(u.id)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{u.full_name}</p>
-                          {currentStep !== 2 && (
-                            <p className="text-xs text-muted-foreground">{roleLabel(u.role)}</p>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {selectedAssignees.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedAssignees.length} personne(s) sélectionnée(s)
-                  </p>
+                  <SearchableUserMultiSelect
+                    users={assignableUsers}
+                    selectedIds={selectedAssignees}
+                    onToggle={toggleAssignee}
+                    showRole={currentStep !== 2}
+                    roleLabel={getRoleLabel}
+                  />
                 )}
               </div>
             )}
@@ -1292,21 +1276,13 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                   <Users className="h-3.5 w-3.5" />
                   Mettre en copie (lecture seule)
                 </Label>
-                <div className="space-y-1 max-h-36 overflow-auto border rounded-lg p-2 border-dashed">
-                  {assignableUsers.map((u) => (
-                    <label
-                      key={`viewer-${u.id}`}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-accent/50 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedViewers.includes(u.id)}
-                        onCheckedChange={() => toggleViewer(u.id)}
-                        disabled={selectedAssignees.includes(u.id)}
-                      />
-                      <span className="text-sm truncate">{u.full_name}</span>
-                    </label>
-                  ))}
-                </div>
+                <SearchableUserMultiSelect
+                  users={assignableUsers}
+                  selectedIds={selectedViewers}
+                  onToggle={toggleViewer}
+                  disabledIds={selectedAssignees}
+                  listClassName="border-dashed"
+                />
               </div>
             )}
 

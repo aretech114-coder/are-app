@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -13,7 +13,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail, Search } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { EmailNotificationTester } from "@/components/admin/EmailNotificationTester";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -147,6 +156,11 @@ export default function AdminPage() {
   // SuperAdmin toggles for Admin user-management capabilities
   const [adminUserPermissions, setAdminUserPermissions] = useState<AdminUserPermission[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
+
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState<25 | 50 | 100>(25);
 
   const fetchRoles = async () => {
     setRolesLoading(true);
@@ -594,6 +608,41 @@ export default function AdminPage() {
     return allRoles.find((r) => r.value === roleValue)?.label || DEFAULT_ROLE_LABELS[roleValue] || roleValue;
   };
 
+  const filteredUsers = useMemo(() => {
+    const q = userSearch
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+    return users.filter((u) => {
+      const userRole = u.user_roles?.[0]?.role || "agent";
+      if (userRoleFilter !== "all" && userRole !== userRoleFilter) return false;
+      if (!q) return true;
+      const name = (u.full_name || "").toLowerCase();
+      const mail = (u.email || "").toLowerCase();
+      const roleLabel = getRoleLabel(userRole).toLowerCase();
+      return name.includes(q) || mail.includes(q) || roleLabel.includes(q);
+    });
+  }, [users, userSearch, userRoleFilter, allRoles]);
+
+  const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / userPageSize));
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [userSearch, userRoleFilter, userPageSize]);
+
+  useEffect(() => {
+    if (userPage > userTotalPages) setUserPage(userTotalPages);
+  }, [userPage, userTotalPages]);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (userPage - 1) * userPageSize;
+    return filteredUsers.slice(start, start + userPageSize);
+  }, [filteredUsers, userPage, userPageSize]);
+
+  const userRangeStart = filteredUsers.length === 0 ? 0 : (userPage - 1) * userPageSize + 1;
+  const userRangeEnd = Math.min(userPage * userPageSize, filteredUsers.length);
+
   if (!canAccessUserManagement) {
     return (
       <div className="animate-fade-in space-y-2">
@@ -725,8 +774,12 @@ export default function AdminPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Utilisateurs ({users.length})</CardTitle>
-                <CardDescription>Liste de tous les comptes enregistrés</CardDescription>
+                <CardTitle className="text-lg">Utilisateurs ({filteredUsers.length})</CardTitle>
+                <CardDescription>
+                  {users.length !== filteredUsers.length
+                    ? `${filteredUsers.length} sur ${users.length} comptes (filtre actif)`
+                    : "Liste de tous les comptes enregistrés"}
+                </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 {isSuperAdmin && (
@@ -740,6 +793,54 @@ export default function AdminPage() {
                 </Button>
               </div>
             </CardHeader>
+            <CardContent className="p-4 border-b space-y-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Rechercher</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Nom, e-mail, rôle…"
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="pl-9 h-9"
+                    />
+                  </div>
+                </div>
+                <div className="w-[180px]">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Filtrer par rôle</Label>
+                  <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les rôles</SelectItem>
+                      {allRoles.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-[100px]">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Par page</Label>
+                  <Select
+                    value={String(userPageSize)}
+                    onValueChange={(v) => setUserPageSize(Number(v) as 25 | 50 | 100)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -764,8 +865,14 @@ export default function AdminPage() {
                         Aucun utilisateur
                       </TableCell>
                     </TableRow>
+                  ) : filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        Aucun utilisateur ne correspond aux filtres
+                      </TableCell>
+                    </TableRow>
                   ) : (
-                    users.map((u) => {
+                    paginatedUsers.map((u) => {
                       const userRole = u.user_roles?.[0]?.role || "agent";
                       const isSelf = u.id === user?.id;
                       const isTargetSuperAdmin = userRole === "superadmin";
@@ -791,7 +898,6 @@ export default function AdminPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              {/* Impersonate button - not on self, admin can't impersonate superadmin */}
                               {canImpersonate && !isSelf && !(isAdmin && isTargetSuperAdmin) && (
                                 <Button
                                   variant="ghost"
@@ -803,13 +909,11 @@ export default function AdminPage() {
                                   <Eye className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               )}
-                              {/* Edit button - requires edit/reset permission; admin can't edit superadmin */}
                               {canOpenEditDialog && !(isAdmin && isTargetSuperAdmin) && (
                                 <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8">
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               )}
-                              {/* Delete button - requires delete permission, not self, not superadmin target */}
                               {canDeleteUsers && !isSelf && !isTargetSuperAdmin && (
                                 <Button
                                   variant="ghost"
@@ -830,6 +934,58 @@ export default function AdminPage() {
                 </TableBody>
               </Table>
             </CardContent>
+            {filteredUsers.length > 0 && (
+              <CardContent className="py-3 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Affichage {userRangeStart}–{userRangeEnd} sur {filteredUsers.length}
+                </p>
+                {userTotalPages > 1 && (
+                  <Pagination className="mx-0 w-auto justify-end">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setUserPage((p) => Math.max(1, p - 1));
+                          }}
+                          className={userPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: Math.min(userTotalPages, 7) }, (_, i) => i + 1).map((p) => (
+                        <PaginationItem key={p}>
+                          <PaginationLink
+                            href="#"
+                            isActive={p === userPage}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setUserPage(p);
+                            }}
+                          >
+                            {p}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+                      {userTotalPages > 7 && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setUserPage((p) => Math.min(userTotalPages, p + 1));
+                          }}
+                          className={userPage >= userTotalPages ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+              </CardContent>
+            )}
           </Card>
         </TabsContent>
 

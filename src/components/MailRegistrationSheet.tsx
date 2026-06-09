@@ -31,6 +31,7 @@ import { UI_LABELS } from "@/lib/labels";
 import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
+import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
 import {
   generateSystemReference,
   getDefaultDepositTime,
@@ -256,6 +257,10 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
     }
     if (!form.reference_number.trim()) {
       toast.error("Le numéro du courrier est obligatoire.");
+      return;
+    }
+    if (!form.mail_type.trim()) {
+      toast.error("Le type de courrier est obligatoire.");
       return;
     }
     if (titulaireAbsent && !form.assigned_to) {
@@ -688,10 +693,10 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             <h3 className="text-sm font-semibold text-foreground">Classification & routage</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Type</Label>
-                <Select value={form.mail_type} onValueChange={(v) => update("mail_type", v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir un type" />
+                <Label>Type *</Label>
+                <Select value={form.mail_type} onValueChange={(v) => update("mail_type", v)} required>
+                  <SelectTrigger className={!form.mail_type ? "border-destructive/50" : ""}>
+                    <SelectValue placeholder="Choisir un type (obligatoire)" />
                   </SelectTrigger>
                   <SelectContent>
                     {types.map((t: any) => (
@@ -766,18 +771,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               {titulaireAbsent && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">Intérimaire *</Label>
-                  <Select value={form.assigned_to} onValueChange={(v) => update("assigned_to", v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un utilisateur" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {assignableUsers.map((u: { id: string; full_name?: string | null; email?: string | null }) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.full_name || u.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableUserSingleSelect
+                    users={assignableUsers}
+                    value={form.assigned_to}
+                    onValueChange={(v) => update("assigned_to", v)}
+                    placeholder="Rechercher l'intérimaire"
+                  />
                 </div>
               )}
             </div>
