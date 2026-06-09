@@ -9,20 +9,35 @@ const corsHeaders = {
 };
 
 interface NotificationPayload {
-  recipient_email: string;
+  recipient_email?: string;
+  recipient_user_id?: string;
   recipient_name: string;
   subject: string;
   body_html: string;
   mail_id?: string;
   step_number?: number;
-  notification_type?: "transition" | "pre_assignment" | "sla_alert" | "rejection";
+  notification_type?: "transition" | "pre_assignment" | "sla_alert" | "rejection" | "test";
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 async function sendViaResend(
   apiKey: string,
   from: string,
   payload: NotificationPayload
-): Promise<void> {
+): Promise<string | null> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -34,12 +49,20 @@ async function sendViaResend(
       to: [payload.recipient_email],
       subject: payload.subject,
       html: payload.body_html,
+      text: htmlToPlainText(payload.body_html),
     }),
   });
 
+  const bodyText = await res.text();
   if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Resend API error (${res.status}): ${errBody}`);
+    throw new Error(`Resend API error (${res.status}): ${bodyText}`);
+  }
+
+  try {
+    const parsed = JSON.parse(bodyText) as { id?: string };
+    return parsed.id ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -95,6 +118,7 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const isServiceRole = token === supabaseServiceKey;
 
+    let callerUserId: string | null = null;
     if (!isServiceRole) {
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
       if (authError || !user) {
@@ -103,16 +127,66 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      callerUserId = user.id;
     }
 
     const payload: NotificationPayload = await req.json();
 
+    if (payload.notification_type === "test" && !isServiceRole) {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerUserId!)
+        .single();
+      if (roleData?.role !== "superadmin") {
+        return new Response(
+          JSON.stringify({ error: "Seul un super administrateur peut envoyer un e-mail de test" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    if (payload.recipient_user_id) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", payload.recipient_user_id)
+        .maybeSingle();
+
+      if (profileError) {
+        return new Response(
+          JSON.stringify({ error: `Profil introuvable: ${profileError.message}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const resolvedEmail = profile?.email?.trim();
+      if (!resolvedEmail) {
+        return new Response(
+          JSON.stringify({
+            error: "Le destinataire n'a pas d'e-mail dans son profil (profiles.email vide).",
+            recipient_user_id: payload.recipient_user_id,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      payload.recipient_email = resolvedEmail;
+      if (!payload.recipient_name?.trim() || payload.recipient_name === "Utilisateur") {
+        payload.recipient_name = profile?.full_name?.trim() || "Utilisateur";
+      }
+    }
+
     if (!payload.recipient_email || !payload.subject || !payload.body_html) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: recipient_email, subject, body_html" }),
+        JSON.stringify({
+          error: "Missing required fields: recipient_email (or recipient_user_id), subject, body_html",
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    payload.recipient_email = payload.recipient_email.trim().toLowerCase();
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     const resendFrom = Deno.env.get("RESEND_FROM") || Deno.env.get("SMTP_FROM");
@@ -123,9 +197,10 @@ serve(async (req) => {
     const smtpFrom = Deno.env.get("SMTP_FROM");
 
     let provider = "unknown";
+    let providerMessageId: string | null = null;
 
     if (resendKey && resendFrom) {
-      await sendViaResend(resendKey, resendFrom, payload);
+      providerMessageId = await sendViaResend(resendKey, resendFrom, payload);
       provider = "resend";
     } else if (smtpHost && smtpUser && smtpPass && smtpFrom) {
       await sendViaSmtp(payload, smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom);
@@ -141,11 +216,19 @@ serve(async (req) => {
     }
 
     console.log(
-      `Email sent via ${provider} to ${payload.recipient_email} — type: ${payload.notification_type || "transition"}`
+      `Email sent via ${provider} to ${payload.recipient_email}` +
+        (providerMessageId ? ` (id: ${providerMessageId})` : "") +
+        ` — type: ${payload.notification_type || "transition"}`
     );
 
     return new Response(
-      JSON.stringify({ success: true, recipient: payload.recipient_email, provider }),
+      JSON.stringify({
+        success: true,
+        recipient: payload.recipient_email,
+        recipient_user_id: payload.recipient_user_id ?? null,
+        provider,
+        provider_message_id: providerMessageId,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

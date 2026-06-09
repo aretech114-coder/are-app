@@ -13,7 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail } from "lucide-react";
+import { EmailNotificationTester } from "@/components/admin/EmailNotificationTester";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -624,6 +625,12 @@ export default function AdminPage() {
             Rôles
           </TabsTrigger>
           )}
+          {isSuperAdmin && (
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Notifications
+          </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ========== USERS TAB ========== */}
@@ -912,6 +919,12 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isSuperAdmin && (
+        <TabsContent value="notifications" className="space-y-6">
+          <EmailNotificationTester />
+        </TabsContent>
+        )}
       </Tabs>
 
       {/* Edit User Dialog */}
