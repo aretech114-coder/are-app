@@ -36,6 +36,9 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | R | `20260606250000_workflow_notification_body_templates.sql` | Templates corps e-mail par étape (`notification_body_template`, viewer) |
 | S | `20260606260000_calendar_events_bootstrap.sql` | **Table RDV/réunions** + RLS DG/directeur (manquait en prod) |
 | T | `20260608100000_lock_registry_after_dg_step.sql` | Verrou registre seulement après sortie étape 2 (DG) |
+| U1 | `20260609100000_audit_events.sql` | Table `audit_events` + RPC `log_audit_event` + purge 12 mois |
+| U2 | `20260609110000_audit_triggers.sql` | Triggers audit (mails, workflow, assignations) |
+| U3 | `20260609120000_audit_backfill.sql` | Backfill historique workflow + registre + assignations |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 

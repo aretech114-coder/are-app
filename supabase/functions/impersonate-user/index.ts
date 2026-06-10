@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { logAuditEvent, requestMeta } from "../_shared/audit-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -143,6 +144,23 @@ Deno.serve(async (req) => {
       url.searchParams.set("redirect_to", finalRedirect);
       verificationUrl = url.toString();
     }
+
+    const { ip_address, user_agent } = requestMeta(req);
+    await logAuditEvent(adminClient, {
+      actor_user_id: caller.id,
+      actor_role: callerRole?.role,
+      action: "user.impersonate",
+      category: "user",
+      entity_type: "user",
+      entity_id: target_user_id,
+      summary: `Impersonation de ${targetAuth.user.email}`,
+      metadata: {
+        target_email: targetAuth.user.email,
+        redirect_url: finalRedirect,
+      },
+      ip_address,
+      user_agent,
+    });
 
     return new Response(
       JSON.stringify({

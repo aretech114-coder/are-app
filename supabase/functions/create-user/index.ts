@@ -1,5 +1,6 @@
 // Auto-deployed via GitHub Actions 94
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logAuditEvent, requestMeta } from "../_shared/audit-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -166,6 +167,20 @@ Deno.serve(async (req) => {
     } else {
       await adminClient.from("user_roles").insert({ user_id: userId, role });
     }
+
+    const { ip_address, user_agent } = requestMeta(req);
+    await logAuditEvent(adminClient, {
+      actor_user_id: callerId,
+      actor_role: callerRole,
+      action: "user.create",
+      category: "user",
+      entity_type: "user",
+      entity_id: userId,
+      summary: `Utilisateur créé : ${email}`,
+      metadata: { email, full_name, role },
+      ip_address,
+      user_agent,
+    });
 
     return new Response(JSON.stringify({ success: true, user_id: userId }), {
       status: 200,

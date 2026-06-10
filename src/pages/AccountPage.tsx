@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Moon,
   Puzzle,
+  ScrollText,
 } from "lucide-react";
 import { getRoleLabel } from "@/lib/labels";
 
@@ -40,6 +41,7 @@ const menuItems: MenuEntry[] = [
   { label: "Administration", path: "/admin", icon: Users, roles: ["superadmin"], permissionKey: "manage_users" },
   { label: "Workflow", path: "/workflow", icon: GitBranch, roles: ["superadmin"], permissionKey: "manage_workflow" },
   { label: "Configuration système", path: "/system-config", icon: Settings, roles: ["superadmin"] },
+  { label: "Journal d'audit", path: "/audit", icon: ScrollText, roles: ["superadmin"] },
   { label: "Intégrations", path: "/integrations", icon: Puzzle, roles: ["superadmin"], permissionKey: "manage_users" },
   { label: "Archives", path: "/archive", icon: Archive, roles: "all", excludeRoles: ["reception"] },
 ];

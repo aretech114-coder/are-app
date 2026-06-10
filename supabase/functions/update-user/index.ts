@@ -1,5 +1,6 @@
 // Auto-deployed via GitHub Actions
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logAuditEvent, requestMeta } from "../_shared/audit-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,9 +149,58 @@ Deno.serve(async (req) => {
       await adminClient.from("profiles").update(profileUpdate).eq("id", user_id);
     }
 
+    const { data: targetProfile } = await adminClient
+      .from("profiles")
+      .select("email, full_name")
+      .eq("id", user_id)
+      .maybeSingle();
+
+    const { data: previousRoleRow } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    const previousRole = previousRoleRow?.role as string | undefined;
+
     // Update role
     if (role) {
       await adminClient.from("user_roles").update({ role }).eq("user_id", user_id);
+    }
+
+    const { ip_address, user_agent } = requestMeta(req);
+    const targetLabel = targetProfile?.email || user_id;
+
+    await logAuditEvent(adminClient, {
+      actor_user_id: callerId,
+      actor_role: callerRole,
+      action: "user.update",
+      category: "user",
+      entity_type: "user",
+      entity_id: user_id,
+      summary: `Profil modifié : ${targetLabel}`,
+      metadata: {
+        email: email ?? targetProfile?.email,
+        full_name: full_name ?? targetProfile?.full_name,
+        password_reset: typeof password === "string" && password.length > 0,
+      },
+      ip_address,
+      user_agent,
+    });
+
+    if (role && role !== previousRole) {
+      await logAuditEvent(adminClient, {
+        actor_user_id: callerId,
+        actor_role: callerRole,
+        action: "user.role_change",
+        category: "user",
+        entity_type: "user",
+        entity_id: user_id,
+        summary: `Rôle changé : ${previousRole ?? "?"} → ${role}`,
+        metadata: { email: targetProfile?.email, old_role: previousRole, new_role: role },
+        ip_address,
+        user_agent,
+      });
     }
 
     return new Response(
