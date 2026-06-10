@@ -39,6 +39,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | U1 | `20260609100000_audit_events.sql` | Table `audit_events` + RPC `log_audit_event` + purge 12 mois |
 | U2 | `20260609110000_audit_triggers.sql` | Triggers audit (mails, workflow, assignations) |
 | U3 | `20260609120000_audit_backfill.sql` | Backfill historique workflow + registre + assignations |
+| V | `20260610100000_max_upload_size_setting.sql` | Limite upload 25 Mo (configurable super admin) + sync buckets Storage |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 

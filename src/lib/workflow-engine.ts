@@ -3,6 +3,7 @@ import { WORKFLOW_BUCKET, createSignedUrlForPath } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
 import { notifyMailStepRecipients } from "@/lib/workflow-notifications";
 import { WORKFLOW_STEP_LABELS, getRoleLabel, ROLE_LABELS } from "@/lib/labels";
+import { assertFileWithinUploadLimit, DEFAULT_MAX_UPLOAD_MB } from "@/lib/upload-limits";
 
 export { getRoleLabel, ROLE_LABELS };
 
@@ -261,8 +262,11 @@ export function mailDocumentSubfolderForStep(step: number): MailDocumentSubfolde
 export async function uploadMailDocument(
   mailId: string,
   file: File,
-  subfolder: MailDocumentSubfolder = "treatments"
+  subfolder: MailDocumentSubfolder = "treatments",
+  maxUploadMb: number = DEFAULT_MAX_UPLOAD_MB
 ): Promise<Pick<MailAttachmentMeta, "url" | "name" | "path" | "bucket">> {
+  assertFileWithinUploadLimit(file, maxUploadMb);
+
   const sanitizedName = file.name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

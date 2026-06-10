@@ -28,6 +28,11 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { getRoleLabel, UI_LABELS } from "@/lib/labels";
+import {
+  formatMaxUploadLabel,
+  getUploadLimitError,
+  parseMaxUploadMb,
+} from "@/lib/upload-limits";
 import { fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
 import { SearchableUserMultiSelect } from "@/components/SearchableUserPicker";
 import { DgDecisionSummary, type DgAssignmentRow } from "@/components/DgDecisionSummary";
@@ -105,6 +110,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [replyParentMail, setReplyParentMail] = useState<any>(null);
   const { data: activeSteps = [] } = useActiveWorkflowSteps();
   const { settings } = useSiteSettings();
+  const maxUploadMb = parseMaxUploadMb(settings.max_upload_size_mb);
   const authShort = settings.authority_title_short || UI_LABELS.dgShort;
   const authLong = settings.authority_title_long || UI_LABELS.dg;
 
@@ -543,7 +549,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           const meta = await uploadMailDocument(
             mailId,
             compressedFile,
-            mailDocumentSubfolderForStep(currentStep)
+            mailDocumentSubfolderForStep(currentStep),
+            maxUploadMb
           );
           annotationAttachmentUrl = meta.url;
         } catch (uploadErr: any) {
@@ -601,7 +608,9 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
             toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
           }
           try {
-            treatmentAttachments = [await uploadMailDocument(mailId, compressedFile, "treatments")];
+            treatmentAttachments = [
+              await uploadMailDocument(mailId, compressedFile, "treatments", maxUploadMb),
+            ];
           } catch (uploadErr: any) {
             const msg = uploadErr?.message || "";
             if (/row-level security/i.test(msg)) {
@@ -1239,11 +1248,25 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                   ) : (
                     <p className="text-sm text-muted-foreground">Cliquez pour sélectionner un fichier</p>
                   )}
+                  <p className="text-xs text-muted-foreground mt-2">{formatMaxUploadLabel(maxUploadMb)}</p>
                   <input
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
-                    onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) {
+                        setAttachmentFile(null);
+                        return;
+                      }
+                      const limitError = getUploadLimitError(file, maxUploadMb);
+                      if (limitError) {
+                        toast.error(limitError);
+                        e.target.value = "";
+                        return;
+                      }
+                      setAttachmentFile(file);
+                    }}
                   />
                 </div>
               </div>

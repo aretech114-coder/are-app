@@ -18,6 +18,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import {
+  formatMaxUploadLabel,
+  getUploadLimitError,
+  parseMaxUploadMb,
+} from "@/lib/upload-limits";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -49,6 +54,7 @@ const MAIL_TYPES = [
 export default function MailEntry() {
   const { user } = useAuth();
   const { settings } = useSiteSettings();
+  const maxUploadMb = parseMaxUploadMb(settings.max_upload_size_mb);
   const authShort = settings.authority_title_short || UI_LABELS.dgShort;
   const authLong = settings.authority_title_long || UI_LABELS.dg;
 
@@ -145,7 +151,18 @@ export default function MailEntry() {
 
   const handleFiles = (incoming: FileList | null) => {
     if (!incoming) return;
-    setFiles((prev) => [...prev, ...Array.from(incoming)]);
+    const accepted: File[] = [];
+    for (const file of Array.from(incoming)) {
+      const limitError = getUploadLimitError(file, maxUploadMb);
+      if (limitError) {
+        toast.error(limitError);
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (accepted.length > 0) {
+      setFiles((prev) => [...prev, ...accepted]);
+    }
   };
 
   const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
@@ -195,7 +212,8 @@ export default function MailEntry() {
                 toast.info(
                   `${name} compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`
                 );
-              }
+              },
+              maxUploadMb
             )
           : [];
       const attachmentUrl = attachmentUrls[0]?.url ?? null;
@@ -482,7 +500,7 @@ export default function MailEntry() {
                   ))}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">Taille max. des fichiers : 50 MB.</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatMaxUploadLabel(maxUploadMb)}</p>
             </Field>
 
             {/* Téléphone & Email */}

@@ -1154,6 +1154,10 @@ export type Database = {
         Args: { _months?: number }
         Returns: number
       }
+      sync_mail_storage_file_size_limit: {
+        Args: { _max_mb?: number }
+        Returns: number
+      }
       notify_password_reset_request: {
         Args: { _email: string }
         Returns: undefined

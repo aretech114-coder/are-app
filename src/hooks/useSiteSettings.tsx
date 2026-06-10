@@ -26,6 +26,7 @@ interface SiteSettings {
   show_login_title: string;
   authority_title_short: string;
   authority_title_long: string;
+  max_upload_size_mb: string;
 }
 
 type SiteSettingKey = keyof SiteSettings;
@@ -61,6 +62,7 @@ const defaults: SiteSettings = {
   show_login_title: "true",
   authority_title_short: "DG",
   authority_title_long: "Directeur général",
+  max_upload_size_mb: "25",
 };
 
 const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
@@ -183,6 +185,11 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
     label: "Titre de l'autorité (long)",
     setting_type: "text",
     description: "Forme longue du titre de l'autorité supérieure (ex. Directeur général).",
+  },
+  max_upload_size_mb: {
+    label: "Taille max. pièces jointes (Mo)",
+    setting_type: "number",
+    description: "Limite par fichier pour le registre et le workflow.",
   },
 };
 

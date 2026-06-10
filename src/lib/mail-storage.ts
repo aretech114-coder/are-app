@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile } from "@/lib/file-compressor";
 import type { MailAttachmentMeta, MailStorageBucket } from "@/lib/labels";
+import { assertFileWithinUploadLimit, DEFAULT_MAX_UPLOAD_MB } from "@/lib/upload-limits";
 
 export const INCOMING_BUCKET = "mail-incoming" as const;
 export const WORKFLOW_BUCKET = "mail-documents" as const;
@@ -63,11 +64,14 @@ export async function uploadIncomingMailFiles(
   ref: string,
   files: File[],
   receptionDate?: string | null,
-  onCompressed?: (fileName: string, originalSize: number, compressedSize: number) => void
+  onCompressed?: (fileName: string, originalSize: number, compressedSize: number) => void,
+  maxUploadMb: number = DEFAULT_MAX_UPLOAD_MB
 ): Promise<MailAttachmentMeta[]> {
   const results: MailAttachmentMeta[] = [];
 
   for (const originalFile of files) {
+    assertFileWithinUploadLimit(originalFile, maxUploadMb);
+
     const { file, originalSize, compressedSize, wasCompressed } =
       await compressFile(originalFile);
     if (wasCompressed && onCompressed) {
