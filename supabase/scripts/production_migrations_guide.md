@@ -40,6 +40,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | U2 | `20260609110000_audit_triggers.sql` | Triggers audit (mails, workflow, assignations) |
 | U3 | `20260609120000_audit_backfill.sql` | Backfill historique workflow + registre + assignations |
 | V | `20260610100000_max_upload_size_setting.sql` | Limite upload 25 Mo (configurable super admin) + sync buckets Storage |
+| W | `20260611100000_workflow_tracking.sql` | Pilotage workflow `/suivi` : grants rôles, `can_access_workflow_tracking`, lecture globale `can_access_mail`, RPC liste + KPI |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -52,6 +53,8 @@ Après **S** : tester un RDV à l'étape 2 (DG) → page **Réunions** + dossier
 Après **K** (ou **M** si K déjà appliquée sans correctif) : pour les courriers déjà passés en étape 4+ sans lignes `viewer`, réassigner manuellement ou utiliser [`repair_mail_viewers.sql`](repair_mail_viewers.sql).
 
 Après **L** : `NOTIFY pgrst, 'reload schema';` — formulaire Registre avec N° courrier, référence registre, heure dépôt auto.
+
+Après **W** : `NOTIFY pgrst, 'reload schema';` — secrétariat/DG voient tous les courriers étapes 2–9 sur `/suivi` ; dérogations dans Configuration système (super admin). Vérifier : `SELECT public.can_access_workflow_tracking();` (connecté secrétariat) et `SELECT count(*) FROM public.list_workflow_tracking_mails(NULL, NULL, NULL, false, NULL, 10, 0);`
 
 ## Assistant IA (OpenAI)
 

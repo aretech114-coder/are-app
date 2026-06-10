@@ -61,8 +61,10 @@ export function shouldHideDgSummaryCard(
  */
 export function shouldShowContributionsPanel(
   currentStep: number,
-  role: string | null | undefined
+  role: string | null | undefined,
+  hasWorkflowTrackingAccess?: boolean
 ): boolean {
+  if (hasWorkflowTrackingAccess && currentStep >= 4) return true;
   if (isDgRole(role) && currentStep >= 2) return true;
   return currentStep >= 4;
 }
