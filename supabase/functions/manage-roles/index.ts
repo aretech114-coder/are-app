@@ -1,5 +1,6 @@
 // Auto-deployed via GitHub Actions
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logAuditEvent, requestMeta } from "../_shared/audit-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,6 +109,18 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      const { ip_address, user_agent } = requestMeta(req);
+      await logAuditEvent(adminClient, {
+        actor_user_id: userId,
+        actor_role: roleData?.role,
+        action: "system.role_create",
+        category: "system",
+        summary: `Rôle applicatif créé : ${role_name}`,
+        metadata: { role_name, role_label },
+        ip_address,
+        user_agent,
+      });
 
       return new Response(JSON.stringify({ success: true, role: role_name }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

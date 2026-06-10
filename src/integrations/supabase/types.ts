@@ -44,6 +44,57 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_events: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_role: string | null
+          actor_user_id: string | null
+          category: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json
+          source: string
+          summary: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_role?: string | null
+          actor_user_id?: string | null
+          category: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          source: string
+          summary: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_role?: string | null
+          actor_user_id?: string | null
+          category?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          source?: string
+          summary?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -1080,6 +1131,28 @@ export type Database = {
       is_mail_registered_by: {
         Args: { _mail_id: string; _user_id: string }
         Returns: boolean
+      }
+      log_audit_event: {
+        Args: {
+          _action?: string
+          _actor_email?: string
+          _actor_role?: string
+          _actor_user_id?: string
+          _category?: string
+          _created_at?: string
+          _entity_id?: string
+          _entity_type?: string
+          _ip_address?: unknown
+          _metadata?: Json
+          _source?: string
+          _summary?: string
+          _user_agent?: string
+        }
+        Returns: string
+      }
+      purge_audit_events_older_than: {
+        Args: { _months?: number }
+        Returns: number
       }
       notify_password_reset_request: {
         Args: { _email: string }

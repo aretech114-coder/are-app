@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { logAuditEvent, requestMeta } from "../_shared/audit-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,6 +103,10 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let payload: NotificationPayload | null = null;
+  let callerUserId: string | null = null;
+  let auditClient: ReturnType<typeof createClient> | null = null;
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -114,11 +119,11 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    auditClient = supabase;
 
     const token = authHeader.replace("Bearer ", "");
     const isServiceRole = token === supabaseServiceKey;
 
-    let callerUserId: string | null = null;
     if (!isServiceRole) {
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
       if (authError || !user) {
@@ -130,7 +135,7 @@ serve(async (req) => {
       callerUserId = user.id;
     }
 
-    const payload: NotificationPayload = await req.json();
+    payload = await req.json();
 
     if (payload.notification_type === "test" && !isServiceRole) {
       const { data: roleData } = await supabase
@@ -226,6 +231,27 @@ serve(async (req) => {
         ` — type: ${payload.notification_type || "transition"}`
     );
 
+    const { ip_address, user_agent } = requestMeta(req);
+    await logAuditEvent(supabase, {
+      actor_user_id: callerUserId,
+      action: "email.sent",
+      category: "email",
+      entity_type: payload.mail_id ? "mail" : null,
+      entity_id: payload.mail_id ?? null,
+      summary: `E-mail envoyé à ${payload.recipient_email}`,
+      metadata: {
+        recipient_email: payload.recipient_email,
+        recipient_user_id: payload.recipient_user_id ?? null,
+        notification_type: payload.notification_type ?? "transition",
+        step_number: payload.step_number ?? null,
+        provider,
+        provider_message_id: providerMessageId,
+        subject: payload.subject,
+      },
+      ip_address,
+      user_agent,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -240,6 +266,30 @@ serve(async (req) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("Email send error:", message);
+
+    if (auditClient) {
+      try {
+        const { ip_address, user_agent } = requestMeta(req);
+        await logAuditEvent(auditClient, {
+          actor_user_id: callerUserId,
+          action: "email.failed",
+          category: "email",
+          entity_type: payload?.mail_id ? "mail" : null,
+          entity_id: payload?.mail_id ?? null,
+          summary: `Échec envoi e-mail${payload?.recipient_email ? ` à ${payload.recipient_email}` : ""}`,
+          metadata: {
+            recipient_email: payload?.recipient_email ?? null,
+            notification_type: payload?.notification_type ?? null,
+            error: message,
+          },
+          ip_address,
+          user_agent,
+        });
+      } catch (auditErr) {
+        console.error("Email failure audit log error:", auditErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

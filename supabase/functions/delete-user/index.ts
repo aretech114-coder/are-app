@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logAuditEvent, requestMeta } from "../_shared/audit-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,6 +100,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: targetProfile } = await adminClient
+      .from("profiles")
+      .select("email, full_name")
+      .eq("id", user_id)
+      .maybeSingle();
+
     // Delete from user_roles, profiles, then auth
     await adminClient.from("user_roles").delete().eq("user_id", user_id);
     await adminClient.from("profiles").delete().eq("id", user_id);
@@ -110,6 +117,24 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const { ip_address, user_agent } = requestMeta(req);
+    await logAuditEvent(adminClient, {
+      actor_user_id: callerId,
+      actor_role: callerRole,
+      action: "user.delete",
+      category: "user",
+      entity_type: "user",
+      entity_id: user_id,
+      summary: `Utilisateur supprimé : ${targetProfile?.email ?? user_id}`,
+      metadata: {
+        email: targetProfile?.email,
+        full_name: targetProfile?.full_name,
+        role: targetRole?.role,
+      },
+      ip_address,
+      user_agent,
+    });
 
     return new Response(
       JSON.stringify({ success: true }),
