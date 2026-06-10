@@ -8,7 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus, Building2, Loader2 } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus, Building2, Loader2, Eye } from "lucide-react";
+import { Constants } from "@/integrations/supabase/types";
+import { getRoleLabel } from "@/lib/labels";
+import {
+  TRACKING_BASE_ROLES,
+  fetchWorkflowTrackingGrants,
+  grantWorkflowTrackingRole,
+  revokeWorkflowTrackingRole,
+  type AppRole,
+} from "@/lib/workflow-tracking";
 import { APP_URL } from "@/lib/constants";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
@@ -105,6 +114,9 @@ export default function SystemConfigPage() {
   const [fontBody, setFontBody] = useState("Inter");
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState("25");
   const [savingUploadLimit, setSavingUploadLimit] = useState(false);
+  const [trackingGrants, setTrackingGrants] = useState<AppRole[]>([]);
+  const [trackingGrantsLoading, setTrackingGrantsLoading] = useState(true);
+  const [togglingTrackingRole, setTogglingTrackingRole] = useState<string | null>(null);
 
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -142,7 +154,45 @@ export default function SystemConfigPage() {
     fetchPermissions();
     fetchApiKeys();
     fetchTenants();
+    fetchTrackingGrantsState();
   }, []);
+
+  const grantableTrackingRoles = Constants.public.Enums.app_role.filter(
+    (r) => !TRACKING_BASE_ROLES.includes(r as AppRole)
+  ) as AppRole[];
+
+  const fetchTrackingGrantsState = async () => {
+    setTrackingGrantsLoading(true);
+    try {
+      const grants = await fetchWorkflowTrackingGrants();
+      setTrackingGrants(grants);
+    } catch (err) {
+      console.error("fetchTrackingGrantsState failed:", err);
+      toast.error("Impossible de charger les dérogations pilotage workflow");
+    } finally {
+      setTrackingGrantsLoading(false);
+    }
+  };
+
+  const toggleTrackingGrant = async (roleKey: AppRole, enabled: boolean) => {
+    setTogglingTrackingRole(roleKey);
+    try {
+      if (enabled) {
+        await grantWorkflowTrackingRole(roleKey);
+        setTrackingGrants((prev) => [...prev, roleKey]);
+        toast.success(`Accès pilotage accordé à ${getRoleLabel(roleKey)}`);
+      } else {
+        await revokeWorkflowTrackingRole(roleKey);
+        setTrackingGrants((prev) => prev.filter((r) => r !== roleKey));
+        toast.success(`Accès pilotage retiré pour ${getRoleLabel(roleKey)}`);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erreur lors de la mise à jour";
+      toast.error(message);
+    } finally {
+      setTogglingTrackingRole(null);
+    }
+  };
 
   const fetchPermissions = async () => {
     const { data, error } = await supabase
@@ -929,6 +979,54 @@ export default function SystemConfigPage() {
               Enregistrer la limite
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Eye className="h-5 w-5" />
+            Accès pilotage workflow
+          </CardTitle>
+          <CardDescription>
+            Vue globale du tableau de suivi (<code className="text-xs">/suivi</code>) pour les rôles hors liste
+            native (super admin, admin, secrétariat, DG, directeur). Lecture seule de tous les courriers en workflow.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {trackingGrantsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Chargement des dérogations...
+            </div>
+          ) : (
+            <div className="divide-y rounded-lg border">
+              {grantableTrackingRoles.map((roleKey) => {
+                const enabled = trackingGrants.includes(roleKey);
+                const busy = togglingTrackingRole === roleKey;
+                return (
+                  <div
+                    key={roleKey}
+                    className="flex items-center justify-between gap-4 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{getRoleLabel(roleKey)}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{roleKey}</p>
+                    </div>
+                    <Switch
+                      checked={enabled}
+                      disabled={busy}
+                      onCheckedChange={(checked) => toggleTrackingGrant(roleKey, checked)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Rôles natifs (non modifiables ici) :{" "}
+            {TRACKING_BASE_ROLES.map((r) => getRoleLabel(r)).join(", ")}.
+          </p>
         </CardContent>
       </Card>
 

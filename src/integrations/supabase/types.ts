@@ -872,6 +872,24 @@ export type Database = {
           },
         ]
       }
+      workflow_tracking_role_grants: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
       workflow_step_fallbacks: {
         Row: {
           condition_key: string
@@ -1104,15 +1122,48 @@ export type Database = {
         }
         Returns: Json
       }
+      can_access_workflow_tracking: { Args: never; Returns: boolean }
       can_transition_update_mail: {
         Args: { _mail_id: string; _step: number; _user_id: string }
         Returns: boolean
+      }
+      count_workflow_tracking_mails: {
+        Args: {
+          _overdue_only?: boolean
+          _priority?: string
+          _search?: string
+          _statuses?: string[]
+          _step?: number
+        }
+        Returns: number
       }
       get_enum_values: {
         Args: never
         Returns: {
           value: string
         }[]
+      }
+      get_workflow_tracking_summary: {
+        Args: {
+          _overdue_only?: boolean
+          _priority?: string
+          _search?: string
+          _statuses?: string[]
+          _step?: number
+        }
+        Returns: Json
+      }
+      list_workflow_tracking_mails: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _overdue_only?: boolean
+          _priority?: string
+          _search?: string
+          _statuses?: string[]
+          _step?: number
+        }
+        Returns: Database["public"]["Tables"]["mails"]["Row"][]
       }
       get_my_role: {
         Args: { _user_id: string }

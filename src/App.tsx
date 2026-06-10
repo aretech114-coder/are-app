@@ -32,6 +32,8 @@ import IntegrationsPage from "./pages/IntegrationsPage";
 import NotificationsTestPage from "./pages/NotificationsTestPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import AccountPage from "./pages/AccountPage";
+import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
+import { canAccessSuiviPage } from "@/lib/workflow-tracking";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +74,25 @@ function ReceptionRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SuiviRoute({ children }: { children: React.ReactNode }) {
+  const { role } = useAuth();
+  const { grantedRoles, loading } = useWorkflowTrackingAccess();
+
+  if (loading) {
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
+        Chargement...
+      </div>
+    );
+  }
+
+  if (!canAccessSuiviPage(role, grantedRoles)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   const { user, loading, role } = useAuth();
   if (loading) return null;
@@ -102,7 +123,7 @@ function AppRoutes() {
       <Route path="/workflow" element={<ProtectedRoute><WorkflowRoute><WorkflowPage /></WorkflowRoute></ProtectedRoute>} />
       <Route path="/missions" element={<ProtectedRoute><ReceptionRoute><MissionsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/reunions" element={<ProtectedRoute><ReceptionRoute><ReunionsPage /></ReceptionRoute></ProtectedRoute>} />
-      <Route path="/suivi" element={<ProtectedRoute><SuiviPage /></ProtectedRoute>} />
+      <Route path="/suivi" element={<ProtectedRoute><SuiviRoute><SuiviPage /></SuiviRoute></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SuperAdminRoute><SystemConfigPage /></SuperAdminRoute></ProtectedRoute>} />
       <Route path="/integrations" element={<ProtectedRoute><AdminRoute><IntegrationsPage /></AdminRoute></ProtectedRoute>} />
       <Route path="/notifications-test" element={<ProtectedRoute><SuperAdminRoute><NotificationsTestPage /></SuperAdminRoute></ProtectedRoute>} />
