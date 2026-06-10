@@ -26,6 +26,12 @@ import { toast } from "sonner";
 import { CheckCircle2, Loader2, Reply, Upload, X, Paperclip, AlertCircle } from "lucide-react";
 import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
+import {
+  formatMaxUploadLabel,
+  getUploadLimitError,
+  parseMaxUploadMb,
+} from "@/lib/upload-limits";
 import type { MailAttachmentMeta } from "@/lib/labels";
 import { UI_LABELS } from "@/lib/labels";
 import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
@@ -63,6 +69,8 @@ type PendingUpload = {
 
 export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated, parentMail }: Props) {
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
+  const maxUploadMb = parseMaxUploadMb(settings.max_upload_size_mb);
   const [loading, setLoading] = useState(false);
 
   const { data: types = [] } = useQuery({
@@ -179,6 +187,12 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   const uploadRef = form.reference_number.trim() || systemRefPreview;
 
   const uploadOneFile = async (file: File) => {
+    const limitError = getUploadLimitError(file, maxUploadMb);
+    if (limitError) {
+      toast.error(limitError);
+      return;
+    }
+
     const id = crypto.randomUUID();
     setUploads((prev) => [...prev, { id, file, status: "uploading" }]);
     try {
@@ -190,7 +204,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
           toast.info(
             `Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`
           );
-        }
+        },
+        maxUploadMb
       );
       setUploads((prev) =>
         prev.map((u) =>
@@ -795,6 +810,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               <p className="text-xs text-muted-foreground mt-1">
                 Glisser-déposer ou cliquer pour ajouter — une ou plusieurs pièces jointes (PDF, images, documents).
               </p>
+              <p className="text-xs text-muted-foreground">{formatMaxUploadLabel(maxUploadMb)}</p>
               <input
                 ref={fileInputRef}
                 type="file"

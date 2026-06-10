@@ -11,6 +11,11 @@ import { toast } from "sonner";
 import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus, Building2, Loader2 } from "lucide-react";
 import { APP_URL } from "@/lib/constants";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import {
+  MAX_UPLOAD_MB,
+  MIN_UPLOAD_MB,
+  parseMaxUploadMb,
+} from "@/lib/upload-limits";
 
 interface Permission {
   id: string;
@@ -98,6 +103,8 @@ export default function SystemConfigPage() {
   const [colors, setColors] = useState<Record<string, string>>({ ...COLOR_DEFAULTS });
   const [fontHeading, setFontHeading] = useState("Inter");
   const [fontBody, setFontBody] = useState("Inter");
+  const [maxUploadSizeMb, setMaxUploadSizeMb] = useState("25");
+  const [savingUploadLimit, setSavingUploadLimit] = useState(false);
 
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +135,7 @@ export default function SystemConfigPage() {
     });
     setFontHeading(settings.font_heading || "Inter");
     setFontBody(settings.font_body || "Inter");
+    setMaxUploadSizeMb(settings.max_upload_size_mb || "25");
   }, [settings]);
 
   useEffect(() => {
@@ -285,6 +293,25 @@ export default function SystemConfigPage() {
       toast.error(err.message || "Erreur lors de l'upload");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const saveUploadLimit = async () => {
+    const mb = parseMaxUploadMb(maxUploadSizeMb);
+    setSavingUploadLimit(true);
+    try {
+      await updateSetting("max_upload_size_mb", String(mb));
+      const { error } = await supabase.rpc("sync_mail_storage_file_size_limit", {
+        _max_mb: mb,
+      });
+      if (error) throw error;
+      await refresh();
+      setMaxUploadSizeMb(String(mb));
+      toast.success(`Limite d'upload fixée à ${mb} Mo (registre + workflow)`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
+    } finally {
+      setSavingUploadLimit(false);
     }
   };
 
@@ -861,6 +888,47 @@ export default function SystemConfigPage() {
             <Save className="h-4 w-4 mr-2" />
             Enregistrer le branding
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Pièces jointes courrier
+          </CardTitle>
+          <CardDescription>
+            Taille maximale par fichier pour l&apos;enregistrement au registre et les documents du workflow.
+            S&apos;applique aux buckets Storage <code className="text-xs">mail-incoming</code> et{" "}
+            <code className="text-xs">mail-documents</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="space-y-2 sm:max-w-xs">
+              <Label htmlFor="max_upload_size_mb">Taille max. (Mo)</Label>
+              <Input
+                id="max_upload_size_mb"
+                type="number"
+                min={MIN_UPLOAD_MB}
+                max={MAX_UPLOAD_MB}
+                value={maxUploadSizeMb}
+                onChange={(e) => setMaxUploadSizeMb(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Entre {MIN_UPLOAD_MB} et {MAX_UPLOAD_MB} Mo. Valeur actuelle en base :{" "}
+                {parseMaxUploadMb(settings.max_upload_size_mb)} Mo.
+              </p>
+            </div>
+            <Button onClick={saveUploadLimit} disabled={savingUploadLimit}>
+              {savingUploadLimit ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Enregistrer la limite
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
