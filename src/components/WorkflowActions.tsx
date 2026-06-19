@@ -15,6 +15,7 @@ import {
   submitStep7Acknowledgement,
   uploadMailDocument,
   mailDocumentSubfolderForStep,
+  formatNotificationFailureMessage,
 } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
@@ -23,6 +24,12 @@ import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { toast } from "sonner";
+import type { DispatchWorkflowResult } from "@/lib/workflow-notifications";
+
+function notifyAfterAdvance(notifications?: DispatchWorkflowResult) {
+  const msg = formatNotificationFailureMessage(notifications);
+  if (msg) toast.warning(msg);
+}
 import { CheckCircle, XCircle, ArrowRight, Archive, Send, Upload, Users, FileText, AlertTriangle, CalendarIcon, Clock, MapPin, Reply } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -588,6 +595,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         });
         if (result.success) {
           toast.success(`Courrier avancé à l'étape ${result.newStep}`);
+          notifyAfterAdvance(result.notifications);
           setShowDialog(false);
           resetForm();
           onAdvanced();
@@ -637,6 +645,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               ? `Tous les conseillers ont soumis — dossier avancé à l'étape ${result.newStep}`
               : "Tous les conseillers ont soumis — dossier avancé à l'étape 5"
           );
+          notifyAfterAdvance(result.notifications);
         } else {
           toast.success(
             `Traitement soumis ! En attente de ${result.remaining ?? 0} autre(s) conseiller(s).`
@@ -665,6 +674,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               ? `Tous les conseillers ont confirmé — dossier avancé à l'étape ${result.newStep}`
               : "Tous les conseillers ont confirmé — dossier avancé à l'étape suivante"
           );
+          notifyAfterAdvance(result.notifications);
         } else {
           toast.success(
             `Consultation confirmée ! En attente de ${result.remaining ?? 0} autre(s) conseiller(s).`
@@ -683,6 +693,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         const result = await advanceWorkflow(mailId, currentStep, "complete", user.id, noteParts || "Preuve de dépôt ajoutée.");
         if (result.success) {
           toast.success("Preuve de dépôt ajoutée — dossier archivé avec succès");
+          notifyAfterAdvance(result.notifications);
         } else {
           toast.error(result.error || "Erreur lors de l'archivage");
         }
@@ -733,6 +744,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         }
 
         toast.success(`Courrier avancé à l'étape ${result.newStep}`);
+        notifyAfterAdvance(result.notifications);
         setShowDialog(false);
         resetForm();
         onAdvanced();

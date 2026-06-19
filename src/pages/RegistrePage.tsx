@@ -53,6 +53,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { notifyReassignStep } from "@/lib/workflow-notifications";
+import { formatNotificationFailureMessage } from "@/lib/workflow-engine";
 import {
   Pagination,
   PaginationContent,
@@ -330,6 +332,9 @@ export default function RegistrePage() {
       message: `Un courrier vous a été réassigné.`,
       mail_id: id,
     });
+    const emailResult = await notifyReassignStep(id, step, targetId);
+    const emailWarn = formatNotificationFailureMessage(emailResult);
+    if (emailWarn) toast.warning(emailWarn);
     toast.success("Réassigné.");
     setReassignMailId(null);
     setReassignTargetUserId("");

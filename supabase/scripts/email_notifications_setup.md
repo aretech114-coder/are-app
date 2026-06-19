@@ -5,7 +5,19 @@
 | Canal | Configuration | Usage |
 |-------|---------------|--------|
 | **Supabase Auth SMTP** | Dashboard → Authentication → SMTP | Reset mot de passe, invitations Auth |
-| **Edge Function `send-notification-email`** | Secrets Supabase (ci-dessous) | Avancement workflow, rappels SLA |
+| **Edge Functions** | Secrets Supabase (ci-dessous) | Workflow (`dispatch-workflow-notifications`), rappels SLA (`sla-checker`) |
+
+## Architecture workflow (v2)
+
+Tous les envois e-mail métier passent par **`dispatch-workflow-notifications`** :
+
+- Enregistrement registre → étape 2 (`register`)
+- Avancement workflow (`transition` / `rejection`)
+- Pré-assignation étape 4 (`pre_assignment`)
+- Réassignation registre
+- Tests admin (`dry_run` / `force_send`)
+
+Chaque tentative est journalisée dans **`notification_deliveries`** (migration prod étape **Y**).
 
 ## Option A — Resend (recommandé, délivrabilité)
 
@@ -17,10 +29,11 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxx
 supabase secrets set RESEND_FROM="ARE App <notifications@votre-domaine.org>"
 ```
 
-3. Redéployer la fonction (push sur `develop` ou manuel) :
+3. Redéployer les fonctions (push sur `develop` ou manuel) :
 
 ```bash
 supabase functions deploy send-notification-email --no-verify-jwt
+supabase functions deploy dispatch-workflow-notifications --no-verify-jwt
 ```
 
 ## Option B — SMTP classique (fallback)
@@ -40,8 +53,20 @@ supabase secrets set SMTP_FROM="ARE App <notifications@votre-domaine.org>"
 - Toggle **notify_enabled** par étape : page Workflow (admin).
 - **Éditeur e-mail** : icône crayon à côté du toggle → sujet + corps HTML (traitement / lecture seule).
 - Shortcodes : `{{recipient_name}}`, `{{step_name}}`, `{{mail_subject}}`, `{{reference_number}}`, `{{access_mode_label}}`, `{{assignees_list}}`, `{{assignees_count}}`, `{{inbox_url}}`.
-- À chaque avancement : e-mail **individuel** à chaque assigné (contributors + viewers + responsable par défaut).
+- Destinataires résolus côté Edge : assignations étape (`contributor` / `viewer` / `custodian`), `assigned_agent_id`, `fallback_user_id`, puis **`default_user_id`** de l'étape si aucun assigné.
 - Rappels SLA (`sla-checker`) : autorisés via **service role** (cron).
+
+## Panneau admin
+
+Page **Intégrations** (`/integrations`) — visible pour superadmin et admin avec permission `manage_workflow` :
+
+- **Santé** : ping canal, profils sans e-mail, volume 7 jours par étape, 20 derniers envois.
+- **Simulateur** : dry run destinataires + envoi test `force_send`.
+- **Test canal** (superadmin) : `EmailNotificationTester` pour Resend/SMTP isolé.
+
+## Migration prod étape Y
+
+Appliquer `supabase/migrations/20260613100000_notification_deliveries.sql` via SQL Editor (voir `production_migrations_guide.md`).
 
 ## Tests
 
@@ -67,13 +92,35 @@ curl -X POST "https://VOTRE_PROJECT.supabase.co/functions/v1/send-notification-e
 
 Réponse attendue : `{"success":true,"provider":"resend"}` ou `"smtp"`.
 
-### 2. Test workflow
+### 2. Test workflow via simulateur
 
-1. Profil destinataire avec e-mail valide dans `profiles.email`.
-2. Toggle mail activé pour l'étape cible.
-3. Avancer un courrier test → vérifier logs Edge Function + boîte mail.
+1. Intégrations → Notifications workflow → rechercher un courrier test.
+2. **Analyser (dry run)** : vérifier la liste exacte des destinataires (nom, e-mail, mode, raison skip).
+3. **Envoyer test workflow** : e-mail reçu même si toggle OFF (`force_send`).
 
-### 3. Test SLA
+### 3. Checklist parcours métier
+
+| Scénario | Attendu |
+|----------|---------|
+| Enregistrement courrier → étape 2 | E-mail DG + ligne `notification_deliveries` type `register` |
+| DG valide étape 2 → étape 4 | E-mails assignés contributors + viewers + lignes audit |
+| Toggle étape 4 OFF | `skipped` / `notify_disabled`, pas d'envoi |
+| Profil sans e-mail | `failed` / `no_email`, toast warning côté utilisateur |
+| Simulateur dry_run | Liste exacte des destinataires avant envoi réel |
+| Admin test force_send | E-mail reçu même si toggle OFF (test uniquement) |
+| Réassignation registre | E-mail nouveau assigné + journal `reassign` |
+
+### 4. Profils sans e-mail (préventif)
+
+```sql
+SELECT p.full_name, p.email, ur.role
+FROM profiles p
+JOIN user_roles ur ON ur.user_id = p.id
+WHERE (p.email IS NULL OR btrim(p.email) = '')
+  AND ur.role IN ('dg', 'dircab', 'dircaba', 'conseiller', 'conseiller_juridique', 'secretariat');
+```
+
+### 5. Test SLA
 
 ```bash
 curl -X POST "https://VOTRE_PROJECT.supabase.co/functions/v1/sla-checker" \
@@ -81,7 +128,7 @@ curl -X POST "https://VOTRE_PROJECT.supabase.co/functions/v1/sla-checker" \
   -H "Content-Type: application/json"
 ```
 
-### 4. Délivrabilité
+### 6. Délivrabilité
 
 - [mail-tester.com](https://www.mail-tester.com) — objectif ≥ 8/10.
 - Vérifier SPF, DKIM, DMARC sur le domaine d'envoi.

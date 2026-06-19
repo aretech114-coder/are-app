@@ -42,6 +42,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | V | `20260610100000_max_upload_size_setting.sql` | Limite upload 25 Mo (configurable super admin) + sync buckets Storage |
 | W | `20260611100000_workflow_tracking.sql` | Pilotage workflow `/suivi` : grants rôles, `can_access_workflow_tracking`, lecture globale `can_access_mail`, RPC liste + KPI |
 | X | `20260612100000_fix_audit_mail_type_other.sql` | **Hotfix** : `mail_type_other` + trigger audit update résilient (erreur étape 2 DG) |
+| Y | `20260613100000_notification_deliveries.sql` | Journal `notification_deliveries` pour traçabilité e-mails workflow |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -58,6 +59,8 @@ Après **L** : `NOTIFY pgrst, 'reload schema';` — formulaire Registre avec N°
 Après **W** : `NOTIFY pgrst, 'reload schema';` — secrétariat/DG voient tous les courriers étapes 2–9 sur `/suivi` ; dérogations dans Configuration système (super admin). Vérifier : `SELECT public.can_access_workflow_tracking();` (connecté secrétariat) et `SELECT count(*) FROM public.list_workflow_tracking_mails(NULL, NULL, NULL, false, NULL, 10, 0);`
 
 Après **X** : retester validation étape 2 DG sur un courrier en retard — ne doit plus afficher `record "old" has no field "mail_type_other"`. Vérifier : `SELECT column_name FROM information_schema.columns WHERE table_name = 'mails' AND column_name = 'mail_type_other';`
+
+Après **Y** : déployer Edge Function `dispatch-workflow-notifications` ; tester registre → étape 2 et validation DG → étape 4 ; vérifier : `SELECT status, count(*) FROM notification_deliveries GROUP BY status;`
 
 ## Assistant IA (OpenAI)
 
