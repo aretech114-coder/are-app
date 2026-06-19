@@ -611,6 +611,65 @@ export type Database = {
           },
         ]
       }
+      notification_deliveries: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          mail_id: string | null
+          metadata: Json
+          notification_type: string
+          provider: string | null
+          provider_message_id: string | null
+          recipient_email: string | null
+          recipient_user_id: string | null
+          skip_reason: string | null
+          status: string
+          step_number: number | null
+          trigger_source: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          mail_id?: string | null
+          metadata?: Json
+          notification_type: string
+          provider?: string | null
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_user_id?: string | null
+          skip_reason?: string | null
+          status: string
+          step_number?: number | null
+          trigger_source: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          mail_id?: string | null
+          metadata?: Json
+          notification_type?: string
+          provider?: string | null
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_user_id?: string | null
+          skip_reason?: string | null
+          status?: string
+          step_number?: number | null
+          trigger_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "mails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string | null

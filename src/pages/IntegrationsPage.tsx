@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EmailNotificationTester } from "@/components/admin/EmailNotificationTester";
+import { WorkflowNotificationPanel } from "@/components/admin/WorkflowNotificationPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -81,8 +82,9 @@ function ModuleGrid({ modules }: { modules: ModuleCard[] }) {
 }
 
 export default function IntegrationsPage() {
-  const { role } = useAuth();
+  const { role, hasPermission } = useAuth();
   const isSuperAdmin = role === "superadmin";
+  const canManageWorkflow = isSuperAdmin || (role === "admin" && hasPermission("manage_workflow"));
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -93,9 +95,16 @@ export default function IntegrationsPage() {
         </p>
       </div>
 
+      {canManageWorkflow && (
+        <div id="workflow-notifications" className="space-y-4">
+          <h2 className="text-lg font-semibold">Notifications workflow</h2>
+          <WorkflowNotificationPanel />
+        </div>
+      )}
+
       {isSuperAdmin && (
         <div id="email-test" className="space-y-4">
-          <h2 className="text-lg font-semibold">Test notifications e-mail</h2>
+          <h2 className="text-lg font-semibold">Test canal e-mail (Resend/SMTP)</h2>
           <EmailNotificationTester />
         </div>
       )}

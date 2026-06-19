@@ -1,13 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WORKFLOW_BUCKET, createSignedUrlForPath } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
-import { notifyMailStepRecipients } from "@/lib/workflow-notifications";
+import {
+  notifyMailStepRecipients,
+  notifyPreAssignmentRecipients,
+  type DispatchWorkflowResult,
+} from "@/lib/workflow-notifications";
 import { WORKFLOW_STEP_LABELS, getRoleLabel, ROLE_LABELS } from "@/lib/labels";
 import { assertFileWithinUploadLimit, DEFAULT_MAX_UPLOAD_MB } from "@/lib/upload-limits";
 
 export { getRoleLabel, ROLE_LABELS };
 
-// ── Static fallback (kept for backward compatibility) ──
 export const WORKFLOW_STEPS = [
   { step: 1, name: WORKFLOW_STEP_LABELS[1].name, role: "secretariat", description: WORKFLOW_STEP_LABELS[1].description },
   { step: 2, name: WORKFLOW_STEP_LABELS[2].name, role: "directeur", description: WORKFLOW_STEP_LABELS[2].description },
@@ -22,9 +25,6 @@ export const WORKFLOW_STEPS = [
 
 export type WorkflowStepInfo = typeof WORKFLOW_STEPS[number];
 
-// ── Dynamic DB-aware helpers ──
-
-/** Fetch step info from DB, fallback to static */
 export async function getStepInfoFromDB(stepNumber: number): Promise<{ name: string; description: string | null } | undefined> {
   const { data } = await supabase
     .from("workflow_steps")
@@ -35,12 +35,9 @@ export async function getStepInfoFromDB(stepNumber: number): Promise<{ name: str
 
   if (data) return { name: data.name, description: data.description };
 
-  // Fallback to static
   const staticStep = WORKFLOW_STEPS.find(s => s.step === stepNumber);
   return staticStep ? { name: staticStep.name, description: staticStep.description } : undefined;
 }
-
-// ── Static helpers (still used across UI) ──
 
 export function getStepInfo(stepNumber: number): WorkflowStepInfo | undefined {
   return WORKFLOW_STEPS.find(s => s.step === stepNumber);
@@ -66,8 +63,6 @@ export function getStepColor(stepNumber: number): string {
   return colors[stepNumber] || "bg-muted text-muted-foreground";
 }
 
-// ── Advance workflow ──
-
 export interface AdvanceOptions {
   skipAutoAssign?: boolean;
   assigneeIds?: string[];
@@ -80,12 +75,9 @@ interface AdvanceResult {
   assignedTo?: string | null;
   ministreAbsent?: boolean;
   error?: string;
+  notifications?: DispatchWorkflowResult;
 }
 
-/**
- * Advance the workflow by calling the SECURITY DEFINER RPC.
- * The RPC now reads workflow_steps dynamically for step calculation and skip conditions.
- */
 export async function advanceWorkflow(
   mailId: string,
   currentStep: number,
@@ -119,19 +111,27 @@ export async function advanceWorkflow(
   const newStep = result.new_step as number;
   const assignedTo = result.assigned_to as string | null;
 
-  notifyMailStepRecipients(mailId, newStep, action, assignedTo).catch(console.error);
+  let notifications = await notifyMailStepRecipients(mailId, newStep, action, assignedTo);
+
+  if (
+    currentStep === 2 &&
+    ((options?.assigneeIds?.length ?? 0) > 0 || (options?.viewerIds?.length ?? 0) > 0)
+  ) {
+    const preAssignment = await notifyPreAssignmentRecipients(mailId);
+    notifications = mergeDispatchResults(notifications, preAssignment);
+  }
 
   return {
     success: true,
     newStep,
     assignedTo,
     ministreAbsent: result.ministre_absent,
+    notifications,
   };
 }
 
 const DEFAULT_MAIL_STATUSES = ["pending", "in_progress"] as const;
 
-/** Mails visible to current user (RLS + can_access_mail). Pas de fallback direct — évite fuite de visibilité. */
 export async function listMyMails(statuses?: string[]): Promise<any[]> {
   const statusList = statuses ?? [...DEFAULT_MAIL_STATUSES];
   const { data, error } = await (supabase as any).rpc("list_my_mails", {
@@ -155,9 +155,9 @@ export interface Step4TreatmentResult {
   newStep?: number;
   advanced?: boolean;
   error?: string;
+  notifications?: DispatchWorkflowResult;
 }
 
-/** Atomic step-4 treatment submission (contribution + assignment + optional auto-advance). */
 export async function submitStep4Treatment(
   mailId: string,
   body: string | null,
@@ -180,13 +180,14 @@ export async function submitStep4Treatment(
     return { success: false, error: (result?.error as string) || "Erreur inconnue" };
   }
 
+  let notifications: DispatchWorkflowResult | undefined;
   if (result.advanced && typeof result.new_step === "number") {
-    notifyMailStepRecipients(
+    notifications = await notifyMailStepRecipients(
       mailId,
       result.new_step as number,
       "complete",
       null
-    ).catch(console.error);
+    );
   }
 
   return {
@@ -195,6 +196,7 @@ export async function submitStep4Treatment(
     remaining: result.remaining as number | undefined,
     newStep: result.new_step as number | undefined,
     advanced: result.advanced as boolean | undefined,
+    notifications,
   };
 }
 
@@ -205,9 +207,9 @@ export interface Step7AckResult {
   newStep?: number;
   advanced?: boolean;
   error?: string;
+  notifications?: DispatchWorkflowResult;
 }
 
-/** Atomic step-7 acknowledgement (assignment + optional auto-advance). */
 export async function submitStep7Acknowledgement(
   mailId: string,
   notes?: string
@@ -226,13 +228,14 @@ export async function submitStep7Acknowledgement(
     return { success: false, error: (result?.error as string) || "Erreur inconnue" };
   }
 
+  let notifications: DispatchWorkflowResult | undefined;
   if (result.advanced && typeof result.new_step === "number") {
-    notifyMailStepRecipients(
+    notifications = await notifyMailStepRecipients(
       mailId,
       result.new_step as number,
       "complete",
       null
-    ).catch(console.error);
+    );
   }
 
   return {
@@ -241,6 +244,7 @@ export async function submitStep7Acknowledgement(
     remaining: result.remaining as number | undefined,
     newStep: result.new_step as number | undefined,
     advanced: result.advanced as boolean | undefined,
+    notifications,
   };
 }
 
@@ -250,7 +254,6 @@ export type MailDocumentSubfolder =
   | "validations"
   | "deposits";
 
-/** Sous-dossier mail-documents selon l'étape workflow. */
 export function mailDocumentSubfolderForStep(step: number): MailDocumentSubfolder {
   if (step === 4) return "treatments";
   if (step === 6) return "validations";
@@ -258,7 +261,6 @@ export function mailDocumentSubfolderForStep(step: number): MailDocumentSubfolde
   return "annotations";
 }
 
-/** Upload a workflow attachment to mail-documents bucket. */
 export async function uploadMailDocument(
   mailId: string,
   file: File,
@@ -282,4 +284,32 @@ export async function uploadMailDocument(
   if (!url) throw new Error("Impossible de générer l'URL du fichier");
 
   return { url, name: file.name, path: filePath, bucket: WORKFLOW_BUCKET };
+}
+
+function mergeDispatchResults(
+  a: DispatchWorkflowResult,
+  b: DispatchWorkflowResult
+): DispatchWorkflowResult {
+  return {
+    success: a.success && b.success,
+    sent: a.sent + b.sent,
+    failed: a.failed + b.failed,
+    skipped: a.skipped + b.skipped,
+    recipients: [...a.recipients, ...b.recipients],
+    error: a.error || b.error,
+    warning: a.warning || b.warning,
+  };
+}
+
+/** Affiche un toast si des e-mails workflow ont échoué après avancement. */
+export function formatNotificationFailureMessage(notifications?: DispatchWorkflowResult): string | null {
+  if (!notifications) return null;
+  if (notifications.error) return notifications.error;
+  if (notifications.failed > 0) {
+    return `Courrier avancé, mais ${notifications.failed} e-mail(s) n'ont pas pu être envoyés. Consultez Intégrations → Notifications workflow.`;
+  }
+  if (notifications.warning === "no_recipients") {
+    return "Courrier avancé, mais aucun destinataire e-mail n'a été trouvé pour cette étape.";
+  }
+  return null;
 }

@@ -37,6 +37,8 @@ import { UI_LABELS } from "@/lib/labels";
 import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
+import { notifyRegistrationStep } from "@/lib/workflow-notifications";
+import { formatNotificationFailureMessage } from "@/lib/workflow-engine";
 import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
 import {
   generateSystemReference,
@@ -474,6 +476,11 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             ? `Courrier ${direction} enregistré et routé (étape ${targetStep}, Réf: ${ref}).`
             : `Courrier enregistré à l'étape ${targetStep} — assignation DG à configurer (Réf: ${ref}).`,
       );
+
+      const emailResult = await notifyRegistrationStep(inserted.id, targetStep, assignee);
+      const emailWarn = formatNotificationFailureMessage(emailResult);
+      if (emailWarn) toast.warning(emailWarn);
+
       reset();
       onOpenChange(false);
       onCreated?.();

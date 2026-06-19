@@ -10,6 +10,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { resolveWorkflowStepAssignee, fetchWorkflowAssignableUsers } from "@/lib/workflow-assignment";
 import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
+import { notifyRegistrationStep } from "@/lib/workflow-notifications";
+import { formatNotificationFailureMessage } from "@/lib/workflow-engine";
 import { UI_LABELS, type MailAttachmentMeta } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -321,6 +323,13 @@ export default function MailEntry() {
       setQrData({ ref, data: qrCodeData });
       setShowQr(true);
       toast.success(routed ? "Courrier enregistré et routé avec succès" : "Courrier enregistré (routage non effectué — vérifiez les rôles)");
+
+      if (routed) {
+        const emailResult = await notifyRegistrationStep(insertedMail.id, initialStep, targetUserId);
+        const emailWarn = formatNotificationFailureMessage(emailResult);
+        if (emailWarn) toast.warning(emailWarn);
+      }
+
       setForm({
         reference_number: "", sender_name: "", sender_organization: "", subject: "", reception_date: "",
         mail_type: "", mail_type_other: "", priority: "normal", sender_phone: "", sender_email: "",
