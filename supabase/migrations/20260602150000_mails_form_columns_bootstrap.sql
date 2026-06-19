@@ -23,6 +23,7 @@ ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS parent_mail_id uuid;
 ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS current_step integer DEFAULT 1;
 ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS deadline_at timestamptz;
 ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS mail_type text DEFAULT 'standard';
+ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS mail_type_other text;
 ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS workflow_started_at timestamptz DEFAULT now();
 ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS workflow_completed_at timestamptz;
 ALTER TABLE public.mails ADD COLUMN IF NOT EXISTS ministre_absent boolean NOT NULL DEFAULT false;
