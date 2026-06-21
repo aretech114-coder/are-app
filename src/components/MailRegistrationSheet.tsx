@@ -23,6 +23,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, Loader2, Reply, Upload, X, Paperclip, AlertCircle } from "lucide-react";
 import { formatFileSize } from "@/lib/file-compressor";
 import { uploadIncomingMailFiles } from "@/lib/mail-storage";
@@ -38,7 +39,7 @@ import { COUNTRIES, RDC_PROVINCES } from "@/lib/geo-options";
 import { resolveWorkflowStepAssignee } from "@/lib/workflow-assignment";
 import { getWorkflowRoutingContext } from "@/lib/workflow-step-routing";
 import { notifyRegistrationStep } from "@/lib/workflow-notifications";
-import { formatNotificationFailureMessage } from "@/lib/workflow-engine";
+import { formatNotificationFailureMessage, formatRegistrationEmailSuccess } from "@/lib/workflow-engine";
 import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
 import {
   generateSystemReference,
@@ -187,6 +188,32 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
   }, [open, parentMail]);
 
   const uploadRef = form.reference_number.trim() || systemRefPreview;
+
+  const routingStep = treatmentStep?.step_order ?? 2;
+
+  const { data: likelyAssigneeProfile } = useQuery({
+    queryKey: ["reg-likely-assignee", open, titulaireAbsent, form.assigned_to, routingStep],
+    queryFn: async () => {
+      let userId: string | null = null;
+      if (titulaireAbsent) {
+        userId = form.assigned_to || null;
+      } else {
+        userId = await resolveWorkflowStepAssignee(routingStep, null);
+      }
+      if (!userId) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("id", userId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open,
+  });
+
+  const hasValidAttachments = uploads.some((u) => u.status === "done" && u.meta);
+  const attachmentsPending = uploads.some((u) => u.status === "uploading" || u.status === "error");
+  const canSubmitForm = hasValidAttachments && !attachmentsPending;
 
   const uploadOneFile = async (file: File) => {
     const limitError = getUploadLimitError(file, maxUploadMb);
@@ -478,6 +505,8 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
       );
 
       const emailResult = await notifyRegistrationStep(inserted.id, targetStep, assignee);
+      const emailSuccess = formatRegistrationEmailSuccess(emailResult, targetStep);
+      if (emailSuccess) toast.success(emailSuccess);
       const emailWarn = formatNotificationFailureMessage(emailResult);
       if (emailWarn) toast.warning(emailWarn);
 
@@ -519,6 +548,92 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
               </div>
             </div>
           )}
+
+          {/* Pièces jointes — obligatoires, en tête de formulaire */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Pièces jointes *</h3>
+            {!hasValidAttachments && (
+              <Alert variant="destructive" className="py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  Au moins une pièce jointe est obligatoire pour enregistrer le courrier.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+              onClick={() => fileInputRef.current?.click()}
+              className="cursor-pointer rounded-lg border-2 border-dashed border-muted-foreground/30 p-4 text-center hover:bg-muted/30 transition-colors"
+            >
+              <Upload className="h-5 w-5 mx-auto text-muted-foreground" />
+              <p className="text-xs text-muted-foreground mt-1">
+                Glisser-déposer ou cliquer pour ajouter — une ou plusieurs pièces jointes (PDF, images, documents).
+              </p>
+              <p className="text-xs text-muted-foreground">{formatMaxUploadLabel(maxUploadMb)}</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </div>
+            {uploads.length > 0 && (
+              <ul className="space-y-1">
+                {uploads.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex items-center justify-between rounded border bg-background px-2 py-1.5 text-xs"
+                  >
+                    <span className="flex items-center gap-2 truncate min-w-0">
+                      {u.status === "uploading" && (
+                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                      )}
+                      {u.status === "done" && (
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                      )}
+                      {u.status === "error" && (
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                      )}
+                      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{u.file.name}</span>
+                      <span className="text-muted-foreground shrink-0">
+                        ({formatFileSize(u.file.size)})
+                      </span>
+                      {u.status === "done" && (
+                        <span className="text-green-600 shrink-0">Importé</span>
+                      )}
+                      {u.status === "error" && (
+                        <span className="text-destructive truncate">{u.error}</span>
+                      )}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      disabled={u.status === "uploading"}
+                      onClick={() => removeUpload(u.id)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {likelyAssigneeProfile && !likelyAssigneeProfile.email?.trim() && (
+            <Alert className="py-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                {likelyAssigneeProfile.full_name || "Le responsable assigné"} n&apos;a pas d&apos;e-mail dans son
+                profil — la notification e-mail à l&apos;étape {routingStep} sera impossible.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Identité */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground">Identité</h3>
@@ -804,73 +919,6 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             </div>
           </section>
 
-          {/* Pièces jointes */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Pièces jointes *</h3>
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
-              onClick={() => fileInputRef.current?.click()}
-              className="cursor-pointer rounded-lg border-2 border-dashed border-muted-foreground/30 p-4 text-center hover:bg-muted/30 transition-colors"
-            >
-              <Upload className="h-5 w-5 mx-auto text-muted-foreground" />
-              <p className="text-xs text-muted-foreground mt-1">
-                Glisser-déposer ou cliquer pour ajouter — une ou plusieurs pièces jointes (PDF, images, documents).
-              </p>
-              <p className="text-xs text-muted-foreground">{formatMaxUploadLabel(maxUploadMb)}</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => handleFiles(e.target.files)}
-              />
-            </div>
-            {uploads.length > 0 && (
-              <ul className="space-y-1">
-                {uploads.map((u) => (
-                  <li
-                    key={u.id}
-                    className="flex items-center justify-between rounded border bg-background px-2 py-1.5 text-xs"
-                  >
-                    <span className="flex items-center gap-2 truncate min-w-0">
-                      {u.status === "uploading" && (
-                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
-                      )}
-                      {u.status === "done" && (
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                      )}
-                      {u.status === "error" && (
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                      )}
-                      <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{u.file.name}</span>
-                      <span className="text-muted-foreground shrink-0">
-                        ({formatFileSize(u.file.size)})
-                      </span>
-                      {u.status === "done" && (
-                        <span className="text-green-600 shrink-0">Importé</span>
-                      )}
-                      {u.status === "error" && (
-                        <span className="text-destructive truncate">{u.error}</span>
-                      )}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0"
-                      disabled={u.status === "uploading"}
-                      onClick={() => removeUpload(u.id)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
           <DialogFooter className="gap-2">
             <Button
               type="button"
@@ -880,7 +928,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             >
               Annuler
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !canSubmitForm}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Enregistrer
             </Button>

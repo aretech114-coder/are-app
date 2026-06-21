@@ -219,6 +219,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (recipientMap.size === 0) {
+      const { data: resolvedId, error: resolveError } = await adminClient.rpc(
+        "resolve_step_assignee",
+        { _step_number: stepNumber, _mail_id: payload.mail_id }
+      );
+      if (!resolveError && resolvedId) {
+        recipientMap.set(resolvedId as string, {
+          user_id: resolvedId as string,
+          access_mode: "default",
+        });
+      }
+    }
+
     const recipientIds = [...recipientMap.keys()];
     const { data: profiles } = recipientIds.length
       ? await adminClient.from("profiles").select("id, full_name, email").in("id", recipientIds)

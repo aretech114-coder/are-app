@@ -102,13 +102,18 @@ Réponse attendue : `{"success":true,"provider":"resend"}` ou `"smtp"`.
 
 | Scénario | Attendu |
 |----------|---------|
-| Enregistrement courrier → étape 2 | E-mail DG + ligne `notification_deliveries` type `register` |
+| Enregistrement sans PJ | Bouton désactivé + alerte en tête du formulaire registre |
+| Enregistrement courrier → étape 2 | E-mail DG + toast succès si envoyé + ligne `notification_deliveries` type `register` |
 | DG valide étape 2 → étape 4 | E-mails assignés contributors + viewers + lignes audit |
-| Toggle étape 4 OFF | `skipped` / `notify_disabled`, pas d'envoi |
-| Profil sans e-mail | `failed` / `no_email`, toast warning côté utilisateur |
+| Dernier conseiller soumet étape 4 | E-mail responsable étape d'arrivée (5 ou 6) avec `assigned_to` propagé |
+| Avancement étapes 5→6→7→8→9 | E-mail à chaque étape d'arrivée |
+| Toggle étape OFF | `skipped` / `notify_disabled`, pas d'envoi |
+| Profil sans e-mail | `skipped/no_email` + toast warning + alerte pré-vol à l'enregistrement |
 | Simulateur dry_run | Liste exacte des destinataires avant envoi réel |
 | Admin test force_send | E-mail reçu même si toggle OFF (test uniquement) |
 | Réassignation registre | E-mail nouveau assigné + journal `reassign` |
+
+**Post-fix (migration Z + Edge Function)** : redéployer `dispatch-workflow-notifications`, appliquer migration **Z**, puis rejouer la checklist sur un courrier test de bout en bout.
 
 ### 4. Profils sans e-mail (préventif)
 

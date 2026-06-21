@@ -182,11 +182,13 @@ export async function submitStep4Treatment(
 
   let notifications: DispatchWorkflowResult | undefined;
   if (result.advanced && typeof result.new_step === "number") {
+    const assignedTo =
+      typeof result.assigned_to === "string" ? result.assigned_to : null;
     notifications = await notifyMailStepRecipients(
       mailId,
       result.new_step as number,
       "complete",
-      null
+      assignedTo
     );
   }
 
@@ -230,11 +232,13 @@ export async function submitStep7Acknowledgement(
 
   let notifications: DispatchWorkflowResult | undefined;
   if (result.advanced && typeof result.new_step === "number") {
+    const assignedTo =
+      typeof result.assigned_to === "string" ? result.assigned_to : null;
     notifications = await notifyMailStepRecipients(
       mailId,
       result.new_step as number,
       "complete",
-      null
+      assignedTo
     );
   }
 
@@ -308,8 +312,24 @@ export function formatNotificationFailureMessage(notifications?: DispatchWorkflo
   if (notifications.failed > 0) {
     return `Courrier avancé, mais ${notifications.failed} e-mail(s) n'ont pas pu être envoyés. Consultez Intégrations → Notifications workflow.`;
   }
+  const noEmailRecipients = notifications.recipients?.filter((r) => r.skip_reason === "no_email") ?? [];
+  if (noEmailRecipients.length > 0) {
+    const names = noEmailRecipients
+      .map((r) => r.recipient_name || "Utilisateur")
+      .join(", ");
+    return `Notification e-mail impossible : ${names} n'a pas d'e-mail dans son profil.`;
+  }
   if (notifications.warning === "no_recipients") {
     return "Courrier avancé, mais aucun destinataire e-mail n'a été trouvé pour cette étape.";
   }
   return null;
+}
+
+/** Message de succès après enregistrement registre si au moins un e-mail est parti. */
+export function formatRegistrationEmailSuccess(
+  notifications?: DispatchWorkflowResult,
+  stepNumber?: number
+): string | null {
+  if (!notifications || notifications.sent <= 0) return null;
+  return `E-mail de notification envoyé au responsable de l'étape ${stepNumber ?? "—"}.`;
 }

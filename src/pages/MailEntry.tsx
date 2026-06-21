@@ -183,6 +183,11 @@ export default function MailEntry() {
       return;
     }
 
+    if (files.length === 0) {
+      toast.error("Au moins une pièce jointe est obligatoire.");
+      return;
+    }
+
     setLoading(true);
 
     const ref = generateRef();
@@ -361,6 +366,39 @@ export default function MailEntry() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Pièces jointes — obligatoires, en tête de formulaire */}
+            <Field label="Pièces jointes *" required hint="Joindre les versions scannées du courrier et/ou tout autre document.">
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto text-primary mb-2" />
+                <p className="text-sm text-muted-foreground">Déposez les fichiers ici ou</p>
+                <Button type="button" variant="default" size="sm" className="mt-2">
+                  Sélectionnez des fichiers
+                </Button>
+                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+              </div>
+              {files.length === 0 && (
+                <p className="text-xs text-destructive mt-2">Au moins une pièce jointe est requise.</p>
+              )}
+              {files.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm bg-muted rounded px-3 py-1.5">
+                      <span className="truncate flex-1">{f.name}</span>
+                      <button type="button" onClick={() => removeFile(i)} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">{formatMaxUploadLabel(maxUploadMb)}</p>
+            </Field>
+
             {/* Row 1: Numéro courrier (auto) & Référence du courrier (user input) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="ID unique (auto-généré)" hint="Identifiant unique généré par le système">
@@ -482,36 +520,6 @@ export default function MailEntry() {
               </Field>
             )}
 
-            {/* Pièces jointes */}
-            <Field label="Pièces jointes" hint="Joindre les versions scannées du courrier et/ou tout autre document.">
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-8 w-8 mx-auto text-primary mb-2" />
-                <p className="text-sm text-muted-foreground">Déposez les fichiers ici ou</p>
-                <Button type="button" variant="default" size="sm" className="mt-2">
-                  Sélectionnez des fichiers
-                </Button>
-                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-              </div>
-              {files.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {files.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm bg-muted rounded px-3 py-1.5">
-                      <span className="truncate flex-1">{f.name}</span>
-                      <button type="button" onClick={() => removeFile(i)} className="text-muted-foreground hover:text-destructive">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">{formatMaxUploadLabel(maxUploadMb)}</p>
-            </Field>
-
             {/* Téléphone & Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Téléphone de l'expéditeur">
@@ -587,7 +595,7 @@ export default function MailEntry() {
               <Input value={profile?.full_name || user?.email || ""} disabled className="bg-muted" />
             </Field>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || files.length === 0}>
               <Send className="h-4 w-4 mr-2" />
               {loading ? "Enregistrement..." : "Enregistrer le courrier"}
             </Button>
