@@ -43,6 +43,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | W | `20260611100000_workflow_tracking.sql` | Pilotage workflow `/suivi` : grants rôles, `can_access_workflow_tracking`, lecture globale `can_access_mail`, RPC liste + KPI |
 | X | `20260612100000_fix_audit_mail_type_other.sql` | **Hotfix** : `mail_type_other` + trigger audit update résilient (erreur étape 2 DG) |
 | Y | `20260613100000_notification_deliveries.sql` | Journal `notification_deliveries` pour traçabilité e-mails workflow |
+| Z | `20260614100000_rpc_return_assigned_to.sql` | RPC step 4 / 7 : retour `assigned_to` pour notifications étape d'arrivée |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -61,6 +62,8 @@ Après **W** : `NOTIFY pgrst, 'reload schema';` — secrétariat/DG voient tous 
 Après **X** : retester validation étape 2 DG sur un courrier en retard — ne doit plus afficher `record "old" has no field "mail_type_other"`. Vérifier : `SELECT column_name FROM information_schema.columns WHERE table_name = 'mails' AND column_name = 'mail_type_other';`
 
 Après **Y** : déployer Edge Function `dispatch-workflow-notifications` ; tester registre → étape 2 et validation DG → étape 4 ; vérifier : `SELECT status, count(*) FROM notification_deliveries GROUP BY status;`
+
+Après **Z** : retester soumission traitement étape 4 (dernier conseiller) → e-mail responsable étape suivante ; vérifier que le RPC retourne `assigned_to` : soumettre étape 4 puis `SELECT step_number, recipient_email, status FROM notification_deliveries WHERE mail_id = '<uuid>' ORDER BY created_at DESC LIMIT 5;`
 
 ## Assistant IA (OpenAI)
 
