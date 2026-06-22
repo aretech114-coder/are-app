@@ -949,6 +949,64 @@ export type Database = {
         }
         Relationships: []
       }
+      permission_resources: {
+        Row: {
+          resource_key: string
+          label: string
+          parent_key: string | null
+          sort_order: number
+        }
+        Insert: {
+          resource_key: string
+          label: string
+          parent_key?: string | null
+          sort_order?: number
+        }
+        Update: {
+          resource_key?: string
+          label?: string
+          parent_key?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_resources_parent_key_fkey"
+            columns: ["parent_key"]
+            isOneToOne: false
+            referencedRelation: "permission_resources"
+            referencedColumns: ["resource_key"]
+          },
+        ]
+      }
+      role_permissions: {
+        Row: {
+          role: Database["public"]["Enums"]["app_role"]
+          resource_key: string
+          action: string
+          is_allowed: boolean
+        }
+        Insert: {
+          role: Database["public"]["Enums"]["app_role"]
+          resource_key: string
+          action: string
+          is_allowed?: boolean
+        }
+        Update: {
+          role?: Database["public"]["Enums"]["app_role"]
+          resource_key?: string
+          action?: string
+          is_allowed?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_resource_key_fkey"
+            columns: ["resource_key"]
+            isOneToOne: false
+            referencedRelation: "permission_resources"
+            referencedColumns: ["resource_key"]
+          },
+        ]
+      }
       workflow_step_fallbacks: {
         Row: {
           condition_key: string
@@ -1182,6 +1240,18 @@ export type Database = {
         Returns: Json
       }
       can_access_workflow_tracking: { Args: never; Returns: boolean }
+      has_role_permission: {
+        Args: { _user_id: string; _resource: string; _action: string }
+        Returns: boolean
+      }
+      legacy_role_permission: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _resource: string
+          _action: string
+        }
+        Returns: boolean
+      }
       can_transition_update_mail: {
         Args: { _mail_id: string; _step: number; _user_id: string }
         Returns: boolean

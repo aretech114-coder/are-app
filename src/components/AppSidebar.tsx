@@ -3,6 +3,7 @@ import {
 } from "lucide-react";
 import { getRoleLabel } from "@/lib/workflow-engine";
 import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { canSeeSuiviNav } from "@/lib/workflow-tracking";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,13 +32,19 @@ export function AppSidebar() {
   const isAdmin = role === "admin";
   const isReception = role === "reception";
   const { grantedRoles } = useWorkflowTrackingAccess();
-  const showSuiviNav = canSeeSuiviNav(role, grantedRoles);
+  const { can } = useRolePermissions();
+  const showSuiviNav = canSeeSuiviNav(role, grantedRoles) && can("suivi", "view");
 
   const canAccessAdminUsers = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
   const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
 
   const visibleNav = mainNav.filter((item) => {
     if (isSuperAdmin || isAdmin) return true;
+    if (item.url === "/registre" && !can("registre", "view")) return false;
+    if (item.url === "/archive" && !can("archives", "view")) return false;
+    if (item.url === "/history" && !can("history", "view")) return false;
+    if (item.url === "/inbox" && !can("inbox", "view")) return false;
+    if (item.url === "/reunions" && !can("meetings", "view")) return false;
     if (item.roles.includes("__all__") && !isReception) return true;
     return item.roles.includes(role || "");
   });

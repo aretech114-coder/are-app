@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,8 +87,13 @@ const statusColors: Record<string, string> = {
 
 export default function RegistrePage() {
   const { user, role } = useAuth();
+  const { can } = useRolePermissions();
   const qc = useQueryClient();
   const isAdmin = role === "admin" || role === "superadmin";
+  const canCreate = can("registre", "create");
+  const canEdit = can("registre", "edit");
+  const canDelete = can("registre", "delete");
+  const canExport = can("registre", "export");
 
   const [direction, setDirection] = useState<Direction>("entrant");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -444,12 +450,16 @@ export default function RegistrePage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
-              <Download className="h-4 w-4" /> CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportPDF} className="gap-1.5">
-              <FileText className="h-4 w-4" /> Exporter le registre
-            </Button>
+            {canExport && (
+              <>
+                <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
+                  <Download className="h-4 w-4" /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportPDF} className="gap-1.5">
+                  <FileText className="h-4 w-4" /> Exporter le registre
+                </Button>
+              </>
+            )}
             {isAdmin && (
               <Button
                 variant="outline"
@@ -460,10 +470,12 @@ export default function RegistrePage() {
                 <Settings className="h-4 w-4" /> Paramètres
               </Button>
             )}
-            <Button size="sm" onClick={() => setSheetOpen(true)} className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              Nouveau courrier {direction === "entrant" ? "entrant" : "sortant"}
-            </Button>
+            {canCreate && (
+              <Button size="sm" onClick={() => setSheetOpen(true)} className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                Nouveau courrier {direction === "entrant" ? "entrant" : "sortant"}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -661,42 +673,46 @@ export default function RegistrePage() {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(m)}
-                              disabled={m.locked_for_edit}
-                              className="h-8 w-8"
-                            >
-                              {m.locked_for_edit ? (
-                                <Lock className="h-4 w-4 text-muted-foreground" />
-                              ) : (
-                                <Pencil className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {m.locked_for_edit
-                              ? "Verrouillé — courrier en traitement"
-                              : "Modifier"}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleArchive(m.id)}
-                              className="h-8 w-8"
-                              disabled={m.status === "archived"}
-                            >
-                              <ArchiveIcon className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Archiver</TooltipContent>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(m)}
+                                disabled={m.locked_for_edit}
+                                className="h-8 w-8"
+                              >
+                                {m.locked_for_edit ? (
+                                  <Lock className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <Pencil className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {m.locked_for_edit
+                                ? "Verrouillé — courrier en traitement"
+                                : "Modifier"}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleArchive(m.id)}
+                                className="h-8 w-8"
+                                disabled={m.status === "archived"}
+                              >
+                                <ArchiveIcon className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Archiver</TooltipContent>
+                          </Tooltip>
+                        )}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button

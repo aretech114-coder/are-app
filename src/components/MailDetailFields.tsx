@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AlertTriangle, Navigation, Paperclip } from "lucide-react";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { AttachmentDownloadButton } from "@/components/AttachmentDownloadButton";
 import { DgDecisionSummary } from "@/components/DgDecisionSummary";
 import { UI_LABELS, getMailAttachmentUrls } from "@/lib/labels";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
@@ -25,6 +26,7 @@ interface MailDetailFieldsProps {
   circuitLabel?: string | null;
   embedAttachments?: boolean;
   onViewAttachments?: () => void;
+  allowAttachmentDownload?: boolean;
 }
 
 function FieldCategory({
@@ -90,6 +92,7 @@ export function MailDetailFields({
   circuitLabel = null,
   embedAttachments = true,
   onViewAttachments,
+  allowAttachmentDownload = false,
 }: MailDetailFieldsProps) {
   const isOverdue =
     mail.deadline_at && new Date(mail.deadline_at) < new Date() && mail.status !== "archived";
@@ -184,11 +187,31 @@ export function MailDetailFields({
                   Pièce{attachmentUrls.length > 1 ? "s" : ""} jointe{attachmentUrls.length > 1 ? "s" : ""} (réception)
                 </span>
               </div>
-              {onViewAttachments && (
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={onViewAttachments}>
-                  Visualiser
-                </Button>
-              )}
+              <div className="flex items-center gap-1">
+                {allowAttachmentDownload &&
+                  (Array.isArray(mail.attachment_urls) && mail.attachment_urls.length > 0
+                    ? mail.attachment_urls.map(
+                        (meta: { url: string; name?: string; bucket?: string; path?: string }, i: number) => (
+                          <AttachmentDownloadButton
+                            key={i}
+                            url={meta.url}
+                            name={meta.name}
+                            bucket={meta.bucket}
+                            path={meta.path}
+                            variant="ghost"
+                            size="icon"
+                          />
+                        )
+                      )
+                    : attachmentUrls.map((url, i) => (
+                        <AttachmentDownloadButton key={i} url={url} variant="ghost" size="icon" />
+                      )))}
+                {onViewAttachments && (
+                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={onViewAttachments}>
+                    Visualiser
+                  </Button>
+                )}
+              </div>
             </div>
             <AttachmentViewer mail={mail} />
           </div>
@@ -292,4 +315,4 @@ export function MailDetailFields({
 }
 
 export { statusLabels, priorityLabels };
-
+
