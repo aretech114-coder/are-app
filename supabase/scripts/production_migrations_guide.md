@@ -44,6 +44,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | X | `20260612100000_fix_audit_mail_type_other.sql` | **Hotfix** : `mail_type_other` + trigger audit update résilient (erreur étape 2 DG) |
 | Y | `20260613100000_notification_deliveries.sql` | Journal `notification_deliveries` pour traçabilité e-mails workflow |
 | Z | `20260614100000_rpc_return_assigned_to.sql` | RPC step 4 / 7 : retour `assigned_to` pour notifications étape d'arrivée |
+| AA | `20260615100000_role_permissions.sql` | Matrice RBAC : `permission_resources`, `role_permissions`, `has_role_permission` |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -64,6 +65,32 @@ Après **X** : retester validation étape 2 DG sur un courrier en retard — ne 
 Après **Y** : déployer Edge Function `dispatch-workflow-notifications` ; tester registre → étape 2 et validation DG → étape 4 ; vérifier : `SELECT status, count(*) FROM notification_deliveries GROUP BY status;`
 
 Après **Z** : retester soumission traitement étape 4 (dernier conseiller) → e-mail responsable étape suivante ; vérifier que le RPC retourne `assigned_to` : soumettre étape 4 puis `SELECT step_number, recipient_email, status FROM notification_deliveries WHERE mail_id = '<uuid>' ORDER BY created_at DESC LIMIT 5;`
+
+Après **AA** : `NOTIFY pgrst, 'reload schema';` — exécuter [`seed_role_permissions.sql`](seed_role_permissions.sql) ; vérifier matrice dans Configuration système → Autorisations par rôle ; tester :
+
+```sql
+SELECT public.has_role_permission(auth.uid(), 'archives', 'view');
+SELECT count(*) FROM public.role_permissions WHERE role = 'agent';
+```
+
+**Checklist Phase 1 (Archives — frontend seul)** :
+
+| Scénario | Attendu |
+|----------|---------|
+| Agent avec courrier archivé assigné | Voit la ligne, clic → modale dossier complet |
+| Agent sans lien au courrier | Ne voit pas le courrier (RLS) |
+| Secrétariat / DG | Voit les archives selon accès actuel |
+| Clic PJ / timeline | Téléchargement fichier (si `archives.download`) |
+| Modale | Timeline + contributions + stepper, sans actions workflow |
+
+**Checklist Phase 2 (RBAC)** :
+
+| Scénario | Attendu |
+|----------|---------|
+| Seed frais | Comportement identique à avant pour agent / DG / secrétariat |
+| Superadmin retire `archives.download` pour `agent` | Boutons download masqués ; RLS inchangé |
+| Superadmin accorde `suivi.view` à un rôle via matrice | Menu Suivi visible si grant + hook OK |
+| Admin entreprise | Toujours limité par `admin_permissions`, indépendamment de la matrice rôle |
 
 ## Assistant IA (OpenAI)
 

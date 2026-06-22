@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowRight, Check, XCircle, RotateCcw } from "lucide-react";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { AttachmentDownloadButton } from "@/components/AttachmentDownloadButton";
 import {
   formatTransitionNotesForDisplay,
   parseWorkflowTransitionNotes,
@@ -26,12 +27,14 @@ interface WorkflowTimelineProps {
   mailId: string;
   activeSteps?: WorkflowStep[];
   groupByStep?: boolean;
+  allowDownload?: boolean;
 }
 
 export function WorkflowTimeline({
   mailId,
   activeSteps = [],
   groupByStep = false,
+  allowDownload = false,
 }: WorkflowTimelineProps) {
   const [transitions, setTransitions] = useState<Transition[]>([]);
 
@@ -107,8 +110,11 @@ export function WorkflowTimeline({
             </ul>
           )}
           {parsed?.attachmentUrl && (
-            <div className="pt-1">
+            <div className="pt-1 flex items-center gap-1">
               <AttachmentViewer url={parsed.attachmentUrl} inline />
+              {allowDownload && (
+                <AttachmentDownloadButton url={parsed.attachmentUrl} variant="ghost" size="icon" />
+              )}
             </div>
           )}
           <p className="text-muted-foreground">
@@ -176,8 +182,11 @@ export function WorkflowTimeline({
                 </ul>
               )}
               {parsed?.attachmentUrl && (
-                <div className="pt-1">
+                <div className="pt-1 flex items-center gap-1">
                   <AttachmentViewer url={parsed.attachmentUrl} inline />
+                  {allowDownload && (
+                    <AttachmentDownloadButton url={parsed.attachmentUrl} variant="ghost" size="icon" />
+                  )}
                 </div>
               )}
               <p className="text-muted-foreground">

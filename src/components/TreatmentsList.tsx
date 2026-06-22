@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FileText, Paperclip, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { AttachmentDownloadButton } from "@/components/AttachmentDownloadButton";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { resolveAttachmentUrls } from "@/lib/mail-storage";
@@ -29,7 +30,13 @@ interface Treatment {
   submittedAt: string | null;
 }
 
-export function TreatmentsList({ mailId }: { mailId: string }) {
+export function TreatmentsList({
+  mailId,
+  allowDownload = false,
+}: {
+  mailId: string;
+  allowDownload?: boolean;
+}) {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -186,6 +193,22 @@ export function TreatmentsList({ mailId }: { mailId: string }) {
                   }
                   inline
                 />
+                {allowDownload &&
+                  (t.attachmentMeta.length > 0
+                    ? t.attachmentMeta.map((meta, i) => (
+                        <AttachmentDownloadButton
+                          key={i}
+                          url={meta.url}
+                          name={meta.name}
+                          bucket={meta.bucket}
+                          path={meta.path}
+                          variant="ghost"
+                          size="icon"
+                        />
+                      ))
+                    : (
+                        <AttachmentDownloadButton url={t.attachmentUrl} variant="ghost" size="icon" />
+                      ))}
               </div>
             )}
           </div>

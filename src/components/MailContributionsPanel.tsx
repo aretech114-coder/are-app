@@ -3,6 +3,7 @@ import { MailContribution } from "@/hooks/useMailContributions";
 import { filterVisibleContributions } from "@/lib/workflow-display";
 import { FileText, User, Clock } from "lucide-react";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { AttachmentDownloadButton } from "@/components/AttachmentDownloadButton";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -15,6 +16,7 @@ interface Props {
   showAllDrafts?: boolean;
   currentUserId?: string | null;
   assigneeCount?: number;
+  allowDownload?: boolean;
 }
 
 export function MailContributionsPanel({
@@ -24,6 +26,7 @@ export function MailContributionsPanel({
   showAllDrafts: showAllDraftsProp,
   currentUserId,
   assigneeCount,
+  allowDownload = false,
 }: Props) {
   const showAllDrafts = showAllDraftsProp ?? showDrafts ?? false;
   const visible = filterVisibleContributions(contributions, { showAllDrafts, currentUserId });
@@ -74,18 +77,32 @@ export function MailContributionsPanel({
             <p className="text-sm whitespace-pre-wrap text-muted-foreground">{c.body}</p>
           )}
           {c.attachment_urls && c.attachment_urls.length > 0 && (
-            <AttachmentViewer
-              urls={c.attachment_urls.map((a) => a.url).filter(Boolean)}
-              mail={{
-                attachment_urls: c.attachment_urls.map((a) => ({
-                  url: a.url,
-                  name: a.name,
-                  path: (a as { path?: string }).path,
-                  bucket: (a as { bucket?: string }).bucket,
-                })),
-              }}
-              inline
-            />
+            <div className="flex items-center gap-1 flex-wrap">
+              <AttachmentViewer
+                urls={c.attachment_urls.map((a) => a.url).filter(Boolean)}
+                mail={{
+                  attachment_urls: c.attachment_urls.map((a) => ({
+                    url: a.url,
+                    name: a.name,
+                    path: (a as { path?: string }).path,
+                    bucket: (a as { bucket?: string }).bucket,
+                  })),
+                }}
+                inline
+              />
+              {allowDownload &&
+                c.attachment_urls.map((a, i) => (
+                  <AttachmentDownloadButton
+                    key={i}
+                    url={a.url}
+                    name={a.name}
+                    bucket={(a as { bucket?: string }).bucket}
+                    path={(a as { path?: string }).path}
+                    variant="ghost"
+                    size="icon"
+                  />
+                ))}
+            </div>
           )}
         </div>
       ))}

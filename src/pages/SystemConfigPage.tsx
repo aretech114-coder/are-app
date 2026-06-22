@@ -25,6 +25,7 @@ import {
   MIN_UPLOAD_MB,
   parseMaxUploadMb,
 } from "@/lib/upload-limits";
+import { RolePermissionsMatrix } from "@/components/RolePermissionsMatrix";
 
 interface Permission {
   id: string;
@@ -1281,6 +1282,8 @@ export default function SystemConfigPage() {
       </Card>
 
       {/* Admin Permissions */}
+      <RolePermissionsMatrix />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">

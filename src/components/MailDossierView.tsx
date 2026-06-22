@@ -32,6 +32,10 @@ export interface MailDossierViewProps {
   step4AssigneeCount?: number;
   onViewAttachments?: () => void;
   defaultStepperCollapsed?: boolean;
+  /** Affiche les boutons de téléchargement à côté des pièces jointes */
+  allowAttachmentDownload?: boolean;
+  /** Ouvre l'historique workflow par défaut (archives) */
+  defaultTimelineOpen?: boolean;
   /** Contenu additionnel au-dessus de l'historique (ex. interventions utilisateur) */
   extraBeforeTimeline?: React.ReactNode;
 }
@@ -46,12 +50,14 @@ export function MailDossierView({
   step4AssigneeCount = 0,
   onViewAttachments,
   defaultStepperCollapsed = true,
+  allowAttachmentDownload = false,
+  defaultTimelineOpen = false,
   extraBeforeTimeline,
 }: MailDossierViewProps) {
   const { user } = useAuth();
   const { data: activeSteps = [] } = useActiveWorkflowSteps();
   const [stepperOpen, setStepperOpen] = useState(!defaultStepperCollapsed);
-  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(defaultTimelineOpen);
 
   const currentStep = mail.current_step || 1;
   const hasAttachments = getMailAttachmentUrls(mail).length > 0;
@@ -60,7 +66,8 @@ export function MailDossierView({
 
   useEffect(() => {
     setStepperOpen(!defaultStepperCollapsed);
-  }, [mail.id, defaultStepperCollapsed]);
+    setTimelineOpen(defaultTimelineOpen);
+  }, [mail.id, defaultStepperCollapsed, defaultTimelineOpen]);
 
   const showTreatments = shouldShowWorkflowBlock(4, currentStep, activeSteps);
   const showSecretariatRecap = currentStep >= 8;
@@ -140,6 +147,7 @@ export function MailDossierView({
           circuitLabel={circuitLabel}
           embedAttachments
           onViewAttachments={onViewAttachments}
+          allowAttachmentDownload={allowAttachmentDownload}
         />
 
         {showSecretariatRecap && (
@@ -151,7 +159,9 @@ export function MailDossierView({
           />
         )}
 
-        {showTreatments && !showContributionsPanel && <TreatmentsList mailId={mail.id} />}
+        {showTreatments && !showContributionsPanel && (
+          <TreatmentsList mailId={mail.id} allowDownload={allowAttachmentDownload} />
+        )}
 
         <SubAssignmentPanel mailId={mail.id} currentStep={currentStep} />
 
@@ -166,6 +176,7 @@ export function MailDossierView({
                 ? "Contributions des assignés"
                 : "Traitements des collaborateurs"
             }
+            allowDownload={allowAttachmentDownload}
           />
         )}
 
@@ -183,7 +194,12 @@ export function MailDossierView({
           </Button>
           {timelineOpen && (
             <div className="mt-2 p-3 rounded-lg border bg-muted/20">
-              <WorkflowTimeline mailId={mail.id} activeSteps={activeSteps} groupByStep />
+              <WorkflowTimeline
+                mailId={mail.id}
+                activeSteps={activeSteps}
+                groupByStep
+                allowDownload={allowAttachmentDownload}
+              />
             </div>
           )}
         </div>
