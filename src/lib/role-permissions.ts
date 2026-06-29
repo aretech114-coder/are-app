@@ -47,7 +47,7 @@ const NON_RECEPTION = new Set([
 ]);
 
 const REGISTRE_ROLES = new Set(["reception", "admin", "superadmin", "secretariat"]);
-const REGISTRE_DELETE = new Set(["admin", "superadmin", "secretariat"]);
+const REGISTRE_DELETE = new Set(["admin", "superadmin"]);
 const ARCHIVES_DOWNLOAD = new Set([
   "secretariat",
   "admin",

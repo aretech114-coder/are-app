@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -43,8 +44,8 @@ import ExcelJS from "exceljs";
 import { MailRegistrationSheet } from "@/components/MailRegistrationSheet";
 import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
 import { RegistrySettingsDialog } from "@/components/RegistrySettingsDialog";
-import { MailEditDialog } from "@/components/MailEditDialog";
-import { SearchableUserSingleSelect } from "@/components/SearchableUserPicker";
+import { MailEditDialog, MailDeleteDialog } from "@/components/MailEditDialog";
+import { statusLabels, priorityLabels } from "@/lib/workflow-display";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +83,7 @@ const priorityColors: Record<string, string> = {
 const statusColors: Record<string, string> = {
   pending: "bg-warning/10 text-warning",
   in_progress: "bg-info/10 text-info",
+  processed: "bg-success/10 text-success",
   archived: "bg-muted text-muted-foreground",
 };
 
@@ -92,13 +94,14 @@ export default function RegistrePage() {
   const isAdmin = role === "admin" || role === "superadmin";
   const canCreate = can("registre", "create");
   const canEdit = can("registre", "edit");
-  const canDelete = can("registre", "delete");
   const canExport = can("registre", "export");
+  const canHardDelete = isAdmin;
 
   const [direction, setDirection] = useState<Direction>("entrant");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingMail, setEditingMail] = useState<any | null>(null);
+  const [deleteMail, setDeleteMail] = useState<any | null>(null);
   const [reassignMailId, setReassignMailId] = useState<string | null>(null);
   const [reassignTargetUserId, setReassignTargetUserId] = useState<string>("");
 
@@ -381,8 +384,8 @@ export default function RegistrePage() {
         m.sender_name,
         m.subject?.replace(/[,;\n]/g, " "),
         m.mail_type || "",
-        m.priority,
-        m.status,
+        priorityLabels[m.priority] || m.priority,
+        statusLabels[m.status] || m.status,
       ]
         .map((v) => `"${(v ?? "").toString().replace(/"/g, '""')}"`)
         .join(",")
@@ -422,8 +425,8 @@ export default function RegistrePage() {
         from: m.sender_name,
         subject: m.subject,
         type: m.mail_type || "",
-        priority: m.priority,
-        status: m.status,
+        priority: priorityLabels[m.priority] || m.priority,
+        status: statusLabels[m.status] || m.status,
       })
     );
     const buffer = await wb.xlsx.writeBuffer();
@@ -529,6 +532,7 @@ export default function RegistrePage() {
                 <SelectItem value="all">Tous statuts</SelectItem>
                 <SelectItem value="pending">En attente</SelectItem>
                 <SelectItem value="in_progress">En cours</SelectItem>
+                <SelectItem value="processed">Traités</SelectItem>
                 <SelectItem value="archived">Archivés</SelectItem>
               </SelectContent>
             </Select>
@@ -663,12 +667,12 @@ export default function RegistrePage() {
                     <td className="p-3 capitalize text-xs">{m.mail_type || "—"}</td>
                     <td className="p-3">
                       <Badge variant="outline" className={priorityColors[m.priority] || ""}>
-                        {m.priority}
+                        {priorityLabels[m.priority] || m.priority}
                       </Badge>
                     </td>
                     <td className="p-3">
                       <Badge variant="outline" className={statusColors[m.status] || ""}>
-                        {m.status}
+                        {statusLabels[m.status] || m.status}
                       </Badge>
                     </td>
                     <td className="p-3">
@@ -697,7 +701,7 @@ export default function RegistrePage() {
                             </TooltipContent>
                           </Tooltip>
                         )}
-                        {canDelete && (
+                        {canEdit && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -711,6 +715,21 @@ export default function RegistrePage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Archiver</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {canHardDelete && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setDeleteMail(m)}
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Supprimer définitivement</TooltipContent>
                           </Tooltip>
                         )}
                         <Tooltip>
@@ -825,6 +844,18 @@ export default function RegistrePage() {
             onOpenChange={(o) => !o && setEditingMail(null)}
             onSaved={() => {
               setEditingMail(null);
+              refetch();
+            }}
+          />
+        )}
+
+        {deleteMail && (
+          <MailDeleteDialog
+            mail={deleteMail}
+            open={!!deleteMail}
+            onOpenChange={(open) => !open && setDeleteMail(null)}
+            onDeleted={() => {
+              setDeleteMail(null);
               refetch();
             }}
           />

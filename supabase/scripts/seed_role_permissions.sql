@@ -33,3 +33,8 @@ FROM (
 ) r
 ON CONFLICT (role, resource_key, action) DO UPDATE SET
   is_allowed = EXCLUDED.is_allowed;
+
+-- registre.delete réservé à l'administrateur (pas secrétariat)
+UPDATE public.role_permissions
+SET is_allowed = (role = 'admin'::public.app_role)
+WHERE resource_key = 'registre' AND action = 'delete';
