@@ -84,7 +84,7 @@ BEGIN
         WHEN 'view', 'create', 'edit', 'export' THEN
           RETURN _role IN ('reception', 'admin', 'secretariat');
         WHEN 'delete' THEN
-          RETURN _role IN ('admin', 'secretariat');
+          RETURN _role IN ('admin');
         ELSE RETURN false;
       END CASE;
     WHEN 'inbox' THEN
