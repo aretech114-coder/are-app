@@ -38,3 +38,10 @@ ON CONFLICT (role, resource_key, action) DO UPDATE SET
 UPDATE public.role_permissions
 SET is_allowed = (role = 'admin'::public.app_role)
 WHERE resource_key = 'registre' AND action = 'delete';
+
+-- secrétariat : retirer accès registre (cohérent menu + migration AC)
+UPDATE public.role_permissions
+SET is_allowed = false
+WHERE role = 'secretariat'::public.app_role
+  AND resource_key = 'registre'
+  AND action IN ('view', 'create', 'edit', 'export', 'delete');

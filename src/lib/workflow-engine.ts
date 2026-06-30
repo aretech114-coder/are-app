@@ -20,7 +20,7 @@ export const WORKFLOW_STEPS = [
   { step: 6, name: WORKFLOW_STEP_LABELS[6].name, role: "directeur", description: WORKFLOW_STEP_LABELS[6].description },
   { step: 7, name: WORKFLOW_STEP_LABELS[7].name, role: "conseiller_juridique", description: WORKFLOW_STEP_LABELS[7].description },
   { step: 8, name: WORKFLOW_STEP_LABELS[8].name, role: "secretariat", description: WORKFLOW_STEP_LABELS[8].description },
-  { step: 9, name: WORKFLOW_STEP_LABELS[9].name, role: "secretariat", description: WORKFLOW_STEP_LABELS[9].description },
+  { step: 9, name: WORKFLOW_STEP_LABELS[9].name, role: "archiviste", description: WORKFLOW_STEP_LABELS[9].description },
 ] as const;
 
 export type WorkflowStepInfo = typeof WORKFLOW_STEPS[number];

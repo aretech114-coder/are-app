@@ -45,6 +45,9 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | Y | `20260613100000_notification_deliveries.sql` | Journal `notification_deliveries` pour traçabilité e-mails workflow |
 | Z | `20260614100000_rpc_return_assigned_to.sql` | RPC step 4 / 7 : retour `assigned_to` pour notifications étape d'arrivée |
 | AA | `20260615100000_role_permissions.sql` | Matrice RBAC : `permission_resources`, `role_permissions`, `has_role_permission` |
+| AB | `20260616100000_inbox_access_strict.sql` | **Inbox strict** : `can_access_mail_inbox` (sans bypass pilotage), `list_my_mails` scoping assigné/viewer/responsable |
+| AC | `20260616200000_archiviste_role_step9.sql` | Rôle **archiviste**, étape 9, workflow 8→9 sans archivage auto, RBAC legacy mis à jour |
+| AD | `20260616300000_fix_archiviste_enum_avatars_rls.sql` | **Hotfix** : enum `archiviste` + `legacy_role_permission` safe (text) + policies Storage avatars |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -91,6 +94,53 @@ SELECT count(*) FROM public.role_permissions WHERE role = 'agent';
 | Superadmin retire `archives.download` pour `agent` | Boutons download masqués ; RLS inchangé |
 | Superadmin accorde `suivi.view` à un rôle via matrice | Menu Suivi visible si grant + hook OK |
 | Admin entreprise | Toujours limité par `admin_permissions`, indépendamment de la matrice rôle |
+
+Après **AB** : `NOTIFY pgrst, 'reload schema';` — déployer le frontend (filtre Inbox secrétariat/archiviste optionnel). Vérifier :
+
+```sql
+-- Secrétariat : Inbox strict (courrier étape 2 non assigné absent)
+SELECT count(*) FROM public.list_my_mails(ARRAY['pending','in_progress']);
+-- Suivi global inchangé
+SELECT count(*) FROM public.list_workflow_tracking_mails(NULL, NULL, NULL, false, NULL, 100, 0);
+```
+
+**Checklist Phase AB (Inbox strict)** :
+
+| Scénario | Attendu |
+|----------|---------|
+| Secrétariat, courrier étape 2 non assigné | **Absent** de l'Inbox |
+| Secrétariat, viewer explicite étape 4 | **Présent** (lecture) |
+| Secrétariat, assigné étape 8 | **Présent** + actions traitement |
+| Secrétariat, `/suivi` | **Tous** les courriers (pilotage) |
+| Admin / superadmin Inbox | Accès global (admin explicite dans `can_access_mail_inbox`) |
+
+Après **AC** : `NOTIFY pgrst, 'reload schema';` — créer au moins un compte **archiviste** (`user_roles.role = 'archiviste'`) + responsable étape 9 dans Configuration workflow ; re-exécuter [`seed_role_permissions.sql`](seed_role_permissions.sql) ; déployer frontend (WorkflowActions 8/9, labels, RBAC).
+
+```sql
+SELECT responsible_roles FROM public.workflow_steps WHERE step_order = 9;
+SELECT public.legacy_role_permission('archiviste'::public.app_role, 'inbox', 'treat');
+```
+
+**Checklist Phase AC (archiviste étape 9)** :
+
+| Scénario | Attendu |
+|----------|---------|
+| Secrétariat étape 8 `complete` | Passe à **étape 9**, statut **pas** `archived` |
+| Archiviste étape 9 `archive` | `status = archived`, visible Archives centrales |
+| Secrétariat étape 9 | **Pas** d'action archive |
+| Secrétariat Inbox étape 9 non assigné | **Absent** (sauf viewer) |
+| Secrétariat Registre | **Pas** d'accès (matrice + legacy) |
+
+Après **AD** (si erreur `22P02 archiviste` ou photo profil RLS) : exécuter **AD** seul suffit ; puis :
+
+```sql
+SELECT enumlabel FROM pg_enum e
+JOIN pg_type t ON e.enumtypid = t.oid
+WHERE t.typname = 'app_role' AND enumlabel = 'archiviste';
+SELECT public.legacy_role_permission('superadmin'::public.app_role, 'inbox', 'view');
+```
+
+Retester upload photo profil (Mon Profil → icône appareil).
 
 ## Assistant IA (OpenAI)
 

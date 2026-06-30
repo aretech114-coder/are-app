@@ -499,10 +499,35 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       }];
     }
 
+    // Step 8: secrétariat — valider retour/preuve, transmettre à l'archivage (étape 9)
+    if (currentStep === 8) {
+      return [{
+        key: "complete",
+        label: stepLabels.complete || "Valider retour et preuve de dépôt",
+        icon: Send,
+        variant: "default",
+      }];
+    }
+
+    // Step 9: archivage final réservé à l'archiviste
+    if (currentStep === 9) {
+      if (role === "archiviste" || role === "admin" || role === "superadmin") {
+        return [{
+          key: "archive",
+          label: stepLabels.archive || "Archiver définitivement",
+          icon: Archive,
+          variant: "outline",
+        }];
+      }
+      return [];
+    }
+
     const actions: { key: string; label: string; icon: typeof CheckCircle; variant: "default" | "destructive" | "outline" }[] = [];
 
     if (currentStepConfig) {
-      const configuredKeys = Object.keys(stepLabels);
+      const configuredKeys = Object.keys(stepLabels).filter(
+        (key) => key !== "archive" || currentStep === 9
+      );
       if (configuredKeys.length > 0) {
         configuredKeys.forEach((key) => {
           actions.push({
@@ -688,14 +713,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // STEP 8 COMPLETE: Use RPC to advance to step 9 (archive)
+      // STEP 8 COMPLETE: Use RPC to advance to step 9 (archivage)
       if (currentStep === 8 && action === "complete") {
         const result = await advanceWorkflow(mailId, currentStep, "complete", user.id, noteParts || "Preuve de dépôt ajoutée.");
         if (result.success) {
-          toast.success("Preuve de dépôt ajoutée — dossier archivé avec succès");
+          toast.success("Retour et preuve de dépôt validés — dossier transmis à l'archivage");
           notifyAfterAdvance(result.notifications);
         } else {
-          toast.error(result.error || "Erreur lors de l'archivage");
+          toast.error(result.error || "Erreur lors de la transmission");
         }
         setShowDialog(false);
         resetForm();
