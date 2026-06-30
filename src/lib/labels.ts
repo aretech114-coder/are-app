@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<string, string> = {
   dircaba: "Assistant DGA",
   conseiller_juridique: "Conseiller juridique",
   secretariat: "Secrétariat",
+  archiviste: "Archiviste",
   conseiller: "Conseiller",
   reception: "Réception",
   autorite_1: "Directeur général (DG)",

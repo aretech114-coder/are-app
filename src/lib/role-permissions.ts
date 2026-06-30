@@ -33,6 +33,7 @@ const NON_RECEPTION = new Set([
   "dircaba",
   "conseiller_juridique",
   "secretariat",
+  "archiviste",
   "conseiller",
   "autorite_1",
   "autorite_2",
@@ -46,10 +47,11 @@ const NON_RECEPTION = new Set([
   "dt",
 ]);
 
-const REGISTRE_ROLES = new Set(["reception", "admin", "superadmin", "secretariat"]);
+const REGISTRE_ROLES = new Set(["reception", "admin", "superadmin"]);
 const REGISTRE_DELETE = new Set(["admin", "superadmin"]);
 const ARCHIVES_DOWNLOAD = new Set([
   "secretariat",
+  "archiviste",
   "admin",
   "superadmin",
   "dg",
@@ -104,6 +106,7 @@ const INBOX_TREAT = new Set([
   "conseiller_juridique",
   "autorite_4",
   "secretariat",
+  "archiviste",
   "agent",
   "collaborateur",
   "chef_departement",

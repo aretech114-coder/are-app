@@ -35,7 +35,9 @@ export default function InboxPage() {
   const [mails, setMails] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
   const [search, setSearch] = useState("");
-  const [quickFilter, setQuickFilter] = useState<InboxQuickFilter>("new");
+  const [quickFilter, setQuickFilter] = useState<InboxQuickFilter>(
+    role === "secretariat" || role === "archiviste" ? "in_progress" : "new"
+  );
   const [stepFilter, setStepFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState<InboxSortOrder>("recent");
   const [showDoc, setShowDoc] = useState(false);

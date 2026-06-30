@@ -116,7 +116,8 @@ export default function ProfilePage() {
     const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     if (uploadError) { toast.error(uploadError.message); return; }
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    await supabase.from("profiles").update({ avatar_url: data.publicUrl }).eq("id", user.id);
+    const { error: profileError } = await supabase.from("profiles").update({ avatar_url: data.publicUrl }).eq("id", user.id);
+    if (profileError) { toast.error(profileError.message); return; }
     toast.success("Photo de profil mise à jour");
   };
 

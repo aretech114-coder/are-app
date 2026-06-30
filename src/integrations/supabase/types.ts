@@ -1366,6 +1366,7 @@ export type Database = {
         | "dircaba"
         | "conseiller_juridique"
         | "secretariat"
+        | "archiviste"
         | "conseiller"
         | "reception"
         | "autorite_1"
@@ -1531,6 +1532,7 @@ export const Constants = {
         "dircaba",
         "conseiller_juridique",
         "secretariat",
+        "archiviste",
         "conseiller",
         "reception",
         "autorite_1",
