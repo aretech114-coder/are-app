@@ -10,6 +10,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Menu, User, LogOut, Settings, Mail } from "lucide-react";
+import { avatarDisplayUrl } from "@/lib/avatar-url";
 
 function DefaultLogo() {
   return <Mail className="h-7 w-7 text-primary-foreground" />;
@@ -71,7 +72,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     {displayName}
                   </span>
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={profile?.avatar_url} />
+                    <AvatarImage src={avatarDisplayUrl(profile?.avatar_url, profile?.updated_at)} />
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
                       {displayName?.charAt(0)?.toUpperCase() || "?"}
                     </AvatarFallback>

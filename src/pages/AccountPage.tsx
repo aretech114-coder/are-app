@@ -22,6 +22,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { getRoleLabel } from "@/lib/labels";
+import { avatarDisplayUrl } from "@/lib/avatar-url";
 import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
 import { canAccessSuiviPage } from "@/lib/workflow-tracking";
 
@@ -77,7 +78,7 @@ export default function AccountPage() {
       {/* User header */}
       <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
         <Avatar className="h-14 w-14">
-          <AvatarImage src={profile?.avatar_url} />
+          <AvatarImage src={avatarDisplayUrl(profile?.avatar_url, profile?.updated_at)} />
           <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-lg">
             {initials}
           </AvatarFallback>
