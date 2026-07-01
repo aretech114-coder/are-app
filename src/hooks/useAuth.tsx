@@ -19,6 +19,7 @@ interface AuthContext {
   signOut: () => Promise<void>;
   hasPermission: (key: string) => boolean;
   refreshPermissions: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContext>({
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContext>({
   signOut: async () => {},
   hasPermission: () => false,
   refreshPermissions: async () => {},
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -115,8 +117,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return perm?.is_enabled ?? false;
   };
 
+  const refreshProfile = async () => {
+    if (user?.id) {
+      await fetchUserData(user.id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, tenantId: profile?.tenant_id || null, signOut, hasPermission, refreshPermissions: fetchPermissions }}>
+    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, tenantId: profile?.tenant_id || null, signOut, hasPermission, refreshPermissions: fetchPermissions, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

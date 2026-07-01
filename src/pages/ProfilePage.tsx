@@ -10,10 +10,12 @@ import { toast } from "sonner";
 import { Camera, Lock, Save, LogOut, UserCheck, UserX } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { avatarDisplayUrl } from "@/lib/avatar-url";
 
 export default function ProfilePage() {
-  const { user, profile, role, signOut } = useAuth();
+  const { user, profile, role, signOut, refreshProfile } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || "");
+  const [avatarCacheKey, setAvatarCacheKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -21,6 +23,10 @@ export default function ProfilePage() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean>(true);
   const [savingAvailability, setSavingAvailability] = useState(false);
+
+  useEffect(() => {
+    if (profile?.full_name) setFullName(profile.full_name);
+  }, [profile?.full_name]);
 
   useEffect(() => {
     if (!user) return;
@@ -58,7 +64,10 @@ export default function ProfilePage() {
     setSaving(true);
     const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("id", user.id);
     if (error) toast.error(error.message);
-    else toast.success("Profil mis à jour");
+    else {
+      toast.success("Profil mis à jour");
+      await refreshProfile();
+    }
     setSaving(false);
   };
 
@@ -118,7 +127,10 @@ export default function ProfilePage() {
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
     const { error: profileError } = await supabase.from("profiles").update({ avatar_url: data.publicUrl }).eq("id", user.id);
     if (profileError) { toast.error(profileError.message); return; }
+    setAvatarCacheKey(Date.now());
+    await refreshProfile();
     toast.success("Photo de profil mise à jour");
+    e.target.value = "";
   };
 
   return (
@@ -134,7 +146,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={profile?.avatar_url} />
+                <AvatarImage src={avatarDisplayUrl(profile?.avatar_url, avatarCacheKey || profile?.updated_at)} />
                 <AvatarFallback className="text-lg bg-primary/10 text-primary">
                   {profile?.full_name?.charAt(0)?.toUpperCase() || "?"}
                 </AvatarFallback>
