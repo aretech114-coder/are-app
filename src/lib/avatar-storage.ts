@@ -55,10 +55,21 @@ export async function uploadUserAvatar(
     return { error: uploadError.message };
   }
 
-  const displayUrl = (await resolveAvatarSrc(path)) ?? "";
-  if (!displayUrl) {
-    return { error: "Photo enregistrée mais URL inaccessible — vérifiez le bucket avatars (migration AD)." };
+  // IMPORTANT: getPublicUrl() retourne une URL même si l'objet n'existe pas.
+  // Pour éviter un faux succès (toast OK mais image 404), on exige une signedUrl valide.
+  const { data: signed, error: signedError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SEC);
+
+  if (signedError || !signed?.signedUrl) {
+    return {
+      error:
+        signedError?.message ||
+        "Photo enregistrée mais URL inaccessible — vérifiez le bucket/policies avatars (migration AE).",
+    };
   }
+
+  const displayUrl = signed.signedUrl;
 
   return { path, displayUrl };
 }
