@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -880,12 +880,12 @@ export default function AdminPage() {
                         <TableRow key={u.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={u.avatar_url} />
-                                <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                  {u.full_name?.charAt(0)?.toUpperCase() || "?"}
-                                </AvatarFallback>
-                              </Avatar>
+                              <UserAvatar
+                                avatarRef={u.avatar_url}
+                                name={u.full_name}
+                                className="h-8 w-8"
+                                fallbackClassName="text-xs"
+                              />
                               <span className="text-sm font-medium">{u.full_name || "Sans nom"}</span>
                             </div>
                           </TableCell>

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -22,7 +22,6 @@ import {
   ScrollText,
 } from "lucide-react";
 import { getRoleLabel } from "@/lib/labels";
-import { avatarDisplayUrl } from "@/lib/avatar-url";
 import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
 import { canAccessSuiviPage } from "@/lib/workflow-tracking";
 
@@ -66,23 +65,17 @@ export default function AccountPage() {
     return false;
   });
 
-  const initials = (profile?.full_name || user?.email || "U")
-    .split(" ")
-    .map((w: string) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
   return (
     <div className="space-y-6 pb-24 animate-fade-in">
       {/* User header */}
       <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
-        <Avatar className="h-14 w-14">
-          <AvatarImage src={avatarDisplayUrl(profile?.avatar_url, profile?.updated_at)} />
-          <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-lg">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          avatarRef={profile?.avatar_url}
+          name={profile?.full_name || user?.email}
+          className="h-14 w-14"
+          fallbackClassName="bg-primary text-primary-foreground font-semibold text-lg"
+          cacheVersion={profile?.updated_at}
+        />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-base truncate">{profile?.full_name || "Utilisateur"}</p>
           <p className="text-sm text-muted-foreground truncate">{user?.email}</p>

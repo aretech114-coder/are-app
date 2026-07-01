@@ -7,10 +7,9 @@ import { InstallGuide } from "@/components/InstallGuide";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/UserAvatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Menu, User, LogOut, Settings, Mail } from "lucide-react";
-import { avatarDisplayUrl } from "@/lib/avatar-url";
 
 function DefaultLogo() {
   return <Mail className="h-7 w-7 text-primary-foreground" />;
@@ -71,12 +70,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <span className="text-sm text-muted-foreground hidden sm:block">
                     {displayName}
                   </span>
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={avatarDisplayUrl(profile?.avatar_url, profile?.updated_at)} />
-                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                      {displayName?.charAt(0)?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    avatarRef={profile?.avatar_url}
+                    name={displayName}
+                    className="h-8 w-8"
+                    fallbackClassName="text-xs"
+                    cacheVersion={profile?.updated_at}
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <div className="px-2 py-1.5">
