@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Camera, Lock, Save, LogOut, UserCheck, UserX } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { avatarDisplayUrl } from "@/lib/avatar-url";
+import { UserAvatar } from "@/components/UserAvatar";
+import { uploadUserAvatar } from "@/lib/avatar-storage";
 
 export default function ProfilePage() {
   const { user, profile, role, signOut, refreshProfile } = useAuth();
@@ -121,12 +121,23 @@ export default function ProfilePage() {
   const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    const path = `${user.id}/avatar.${file.name.split(".").pop()}`;
-    const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-    if (uploadError) { toast.error(uploadError.message); return; }
-    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    const { error: profileError } = await supabase.from("profiles").update({ avatar_url: data.publicUrl }).eq("id", user.id);
-    if (profileError) { toast.error(profileError.message); return; }
+
+    const result = await uploadUserAvatar(user.id, file);
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: result.path })
+      .eq("id", user.id);
+
+    if (profileError) {
+      toast.error(profileError.message);
+      return;
+    }
+
     setAvatarCacheKey(Date.now());
     await refreshProfile();
     toast.success("Photo de profil mise à jour");
@@ -145,12 +156,13 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <Avatar className="h-16 w-16">
-                <AvatarImage src={avatarDisplayUrl(profile?.avatar_url, avatarCacheKey || profile?.updated_at)} />
-                <AvatarFallback className="text-lg bg-primary/10 text-primary">
-                  {profile?.full_name?.charAt(0)?.toUpperCase() || "?"}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                avatarRef={profile?.avatar_url}
+                name={profile?.full_name}
+                className="h-16 w-16"
+                fallbackClassName="text-lg"
+                cacheVersion={avatarCacheKey || profile?.updated_at}
+              />
               <label className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors">
                 <Camera className="h-3 w-3" />
                 <input type="file" accept="image/*" className="hidden" onChange={uploadAvatar} />

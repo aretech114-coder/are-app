@@ -48,6 +48,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | AB | `20260616100000_inbox_access_strict.sql` | **Inbox strict** : `can_access_mail_inbox` (sans bypass pilotage), `list_my_mails` scoping assigné/viewer/responsable |
 | AC | `20260616200000_archiviste_role_step9.sql` | Rôle **archiviste**, étape 9, workflow 8→9 sans archivage auto, RBAC legacy mis à jour |
 | AD | `20260616300000_fix_archiviste_enum_avatars_rls.sql` | **Hotfix** : enum `archiviste` + `legacy_role_permission` safe (text) + policies Storage avatars |
+| AE | `20260616400000_avatars_bucket_public.sql` | Bucket `avatars` public + policies INSERT/UPDATE/SELECT (photos de profil) |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -141,6 +142,15 @@ SELECT public.legacy_role_permission('superadmin'::public.app_role, 'inbox', 'vi
 ```
 
 Retester upload photo profil (Mon Profil → icône appareil).
+
+Après **AE** (photos toujours invisibles malgré toast succès) :
+
+```sql
+SELECT id, public FROM storage.buckets WHERE id = 'avatars';
+SELECT policyname, cmd FROM pg_policies WHERE tablename = 'objects' AND policyname ILIKE '%avatar%';
+```
+
+Puis **ré-importer** la photo (le frontend stocke désormais le chemin Storage + URL signée à l'affichage).
 
 ## Assistant IA (OpenAI)
 
