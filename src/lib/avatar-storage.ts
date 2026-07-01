@@ -9,14 +9,20 @@ export function toAvatarStoragePath(avatarUrlOrPath: string | null | undefined):
   const value = avatarUrlOrPath.trim();
   if (!value.includes("://")) return value;
 
-  const markers = ["/object/public/avatars/", "/object/sign/avatars/"];
-  for (const marker of markers) {
-    const idx = value.indexOf(marker);
-    if (idx !== -1) {
-      return decodeURIComponent(value.slice(idx + marker.length).split("?")[0] ?? "");
-    }
+  // Supporte les URLs Supabase (anciens et nouveaux formats), ex:
+  // - /storage/v1/object/public/avatars/<path>
+  // - /storage/v1/object/sign/avatars/<path>?token=...
+  // - /object/public/avatars/<path>
+  // - /object/sign/avatars/<path>?...
+  const match = value.match(/\/avatars\/([^?]+)(?:\?|$)/);
+  if (!match?.[1]) return null;
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    // Si l'URL n'est pas encodée correctement, garder brut.
+    return match[1];
   }
-  return null;
 }
 
 /** URL affichable (signée si besoin) — fonctionne bucket public ou privé. */
