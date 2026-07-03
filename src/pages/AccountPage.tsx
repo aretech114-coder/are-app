@@ -24,6 +24,7 @@ import {
 import { getRoleLabel } from "@/lib/labels";
 import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
 import { canAccessSuiviPage } from "@/lib/workflow-tracking";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 
 interface MenuEntry {
   label: string;
@@ -36,7 +37,7 @@ interface MenuEntry {
 
 const menuItems: MenuEntry[] = [
   { label: "Tableau de bord", path: "/", icon: LayoutDashboard, roles: ["superadmin", "admin", "ministre", "directeur", "dircab"] },
-  { label: "Statistiques", path: "/analytics", icon: BarChart3, roles: "all", excludeRoles: ["reception"] },
+  { label: "Statistiques", path: "/analytics", icon: BarChart3, roles: [] },
   { label: "Tableau de suivi", path: "/suivi", icon: ClipboardList, roles: ["ministre", "directeur", "dircab", "dircaba", "secretariat", "dg", "autorite_1", "autorite_2", "autorite_3", "autorite_4", "dga", "superadmin", "admin"] },
   { label: "Profil", path: "/profile", icon: User, roles: "all" },
   { label: "Enregistrement", path: "/mail-entry", icon: Mail, roles: ["reception", "admin", "superadmin"] },
@@ -53,9 +54,11 @@ export default function AccountPage() {
   const { user, role, profile, signOut, hasPermission } = useAuth();
   const { settings } = useSiteSettings();
   const { grantedRoles } = useWorkflowTrackingAccess();
+  const { can } = useRolePermissions();
 
   const visibleItems = menuItems.filter((item) => {
     if (!role) return false;
+    if (item.path === "/analytics") return can("analytics", "view");
     if (item.excludeRoles?.includes(role)) return false;
     if (item.path === "/suivi" && canAccessSuiviPage(role, grantedRoles)) return true;
     if (item.roles === "all") return true;

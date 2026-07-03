@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { legacyRoleAllows } from "@/lib/role-permissions";
 
 interface RolePermissionRow {
   resource_key: string;
@@ -36,8 +37,7 @@ export function useRolePermissions() {
       if (role === "superadmin") return true;
       const row = matrix.find((r) => r.resource_key === resource && r.action === action);
       if (row) return row.is_allowed;
-      // Fallback legacy : permission absente → autoriser (pas de régression)
-      return true;
+      return legacyRoleAllows(role, resource, action);
     },
     [role, matrix]
   );

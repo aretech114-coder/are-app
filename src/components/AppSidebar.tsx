@@ -39,6 +39,7 @@ export function AppSidebar() {
   const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
 
   const visibleNav = mainNav.filter((item) => {
+    if (item.url === "/analytics" && !can("analytics", "view")) return false;
     if (isSuperAdmin || isAdmin) return true;
     if (item.url === "/registre" && !can("registre", "view")) return false;
     if (item.url === "/archive" && !can("archives", "view")) return false;

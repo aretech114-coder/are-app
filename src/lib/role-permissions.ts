@@ -15,6 +15,7 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
   { resource_key: "archives", label: "Archives centrales", actions: ["view", "download"], sort_order: 30 },
   { resource_key: "suivi", label: "Tableau de suivi", actions: ["view"], sort_order: 40 },
   { resource_key: "history", label: "Historique", actions: ["view"], sort_order: 50 },
+  { resource_key: "analytics", label: "Statistiques", actions: ["view"], sort_order: 55 },
   { resource_key: "meetings", label: "Réunions / calendrier", actions: ["view", "create", "edit", "delete"], sort_order: 60 },
   { resource_key: "workflow_config", label: "Configuration workflow", actions: ["view", "manage"], sort_order: 70 },
   { resource_key: "users", label: "Gestion utilisateurs", actions: ["view", "create", "edit", "delete"], sort_order: 80 },
@@ -92,6 +93,7 @@ const MEETINGS_ROLES = new Set([
 ]);
 const WORKFLOW_CONFIG = new Set(["superadmin", "admin"]);
 const USERS_ADMIN = new Set(["superadmin", "admin"]);
+const ANALYTICS_VIEW = new Set(["admin", "dg", "directeur", "ministre", "autorite_1"]);
 const INBOX_TREAT = new Set([
   "dg",
   "directeur",
@@ -138,6 +140,8 @@ export function legacyRoleAllows(role: string, resource: string, action: string)
       return action === "view" && SUIVI_VIEW.has(role);
     case "history":
       return action === "view" && NON_RECEPTION.has(role);
+    case "analytics":
+      return action === "view" && ANALYTICS_VIEW.has(role);
     case "meetings":
       return MEETINGS_ROLES.has(role);
     case "workflow_config":

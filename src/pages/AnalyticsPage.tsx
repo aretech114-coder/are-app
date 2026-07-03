@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { TrendingUp, Clock, Users, Zap, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 
 const COLORS = ["hsl(199, 89%, 48%)", "hsl(38, 92%, 50%)", "hsl(152, 69%, 40%)", "hsl(0, 72%, 51%)", "hsl(262, 83%, 58%)"];
 const PRIORITY_COLORS: Record<string, string> = {
@@ -27,10 +28,13 @@ type MailRow = {
 };
 
 export default function AnalyticsPage() {
+  const { can } = useRolePermissions();
+  const canView = can("analytics", "view");
   const [mails, setMails] = useState<MailRow[] | null>(null);
   const [stepNames, setStepNames] = useState<Record<number, string>>({});
 
   useEffect(() => {
+    if (!canView) return;
     (async () => {
       const [{ data: mailsData }, { data: steps }] = await Promise.all([
         supabase
@@ -45,7 +49,7 @@ export default function AnalyticsPage() {
       (steps || []).forEach((s: any) => { map[s.step_order] = s.name; });
       setStepNames(map);
     })();
-  }, []);
+  }, [canView]);
 
   const computed = useMemo(() => {
     if (!mails) return null;
@@ -117,6 +121,19 @@ export default function AnalyticsPage() {
       statusData, priorityData, stepData, trend,
     };
   }, [mails, stepNames]);
+
+  if (!canView) {
+    return (
+      <div className="animate-fade-in">
+        <div className="mb-6">
+          <h1 className="page-header">Statistiques & Analytiques</h1>
+          <p className="page-description text-muted-foreground">
+            Vous n&apos;avez pas accès aux statistiques.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!computed) {
     return (
