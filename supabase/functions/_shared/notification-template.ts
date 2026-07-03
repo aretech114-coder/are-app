@@ -40,6 +40,7 @@ export function buildTemplateVarMap(vars: NotificationTemplateVars): Record<stri
     assignees_list: escapeHtml(vars.assigneesList),
     assignees_count: String(vars.assigneesCount),
     inbox_url: inboxUrl,
+    mail_id: vars.mailId,
   };
 }
 

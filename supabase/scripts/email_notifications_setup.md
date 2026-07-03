@@ -52,7 +52,10 @@ supabase secrets set SMTP_FROM="ARE App <notifications@votre-domaine.org>"
 
 - Toggle **notify_enabled** par étape : page Workflow (admin).
 - **Éditeur e-mail** : icône crayon à côté du toggle → sujet + corps HTML (traitement / lecture seule).
-- Shortcodes : `{{recipient_name}}`, `{{step_name}}`, `{{mail_subject}}`, `{{reference_number}}`, `{{access_mode_label}}`, `{{assignees_list}}`, `{{assignees_count}}`, `{{inbox_url}}`.
+- Shortcodes : `{{recipient_name}}`, `{{step_name}}`, `{{mail_subject}}`, `{{reference_number}}`, `{{access_mode_label}}`, `{{assignees_list}}`, `{{assignees_count}}`, `{{inbox_url}}`, `{{mail_id}}`.
+- **`{{inbox_url}}`** : lien direct `https://<domain>/inbox?mail=<uuid>` — ouvre l'Inbox **et** le courrier concerné (deep link frontend).
+- **`{{mail_id}}`** : UUID brut du courrier (templates custom avancés).
+- Toujours utiliser `{{inbox_url}}` dans les liens HTML — ne pas mettre `/inbox` en dur.
 - Destinataires résolus côté Edge : assignations étape (`contributor` / `viewer` / `custodian`), `assigned_agent_id`, `fallback_user_id`, puis **`default_user_id`** de l'étape si aucun assigné.
 - Rappels SLA (`sla-checker`) : autorisés via **service role** (cron).
 
@@ -98,7 +101,19 @@ Réponse attendue : `{"success":true,"provider":"resend"}` ou `"smtp"`.
 2. **Analyser (dry run)** : vérifier la liste exacte des destinataires (nom, e-mail, mode, raison skip).
 3. **Envoyer test workflow** : e-mail reçu même si toggle OFF (`force_send`).
 
-### 3. Checklist parcours métier
+### 3. Test deep link Inbox (lien e-mail)
+
+1. Recevoir un e-mail workflow (ou utiliser le simulateur Intégrations).
+2. Cliquer le lien « Ouvrir le courrier » / `{{inbox_url}}`.
+3. **Attendu** : page Inbox avec le dossier ouvert à droite (desktop) ou vue détail (mobile), sans recherche manuelle.
+4. Rafraîchir la page : le courrier ne doit pas se rouvrir automatiquement (URL nettoyée en `/inbox`).
+5. Lien avec UUID invalide : toast « Courrier introuvable ou accès refusé ».
+
+### 4. Audit templates custom (prod)
+
+Exécuter [`audit_notification_inbox_links.sql`](audit_notification_inbox_links.sql) — repère les corps HTML avec `/inbox` en dur. Remplacer par `href="{{inbox_url}}"`.
+
+### 5. Checklist parcours métier
 
 | Scénario | Attendu |
 |----------|---------|
@@ -112,10 +127,13 @@ Réponse attendue : `{"success":true,"provider":"resend"}` ou `"smtp"`.
 | Simulateur dry_run | Liste exacte des destinataires avant envoi réel |
 | Admin test force_send | E-mail reçu même si toggle OFF (test uniquement) |
 | Réassignation registre | E-mail nouveau assigné + journal `reassign` |
+| Clic lien `{{inbox_url}}` (connecté) | Inbox + courrier ouvert directement |
+| Journal d'audit → lien courrier | Même deep link `/inbox?mail=` |
+| Secrétariat filtre « En cours » | Filtre bascule « Tous », courrier visible |
 
 **Post-fix (migration Z + Edge Function)** : redéployer `dispatch-workflow-notifications`, appliquer migration **Z**, puis rejouer la checklist sur un courrier test de bout en bout.
 
-### 4. Profils sans e-mail (préventif)
+### 6. Profils sans e-mail (préventif)
 
 ```sql
 SELECT p.full_name, p.email, ur.role
@@ -125,7 +143,7 @@ WHERE (p.email IS NULL OR btrim(p.email) = '')
   AND ur.role IN ('dg', 'dircab', 'dircaba', 'conseiller', 'conseiller_juridique', 'secretariat');
 ```
 
-### 5. Test SLA
+### 7. Test SLA
 
 ```bash
 curl -X POST "https://VOTRE_PROJECT.supabase.co/functions/v1/sla-checker" \
@@ -133,7 +151,7 @@ curl -X POST "https://VOTRE_PROJECT.supabase.co/functions/v1/sla-checker" \
   -H "Content-Type: application/json"
 ```
 
-### 6. Délivrabilité
+### 8. Délivrabilité
 
 - [mail-tester.com](https://www.mail-tester.com) — objectif ≥ 8/10.
 - Vérifier SPF, DKIM, DMARC sur le domaine d'envoi.

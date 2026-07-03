@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -28,9 +29,21 @@ import {
 } from "@/lib/mail-inbox-filters";
 import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 
+async function resolveMailById(mailId: string, mailsList: any[]): Promise<any | null> {
+  const fromList = mailsList.find((m) => m.id === mailId);
+  if (fromList) return fromList;
+
+  const { data, error } = await supabase.from("mails").select("*").eq("id", mailId).maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
 export default function InboxPage() {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const deepLinkHandledRef = useRef(false);
   const { data: activeSteps = [] } = useActiveWorkflowSteps();
   const [mails, setMails] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
@@ -43,8 +56,63 @@ export default function InboxPage() {
   const [showDoc, setShowDoc] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const openMailFromDeepLink = async (mailId: string, mailsList: any[]) => {
+    const mail = await resolveMailById(mailId, mailsList);
+    if (!mail) return false;
+
+    setQuickFilter("all");
+    setSelected(mail);
+
+    if (!mail.is_read) {
+      await supabase.from("mails").update({ is_read: true }).eq("id", mail.id);
+    }
+
+    setMails((prev) => {
+      const nextRead = { ...mail, is_read: true };
+      if (prev.some((m) => m.id === mail.id)) {
+        return prev.map((m) => (m.id === mail.id ? nextRead : m));
+      }
+      return [nextRead, ...prev];
+    });
+
+    return true;
+  };
+
   useEffect(() => {
-    fetchMails();
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      const deepLinkMailId = searchParams.get("mail");
+      let data: any[] = [];
+
+      try {
+        data = await listMyMails(["pending", "in_progress", "processed", "archived"]);
+        if (!cancelled) setMails(data || []);
+      } catch (error: any) {
+        console.error("Erreur fetch mails:", error?.message);
+        if (!cancelled) {
+          toast.error("Erreur chargement courriers: " + (error?.message || "inconnue"));
+          setMails([]);
+        }
+      }
+
+      if (!cancelled) setLoading(false);
+
+      if (deepLinkMailId && !deepLinkHandledRef.current && !cancelled) {
+        deepLinkHandledRef.current = true;
+        const opened = await openMailFromDeepLink(deepLinkMailId, data);
+        if (!opened) {
+          toast.error("Courrier introuvable ou accès refusé.");
+        }
+        navigate("/inbox", { replace: true });
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchMails = async () => {

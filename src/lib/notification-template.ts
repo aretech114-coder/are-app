@@ -11,7 +11,8 @@ export const NOTIFICATION_SHORTCODES = [
   { key: "{{access_mode_label}}", label: "Mode (traitement / lecture seule)" },
   { key: "{{assignees_list}}", label: "Liste des assignés" },
   { key: "{{assignees_count}}", label: "Nombre d'assignés" },
-  { key: "{{inbox_url}}", label: "Lien vers le courrier" },
+  { key: "{{inbox_url}}", label: "Lien direct vers le courrier (Inbox)" },
+  { key: "{{mail_id}}", label: "Identifiant UUID du courrier" },
 ] as const;
 
 export interface NotificationTemplateVars {
@@ -55,6 +56,7 @@ export function buildTemplateVarMap(vars: NotificationTemplateVars): Record<stri
     assignees_list: escapeHtml(vars.assigneesList),
     assignees_count: String(vars.assigneesCount),
     inbox_url: inboxUrl,
+    mail_id: vars.mailId,
   };
 }
 
