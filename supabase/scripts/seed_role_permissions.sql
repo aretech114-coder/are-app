@@ -25,6 +25,7 @@ FROM (
       OR (pr.resource_key = 'archives' AND act.action IN ('view', 'download'))
       OR (pr.resource_key = 'suivi' AND act.action = 'view')
       OR (pr.resource_key = 'history' AND act.action = 'view')
+      OR (pr.resource_key = 'analytics' AND act.action = 'view')
       OR (pr.resource_key = 'meetings' AND act.action IN ('view', 'create', 'edit', 'delete'))
       OR (pr.resource_key = 'workflow_config' AND act.action IN ('view', 'manage'))
       OR (pr.resource_key = 'users' AND act.action IN ('view', 'create', 'edit', 'delete'))
