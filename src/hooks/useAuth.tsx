@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
-import { prefetchAvatarSrc } from "@/lib/avatar-storage";
+import { prefetchAvatarSrc, resolveAvatarSrc } from "@/lib/avatar-storage";
 
 interface AdminPermission {
   permission_key: string;
@@ -21,6 +21,9 @@ interface AuthContext {
   hasPermission: (key: string) => boolean;
   refreshPermissions: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  patchProfile: (patch: Record<string, unknown>) => void;
+  verifiedAvatarSrc: string | null;
+  setVerifiedAvatarSrc: (src: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContext>({
@@ -35,6 +38,9 @@ const AuthContext = createContext<AuthContext>({
   hasPermission: () => false,
   refreshPermissions: async () => {},
   refreshProfile: async () => {},
+  patchProfile: () => {},
+  verifiedAvatarSrc: null,
+  setVerifiedAvatarSrc: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<any | null>(null);
   const [permissions, setPermissions] = useState<AdminPermission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verifiedAvatarSrc, setVerifiedAvatarSrc] = useState<string | null>(null);
 
   const fetchPermissions = async () => {
     const { data } = await supabase
@@ -63,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (profileData?.avatar_url) {
       prefetchAvatarSrc(profileData.avatar_url, profileData.updated_at);
+      void resolveAvatarSrc(profileData.avatar_url, profileData.updated_at).then((src) => {
+        if (src) setVerifiedAvatarSrc(src);
+      });
+    } else {
+      setVerifiedAvatarSrc(null);
     }
 
     // Fetch permissions for admin and superadmin
@@ -128,8 +140,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const patchProfile = (patch: Record<string, unknown>) => {
+    setProfile((prev: Record<string, unknown> | null) => (prev ? { ...prev, ...patch } : prev));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, tenantId: profile?.tenant_id || null, signOut, hasPermission, refreshPermissions: fetchPermissions, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, tenantId: profile?.tenant_id || null, signOut, hasPermission, refreshPermissions: fetchPermissions, refreshProfile, patchProfile, verifiedAvatarSrc, setVerifiedAvatarSrc }}>
       {children}
     </AuthContext.Provider>
   );

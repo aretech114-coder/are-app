@@ -64,16 +64,32 @@ export function invalidateAvatarSrcCache(path?: string): void {
   }
 }
 
+/** Enregistre une URL déjà vérifiée (ex. juste après upload). */
+export function seedAvatarSrcCache(
+  path: string,
+  version: string | number | null | undefined,
+  src: string
+): void {
+  resolvedSrcCache.set(srcCacheKey(path, version), src);
+}
+
 /** Teste si une URL d'image est chargeable dans le navigateur. */
-export function tryLoadImage(url: string): Promise<boolean> {
+export function tryLoadImage(url: string, timeoutMs = 12_000): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === "undefined") {
       resolve(false);
       return;
     }
     const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
+    const timer = window.setTimeout(() => resolve(false), timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      resolve(img.naturalWidth > 0 && img.naturalHeight > 0);
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      resolve(false);
+    };
     img.src = url;
   });
 }
@@ -230,8 +246,7 @@ export async function resolveAvatarSrc(
       return signedSrc;
     }
 
-    resolvedSrcCache.set(key, publicSrc);
-    return publicSrc;
+    return signedSrc ?? publicSrc;
   })();
 
   inFlightResolves.set(key, promise);
@@ -245,7 +260,7 @@ export async function resolveAvatarSrc(
 export async function uploadUserAvatar(
   userId: string,
   file: File
-): Promise<{ path: string } | { error: string }> {
+): Promise<{ path: string; src: string } | { error: string }> {
   let prepared: File;
   try {
     prepared = await compressAvatarImage(file);
@@ -288,12 +303,14 @@ export async function uploadUserAvatar(
     };
   }
 
-  const verify = await verifyAvatarReadable(path, Date.now(), 1);
+  const version = Date.now();
+  const verify = await verifyAvatarReadable(path, version, 1);
   if (!verify.ok) {
     return { error: verify.error };
   }
 
-  return { path };
+  seedAvatarSrcCache(path, version, verify.src);
+  return { path, src: verify.src };
 }
 
 /** Précharge l'image en cache navigateur (profil courant). */

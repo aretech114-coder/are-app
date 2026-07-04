@@ -16,7 +16,7 @@ function DefaultLogo() {
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, signOut, verifiedAvatarSrc } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { settings } = useSiteSettings();
@@ -72,6 +72,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   </span>
                   <UserAvatar
                     avatarRef={profile?.avatar_url}
+                    srcOverride={verifiedAvatarSrc}
                     name={displayName}
                     className="h-8 w-8"
                     fallbackClassName="text-xs"
