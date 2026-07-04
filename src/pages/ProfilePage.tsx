@@ -136,17 +136,32 @@ export default function ProfilePage() {
       return;
     }
 
-    const { data: updated, error: profileError } = await supabase
+    const { error: updateError } = await supabase
       .from("profiles")
       .update({ avatar_url: result.path })
-      .eq("id", user.id)
-      .select("avatar_url, updated_at")
-      .single();
+      .eq("id", user.id);
 
-    if (profileError || !updated?.avatar_url) {
+    if (updateError) {
+      toast.error(updateError.message);
+      e.target.value = "";
+      return;
+    }
+
+    const { data: updated, error: fetchError } = await supabase
+      .from("profiles")
+      .select("avatar_url, updated_at")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (fetchError) {
+      toast.error(fetchError.message);
+      e.target.value = "";
+      return;
+    }
+
+    if (!updated?.avatar_url || updated.avatar_url !== result.path) {
       toast.error(
-        profileError?.message ||
-          "Photo enregistrée dans le stockage mais profil non mis à jour — vérifiez les droits sur profiles.avatar_url."
+        "Photo enregistrée dans le stockage mais profil non mis à jour — vérifiez les droits sur profiles.avatar_url."
       );
       e.target.value = "";
       return;
