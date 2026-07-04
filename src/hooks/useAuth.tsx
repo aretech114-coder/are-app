@@ -2,6 +2,11 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { prefetchAvatarSrc, resolveAvatarSrc } from "@/lib/avatar-storage";
+import {
+  clearPersistedAvatarSrc,
+  loadPersistedAvatarSrc,
+  persistAvatarSrc,
+} from "@/lib/avatar-session";
 
 interface AdminPermission {
   permission_key: string;
@@ -23,7 +28,7 @@ interface AuthContext {
   refreshProfile: () => Promise<void>;
   patchProfile: (patch: Record<string, unknown>) => void;
   verifiedAvatarSrc: string | null;
-  setVerifiedAvatarSrc: (src: string | null) => void;
+  setVerifiedAvatarSrc: (src: string | null, avatarPath?: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContext>({
@@ -59,6 +64,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions(data || []);
   };
 
+  const applyAvatarFromProfile = (userId: string, avatarUrl: string | null | undefined, updatedAt?: string | null) => {
+    const persisted = loadPersistedAvatarSrc(userId, avatarUrl);
+    if (persisted) {
+      setVerifiedAvatarSrc(persisted);
+    }
+
+    if (!avatarUrl?.trim()) {
+      clearPersistedAvatarSrc(userId);
+      setVerifiedAvatarSrc(null);
+      return;
+    }
+
+    prefetchAvatarSrc(avatarUrl, updatedAt);
+    void resolveAvatarSrc(avatarUrl, updatedAt).then((src) => {
+      if (src) {
+        setVerifiedAvatarSrc(src);
+        persistAvatarSrc(userId, avatarUrl, src);
+      }
+    });
+  };
+
   const fetchUserData = async (userId: string) => {
     const [{ data: roleData }, { data: profileData }] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId).single(),
@@ -68,16 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(userRole);
     setProfile(profileData || null);
 
-    if (profileData?.avatar_url) {
-      prefetchAvatarSrc(profileData.avatar_url, profileData.updated_at);
-      void resolveAvatarSrc(profileData.avatar_url, profileData.updated_at).then((src) => {
-        if (src) setVerifiedAvatarSrc(src);
-      });
-    } else {
-      setVerifiedAvatarSrc(null);
-    }
+    applyAvatarFromProfile(userId, profileData?.avatar_url, profileData?.updated_at);
 
-    // Fetch permissions for admin and superadmin
     if (userRole === "admin" || userRole === "superadmin") {
       await fetchPermissions();
     }
@@ -91,7 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock, but await the result before clearing loading
           setTimeout(async () => {
             await fetchUserData(session.user.id);
             setLoading(false);
@@ -100,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRole(null);
           setProfile(null);
           setPermissions([]);
+          setVerifiedAvatarSrc(null);
           setLoading(false);
         }
       }
@@ -120,12 +138,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    if (user?.id) {
+      clearPersistedAvatarSrc(user.id);
+    }
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setRole(null);
     setProfile(null);
     setPermissions([]);
+    setVerifiedAvatarSrc(null);
   };
 
   const hasPermission = (key: string): boolean => {
@@ -144,8 +166,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile((prev: Record<string, unknown> | null) => (prev ? { ...prev, ...patch } : prev));
   };
 
+  const setVerifiedAvatarSrcPersisted = (src: string | null, avatarPath?: string | null) => {
+    setVerifiedAvatarSrc(src);
+    const path = avatarPath ?? profile?.avatar_url;
+    if (user?.id && path && src) {
+      persistAvatarSrc(user.id, path, src);
+    }
+    if (!src && user?.id) {
+      clearPersistedAvatarSrc(user.id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, role, profile, permissions, loading, tenantId: profile?.tenant_id || null, signOut, hasPermission, refreshPermissions: fetchPermissions, refreshProfile, patchProfile, verifiedAvatarSrc, setVerifiedAvatarSrc }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        role,
+        profile,
+        permissions,
+        loading,
+        tenantId: profile?.tenant_id || null,
+        signOut,
+        hasPermission,
+        refreshPermissions: fetchPermissions,
+        refreshProfile,
+        patchProfile,
+        verifiedAvatarSrc,
+        setVerifiedAvatarSrc: setVerifiedAvatarSrcPersisted,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

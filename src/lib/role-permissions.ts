@@ -143,6 +143,7 @@ export function legacyRoleAllows(role: string, resource: string, action: string)
     case "analytics":
       return action === "view" && ANALYTICS_VIEW.has(role);
     case "meetings":
+      if (action === "view") return NON_RECEPTION.has(role);
       return MEETINGS_ROLES.has(role);
     case "workflow_config":
       return WORKFLOW_CONFIG.has(role);
