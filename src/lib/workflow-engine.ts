@@ -113,10 +113,14 @@ export async function advanceWorkflow(
 
   let notifications = await notifyMailStepRecipients(mailId, newStep, action, assignedTo);
 
-  if (
+  // Pré-assignation e-mail seulement si le courrier n'arrive pas déjà à l'étape 4
+  // (sinon doublon avec « Nouvelle tâche assignée » / transition).
+  const shouldNotifyPreAssignment =
     currentStep === 2 &&
-    ((options?.assigneeIds?.length ?? 0) > 0 || (options?.viewerIds?.length ?? 0) > 0)
-  ) {
+    newStep !== 4 &&
+    ((options?.assigneeIds?.length ?? 0) > 0 || (options?.viewerIds?.length ?? 0) > 0);
+
+  if (shouldNotifyPreAssignment) {
     const preAssignment = await notifyPreAssignmentRecipients(mailId);
     notifications = mergeDispatchResults(notifications, preAssignment);
   }

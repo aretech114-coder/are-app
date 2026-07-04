@@ -34,10 +34,11 @@ export default function ProfilePage() {
       .from("profiles")
       .select("is_available")
       .eq("id", user.id)
-      .single()
+      .limit(1)
       .then(({ data }) => {
-        if (data && (data as any).is_available !== undefined) {
-          setIsAvailable(((data as any).is_available as boolean) ?? true);
+        const row = data?.[0];
+        if (row && (row as { is_available?: boolean }).is_available !== undefined) {
+          setIsAvailable(((row as { is_available: boolean }).is_available) ?? true);
         }
       });
   }, [user]);
@@ -147,19 +148,27 @@ export default function ProfilePage() {
       return;
     }
 
-    const { data: updated, error: fetchError } = await supabase
+    const { data: profileRows, error: fetchError } = await supabase
       .from("profiles")
       .select("avatar_url, updated_at")
       .eq("id", user.id)
-      .maybeSingle();
+      .limit(1);
+
+    const updated = profileRows?.[0];
 
     if (fetchError) {
+      console.warn("profiles select after avatar upload:", fetchError.message);
+    }
+
+    const avatarPersisted = updated?.avatar_url === result.path;
+
+    if (!avatarPersisted && fetchError) {
       toast.error(fetchError.message);
       e.target.value = "";
       return;
     }
 
-    if (!updated?.avatar_url || updated.avatar_url !== result.path) {
+    if (!avatarPersisted) {
       toast.error(
         "Photo enregistrée dans le stockage mais profil non mis à jour — vérifiez les droits sur profiles.avatar_url."
       );
@@ -171,7 +180,10 @@ export default function ProfilePage() {
     setAvatarCacheKey(cacheKey);
     invalidateAvatarSrcCache(result.path);
     seedAvatarSrcCache(result.path, cacheKey, result.src);
-    patchProfile({ avatar_url: updated.avatar_url, updated_at: updated.updated_at });
+    patchProfile({
+      avatar_url: updated.avatar_url,
+      updated_at: updated.updated_at ?? new Date().toISOString(),
+    });
     setVerifiedAvatarSrc(result.src, result.path);
     toast.success("Photo de profil mise à jour");
     e.target.value = "";
