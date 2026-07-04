@@ -1,33 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  readCachedSiteSettings,
+  writeCachedSiteSettings,
+  type CachedSiteSettings,
+} from "@/lib/site-settings-cache";
 
-interface SiteSettings {
-  site_title: string;
-  site_subtitle: string;
-  site_tagline: string;
-  sidebar_initials: string;
-  favicon_url: string;
-  sidebar_logo_url: string;
-  pwa_icon_url: string;
-  allow_indexing: string;
-  show_forgot_password: string;
-  show_remember_me: string;
-  primary_color: string;
-  secondary_color: string;
-  accent_color: string;
-  sidebar_bg_color: string;
-  background_color: string;
-  link_color: string;
-  font_heading: string;
-  font_body: string;
-  login_bg_color: string;
-  login_bg_image_url: string;
-  login_logo_url: string;
-  show_login_title: string;
-  authority_title_short: string;
-  authority_title_long: string;
-  max_upload_size_mb: string;
-}
+export type SiteSettings = CachedSiteSettings;
 
 type SiteSettingKey = keyof SiteSettings;
 
@@ -243,11 +222,13 @@ const Ctx = createContext<SiteSettingsContext>({
 });
 
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<SiteSettings>(defaults);
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<SiteSettings>(() => readCachedSiteSettings() ?? defaults);
+  const [loading, setLoading] = useState(() => readCachedSiteSettings() === null);
 
   const fetchSettings = useCallback(async () => {
-    setLoading(true);
+    if (!readCachedSiteSettings()) {
+      setLoading(true);
+    }
 
     try {
       const { data: authData } = await supabase.auth.getSession();
@@ -259,7 +240,9 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
           .select("setting_key, setting_value");
 
         if (!error && data) {
-          setSettings(mapSettingsRows(data));
+          const mapped = mapSettingsRows(data);
+          setSettings(mapped);
+          writeCachedSiteSettings(mapped);
           return;
         }
       }
@@ -271,7 +254,9 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       const publicSettings = Array.isArray(data?.settings) ? data.settings : [];
-      setSettings(mapSettingsRows(publicSettings));
+      const mapped = mapSettingsRows(publicSettings);
+      setSettings(mapped);
+      writeCachedSiteSettings(mapped);
     } catch {
       setSettings(defaults);
     } finally {
@@ -392,7 +377,11 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
 
     if (error) throw error;
 
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      writeCachedSiteSettings(next);
+      return next;
+    });
   };
 
   return (

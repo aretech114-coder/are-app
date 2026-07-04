@@ -41,8 +41,14 @@ export function isMailOverdue(mail: { deadline_at?: string | null; status?: stri
   return new Date(mail.deadline_at) < new Date();
 }
 
+export function isMailUnreadForMe(mail: { is_unread_for_me?: boolean | null; is_read?: boolean | null }): boolean {
+  if (typeof mail.is_unread_for_me === "boolean") return mail.is_unread_for_me;
+  return !mail.is_read;
+}
+
 export function matchesInboxQuickFilter(
   mail: {
+    is_unread_for_me?: boolean | null;
     is_read?: boolean | null;
     status?: string | null;
     priority?: string | null;
@@ -54,7 +60,7 @@ export function matchesInboxQuickFilter(
     case "all":
       return true;
     case "new":
-      return !mail.is_read;
+      return isMailUnreadForMe(mail);
     case "in_progress":
       return mail.status === "in_progress";
     case "urgent":
@@ -104,6 +110,7 @@ export function countInboxQuickFilters(mails: Parameters<typeof matchesInboxQuic
 
 export function filterInboxMails<
   T extends {
+    is_unread_for_me?: boolean | null;
     is_read?: boolean | null;
     status?: string | null;
     priority?: string | null;

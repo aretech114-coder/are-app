@@ -11,7 +11,7 @@ import { Search, Paperclip, FileText, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { WorkflowActions } from "@/components/WorkflowActions";
-import { getStepColor, getStepLabel, listMyMails } from "@/lib/workflow-engine";
+import { getStepColor, getStepLabel, listMyMails, markMyMailOpened, type InboxMail } from "@/lib/workflow-engine";
 import { getMailAttachmentUrls } from "@/lib/labels";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { RecoverMailButton } from "@/components/RecoverMailButton";
@@ -24,18 +24,19 @@ import { MailInboxFilters, INBOX_QUICK_FILTER_LABELS } from "@/components/MailIn
 import {
   filterInboxMails,
   isMailOverdue,
+  isMailUnreadForMe,
   type InboxQuickFilter,
   type InboxSortOrder,
 } from "@/lib/mail-inbox-filters";
 import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 
-async function resolveMailById(mailId: string, mailsList: any[]): Promise<any | null> {
+async function resolveMailById(mailId: string, mailsList: InboxMail[]): Promise<InboxMail | null> {
   const fromList = mailsList.find((m) => m.id === mailId);
   if (fromList) return fromList;
 
   const { data, error } = await supabase.from("mails").select("*").eq("id", mailId).maybeSingle();
   if (error || !data) return null;
-  return data;
+  return { ...data, is_unread_for_me: true };
 }
 
 export default function InboxPage() {
@@ -45,8 +46,8 @@ export default function InboxPage() {
   const [searchParams] = useSearchParams();
   const deepLinkHandledRef = useRef(false);
   const { data: activeSteps = [] } = useActiveWorkflowSteps();
-  const [mails, setMails] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any | null>(null);
+  const [mails, setMails] = useState<InboxMail[]>([]);
+  const [selected, setSelected] = useState<InboxMail | null>(null);
   const [search, setSearch] = useState("");
   const [quickFilter, setQuickFilter] = useState<InboxQuickFilter>(
     role === "secretariat" || role === "archiviste" ? "in_progress" : "new"
@@ -56,19 +57,19 @@ export default function InboxPage() {
   const [showDoc, setShowDoc] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const openMailFromDeepLink = async (mailId: string, mailsList: any[]) => {
+  const openMailFromDeepLink = async (mailId: string, mailsList: InboxMail[]) => {
     const mail = await resolveMailById(mailId, mailsList);
     if (!mail) return false;
 
     setQuickFilter("all");
     setSelected(mail);
 
-    if (!mail.is_read) {
-      await supabase.from("mails").update({ is_read: true }).eq("id", mail.id);
+    if (isMailUnreadForMe(mail)) {
+      await markMyMailOpened(mail.id);
     }
 
     setMails((prev) => {
-      const nextRead = { ...mail, is_read: true };
+      const nextRead = { ...mail, is_unread_for_me: false };
       if (prev.some((m) => m.id === mail.id)) {
         return prev.map((m) => (m.id === mail.id ? nextRead : m));
       }
@@ -84,7 +85,7 @@ export default function InboxPage() {
     const load = async () => {
       setLoading(true);
       const deepLinkMailId = searchParams.get("mail");
-      let data: any[] = [];
+      let data: InboxMail[] = [];
 
       try {
         data = await listMyMails(["pending", "in_progress", "processed", "archived"]);
@@ -149,11 +150,14 @@ export default function InboxPage() {
     [mails, quickFilter, stepFilter, search, sortOrder]
   );
 
-  const markAsRead = async (mail: any) => {
+  const markAsRead = async (mail: InboxMail) => {
     setSelected(mail);
-    if (!mail.is_read) {
-      await supabase.from("mails").update({ is_read: true }).eq("id", mail.id);
-      setMails((prev) => prev.map((m) => (m.id === mail.id ? { ...m, is_read: true } : m)));
+    if (isMailUnreadForMe(mail)) {
+      await markMyMailOpened(mail.id);
+      setMails((prev) =>
+        prev.map((m) => (m.id === mail.id ? { ...m, is_unread_for_me: false } : m))
+      );
+      setSelected({ ...mail, is_unread_for_me: false });
     }
   };
 
@@ -313,11 +317,11 @@ export default function InboxPage() {
                   onClick={() => markAsRead(mail)}
                   className={`w-full text-left p-4 border-b hover:bg-accent/50 transition-colors ${
                     selected?.id === mail.id ? "bg-accent" : ""
-                  } ${!mail.is_read ? "mail-row-unread" : ""}`}
+                  } ${isMailUnreadForMe(mail) ? "mail-row-unread" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm truncate ${!mail.is_read ? "font-bold" : ""}`}>{mail.subject}</p>
+                      <p className={`text-sm truncate ${isMailUnreadForMe(mail) ? "font-bold" : ""}`}>{mail.subject}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{mail.sender_name}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
@@ -340,7 +344,7 @@ export default function InboxPage() {
                         En retard
                       </span>
                     )}
-                    {!mail.is_read && (
+                    {isMailUnreadForMe(mail) && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
                         Nouveau
                       </span>
