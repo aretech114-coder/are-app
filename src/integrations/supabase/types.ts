@@ -293,6 +293,35 @@ export type Database = {
           },
         ]
       }
+      mail_inbox_reads: {
+        Row: {
+          mail_id: string
+          opened_at: string
+          step_number: number
+          user_id: string
+        }
+        Insert: {
+          mail_id: string
+          opened_at?: string
+          step_number: number
+          user_id: string
+        }
+        Update: {
+          mail_id?: string
+          opened_at?: string
+          step_number?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_inbox_reads_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "mails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mail_processing_history: {
         Row: {
           action: string
@@ -1311,6 +1340,14 @@ export type Database = {
       is_mail_registered_by: {
         Args: { _mail_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_my_mails: {
+        Args: { _statuses?: string[] }
+        Returns: Json[]
+      }
+      mark_my_mail_opened: {
+        Args: { _mail_id: string }
+        Returns: undefined
       }
       log_audit_event: {
         Args: {

@@ -132,9 +132,36 @@ export async function advanceWorkflow(
 
 const DEFAULT_MAIL_STATUSES = ["pending", "in_progress"] as const;
 
-export async function listMyMails(statuses?: string[]): Promise<any[]> {
+export type InboxMail = Record<string, unknown> & {
+  id: string;
+  is_unread_for_me?: boolean;
+  is_read?: boolean | null;
+  subject?: string | null;
+  sender_name?: string | null;
+  current_step?: number | null;
+  created_at?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  deadline_at?: string | null;
+};
+
+function parseInboxMailRow(row: unknown): InboxMail {
+  if (typeof row === "string") {
+    try {
+      return JSON.parse(row) as InboxMail;
+    } catch {
+      return { id: "" };
+    }
+  }
+  if (typeof row === "object" && row !== null) {
+    return row as InboxMail;
+  }
+  return { id: "" };
+}
+
+export async function listMyMails(statuses?: string[]): Promise<InboxMail[]> {
   const statusList = statuses ?? [...DEFAULT_MAIL_STATUSES];
-  const { data, error } = await (supabase as any).rpc("list_my_mails", {
+  const { data, error } = await supabase.rpc("list_my_mails", {
     _statuses: statusList,
   });
   if (error) {
@@ -145,7 +172,14 @@ export async function listMyMails(statuses?: string[]): Promise<any[]> {
         : `Impossible de charger vos courriers : ${error.message}`
     );
   }
-  return (data as any[]) || [];
+  return ((data as unknown[]) || []).map(parseInboxMailRow);
+}
+
+export async function markMyMailOpened(mailId: string): Promise<void> {
+  const { error } = await supabase.rpc("mark_my_mail_opened", { _mail_id: mailId });
+  if (error) {
+    console.warn("mark_my_mail_opened failed:", error.message);
+  }
 }
 
 export interface Step4TreatmentResult {
