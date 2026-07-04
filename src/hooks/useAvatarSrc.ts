@@ -1,27 +1,46 @@
-import { useMemo } from "react";
-import { getAvatarPublicSrc, toAvatarStoragePath } from "@/lib/avatar-storage";
+import { useEffect, useMemo, useState } from "react";
+import {
+  getAvatarPublicSrc,
+  invalidateAvatarSrcCache,
+  resolveAvatarSrc,
+  toAvatarStoragePath,
+} from "@/lib/avatar-storage";
 
-const srcCache = new Map<string, string>();
+export { invalidateAvatarSrcCache };
 
-function cacheKey(path: string, version?: string | number | null): string {
-  return `${path}|${version ?? ""}`;
-}
-
-/** Résout avatar_url (path ou URL legacy) en src affichable synchrone (bucket public). */
+/** Résout avatar_url (path ou URL legacy) en src affichable avec fallback signed URL. */
 export function useAvatarSrc(
   avatarUrlOrPath: string | null | undefined,
   version?: string | number | null
 ): string | undefined {
-  return useMemo(() => {
-    const path = toAvatarStoragePath(avatarUrlOrPath);
+  const path = useMemo(() => toAvatarStoragePath(avatarUrlOrPath), [avatarUrlOrPath]);
+
+  const optimisticSrc = useMemo(() => {
     if (!path) return undefined;
+    return getAvatarPublicSrc(path, version);
+  }, [path, version]);
 
-    const key = cacheKey(path, version);
-    const cached = srcCache.get(key);
-    if (cached) return cached;
+  const [src, setSrc] = useState<string | undefined>(optimisticSrc);
 
-    const src = getAvatarPublicSrc(path, version);
-    srcCache.set(key, src);
-    return src;
-  }, [avatarUrlOrPath, version]);
+  useEffect(() => {
+    if (!path) {
+      setSrc(undefined);
+      return;
+    }
+
+    setSrc(getAvatarPublicSrc(path, version));
+
+    let cancelled = false;
+    void resolveAvatarSrc(avatarUrlOrPath, version).then((resolved) => {
+      if (!cancelled && resolved) {
+        setSrc(resolved);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [avatarUrlOrPath, path, version]);
+
+  return src;
 }

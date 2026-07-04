@@ -3,6 +3,7 @@ import { avatarDisplayUrl } from "@/lib/avatar-url";
 
 const AVATAR_BUCKET = "avatars";
 const SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 7;
+const VERIFY_RETRY_DELAY_MS = 200;
 
 export const AVATAR_MAX_PX = 512;
 export const AVATAR_JPEG_QUALITY = 0.8;
@@ -10,6 +11,13 @@ export const AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 const ACCEPTED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const REJECTED_EXTENSIONS = new Set(["heic", "heif", "avif", "gif", "bmp", "tiff", "tif"]);
+
+const resolvedSrcCache = new Map<string, string>();
+const inFlightResolves = new Map<string, Promise<string | undefined>>();
+
+function srcCacheKey(path: string, version?: string | number | null): string {
+  return `${path}|${version ?? ""}`;
+}
 
 export function avatarStoragePathForUser(userId: string): string {
   return `${userId}/avatar.jpg`;
@@ -34,6 +42,91 @@ export function toAvatarStoragePath(avatarUrlOrPath: string | null | undefined):
 export function getAvatarPublicSrc(path: string, version?: string | number | null): string {
   const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
   return avatarDisplayUrl(data.publicUrl, version) ?? data.publicUrl;
+}
+
+export function invalidateAvatarSrcCache(path?: string): void {
+  if (!path) {
+    resolvedSrcCache.clear();
+    inFlightResolves.clear();
+    return;
+  }
+
+  const prefix = `${path}|`;
+  for (const key of resolvedSrcCache.keys()) {
+    if (key === path || key.startsWith(prefix)) {
+      resolvedSrcCache.delete(key);
+    }
+  }
+  for (const key of inFlightResolves.keys()) {
+    if (key.startsWith(prefix)) {
+      inFlightResolves.delete(key);
+    }
+  }
+}
+
+/** Teste si une URL d'image est chargeable dans le navigateur. */
+export function tryLoadImage(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve(false);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
+async function createSignedAvatarSrc(
+  path: string,
+  version?: string | number | null
+): Promise<string | undefined> {
+  const { data: signed, error } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SEC);
+
+  if (error || !signed?.signedUrl) return undefined;
+  return avatarDisplayUrl(signed.signedUrl, version) ?? signed.signedUrl;
+}
+
+/** Signed URL pour fallback d'affichage (dernier recours dans UserAvatar). */
+export async function getAvatarSignedSrc(
+  avatarUrlOrPath: string,
+  version?: string | number | null
+): Promise<string | undefined> {
+  const path = toAvatarStoragePath(avatarUrlOrPath) ?? avatarUrlOrPath;
+  return createSignedAvatarSrc(path, version);
+}
+
+export async function verifyAvatarReadable(
+  path: string,
+  version?: string | number | null,
+  retries = 1
+): Promise<{ ok: true; src: string } | { ok: false; error: string }> {
+  const attempt = async (): Promise<{ ok: true; src: string } | { ok: false; error: string }> => {
+    const publicSrc = getAvatarPublicSrc(path, version);
+    if (await tryLoadImage(publicSrc)) {
+      return { ok: true, src: publicSrc };
+    }
+
+    const signedSrc = await createSignedAvatarSrc(path, version);
+    if (signedSrc && (await tryLoadImage(signedSrc))) {
+      return { ok: true, src: signedSrc };
+    }
+
+    return {
+      ok: false,
+      error:
+        "Photo enregistrée mais illisible — vérifiez le bucket avatars (migration AE/AH) ou réessayez.",
+    };
+  };
+
+  let result = await attempt();
+  if (result.ok || retries <= 0) return result;
+
+  await new Promise((resolve) => setTimeout(resolve, VERIFY_RETRY_DELAY_MS));
+  return attempt();
 }
 
 export function validateAvatarFile(file: File): string | null {
@@ -89,7 +182,7 @@ export async function compressAvatarImage(file: File): Promise<File> {
 
       canvas.toBlob(
         (blob) => {
-          if (!blob) {
+          if (!blob || blob.size === 0) {
             reject(new Error("Impossible de compresser l'image"));
             return;
           }
@@ -109,7 +202,7 @@ export async function compressAvatarImage(file: File): Promise<File> {
   });
 }
 
-/** Fallback async si bucket privé legacy — préférer getAvatarPublicSrc. */
+/** Résout avatar_url en src affichable (public → signed URL si besoin). */
 export async function resolveAvatarSrc(
   avatarUrlOrPath: string | null | undefined,
   version?: string | number | null
@@ -117,24 +210,36 @@ export async function resolveAvatarSrc(
   const path = toAvatarStoragePath(avatarUrlOrPath);
   if (!path) return undefined;
 
-  const publicSrc = getAvatarPublicSrc(path, version);
+  const key = srcCacheKey(path, version);
+  const cached = resolvedSrcCache.get(key);
+  if (cached) return cached;
 
+  const inFlight = inFlightResolves.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = (async (): Promise<string | undefined> => {
+    const publicSrc = getAvatarPublicSrc(path, version);
+    if (await tryLoadImage(publicSrc)) {
+      resolvedSrcCache.set(key, publicSrc);
+      return publicSrc;
+    }
+
+    const signedSrc = await createSignedAvatarSrc(path, version);
+    if (signedSrc && (await tryLoadImage(signedSrc))) {
+      resolvedSrcCache.set(key, signedSrc);
+      return signedSrc;
+    }
+
+    resolvedSrcCache.set(key, publicSrc);
+    return publicSrc;
+  })();
+
+  inFlightResolves.set(key, promise);
   try {
-    const res = await fetch(publicSrc, { method: "HEAD" });
-    if (res.ok) return publicSrc;
-  } catch {
-    // fallback signed URL below
+    return await promise;
+  } finally {
+    inFlightResolves.delete(key);
   }
-
-  const { data: signed, error } = await supabase.storage
-    .from(AVATAR_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_TTL_SEC);
-
-  if (!error && signed?.signedUrl) {
-    return avatarDisplayUrl(signed.signedUrl, version);
-  }
-
-  return publicSrc;
 }
 
 export async function uploadUserAvatar(
@@ -183,13 +288,23 @@ export async function uploadUserAvatar(
     };
   }
 
+  const verify = await verifyAvatarReadable(path, Date.now(), 1);
+  if (!verify.ok) {
+    return { error: verify.error };
+  }
+
   return { path };
 }
 
 /** Précharge l'image en cache navigateur (profil courant). */
-export function prefetchAvatarSrc(avatarUrlOrPath: string | null | undefined, version?: string | number | null): void {
-  const path = toAvatarStoragePath(avatarUrlOrPath);
-  if (!path || typeof window === "undefined") return;
-  const img = new Image();
-  img.src = getAvatarPublicSrc(path, version);
+export function prefetchAvatarSrc(
+  avatarUrlOrPath: string | null | undefined,
+  version?: string | number | null
+): void {
+  if (typeof window === "undefined") return;
+  void resolveAvatarSrc(avatarUrlOrPath, version).then((src) => {
+    if (!src) return;
+    const img = new Image();
+    img.src = src;
+  });
 }

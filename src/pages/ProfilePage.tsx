@@ -10,7 +10,7 @@ import { Camera, Lock, Save, LogOut, UserCheck, UserX } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { UserAvatar } from "@/components/UserAvatar";
-import { uploadUserAvatar, validateAvatarFile } from "@/lib/avatar-storage";
+import { uploadUserAvatar, validateAvatarFile, invalidateAvatarSrcCache } from "@/lib/avatar-storage";
 
 export default function ProfilePage() {
   const { user, profile, role, signOut, refreshProfile } = useAuth();
@@ -148,6 +148,7 @@ export default function ProfilePage() {
     }
 
     setAvatarCacheKey(Date.now());
+    invalidateAvatarSrcCache(result.path);
     await refreshProfile();
     toast.success("Photo de profil mise à jour");
     e.target.value = "";
