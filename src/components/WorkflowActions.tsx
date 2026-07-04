@@ -58,6 +58,8 @@ interface UserProfile {
   full_name: string;
   email: string;
   role: string;
+  avatar_url?: string | null;
+  updated_at?: string | null;
 }
 
 export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowActionsProps) {
@@ -399,7 +401,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       const userIds = [...roleByUser.keys()];
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, email")
+        .select("id, full_name, email, avatar_url, updated_at")
         .in("id", userIds);
 
       if (profilesError) throw profilesError;
@@ -410,6 +412,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           full_name: p.full_name || p.email || "Utilisateur",
           email: p.email,
           role: roleByUser.get(p.id) || "",
+          avatar_url: p.avatar_url,
+          updated_at: p.updated_at,
         }))
         .sort((a, b) =>
           a.full_name.localeCompare(b.full_name, "fr", { sensitivity: "base" })

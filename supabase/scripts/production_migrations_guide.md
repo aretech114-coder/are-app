@@ -49,6 +49,9 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | AC | `20260616200000_archiviste_role_step9.sql` | Rôle **archiviste**, étape 9, workflow 8→9 sans archivage auto, RBAC legacy mis à jour |
 | AD | `20260616300000_fix_archiviste_enum_avatars_rls.sql` | **Hotfix** : enum `archiviste` + `legacy_role_permission` safe (text) + policies Storage avatars |
 | AE | `20260616400000_avatars_bucket_public.sql` | Bucket `avatars` public + policies INSERT/UPDATE/SELECT (photos de profil) |
+| AF | `20260616500000_analytics_rbac.sql` | RBAC module Statistiques (`analytics.view`) |
+| AG | `20260616600000_inbox_unread_per_user.sql` | Inbox « Nouveaux » par utilisateur/étape (`mail_inbox_reads`) |
+| AH | `20260616700000_avatars_bucket_limits.sql` | Bucket avatars public + limite 2 Mo + policies idempotentes |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -145,12 +148,16 @@ Retester upload photo profil (Mon Profil → icône appareil).
 
 Après **AE** (photos toujours invisibles malgré toast succès) :
 
+Exécuter [`audit_avatars_prod.sql`](audit_avatars_prod.sql) puis :
+
 ```sql
-SELECT id, public FROM storage.buckets WHERE id = 'avatars';
+SELECT id, public, file_size_limit FROM storage.buckets WHERE id = 'avatars';
 SELECT policyname, cmd FROM pg_policies WHERE tablename = 'objects' AND policyname ILIKE '%avatar%';
 ```
 
-Puis **ré-importer** la photo (le frontend stocke désormais le chemin Storage + URL signée à l'affichage).
+Normaliser les URLs legacy en path (section 6 du script audit), puis appliquer **AH** si la limite 2 Mo n'est pas en place.
+
+Puis **ré-importer** la photo (Mon Profil) — le frontend stocke le chemin `{userId}/avatar.jpg` et affiche via URL publique synchrone.
 
 ## Assistant IA (OpenAI)
 

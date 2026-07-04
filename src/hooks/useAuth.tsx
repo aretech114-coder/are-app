@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { prefetchAvatarSrc } from "@/lib/avatar-storage";
 
 interface AdminPermission {
   permission_key: string;
@@ -59,6 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userRole = roleData?.role || null;
     setRole(userRole);
     setProfile(profileData || null);
+
+    if (profileData?.avatar_url) {
+      prefetchAvatarSrc(profileData.avatar_url, profileData.updated_at);
+    }
 
     // Fetch permissions for admin and superadmin
     if (userRole === "admin" || userRole === "superadmin") {

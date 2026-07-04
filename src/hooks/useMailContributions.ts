@@ -12,7 +12,7 @@ export type MailContribution = {
   processed_at: string | null;
   created_at: string;
   updated_at: string;
-  profile?: { full_name: string; email: string };
+  profile?: { full_name: string; email: string; avatar_url?: string | null; updated_at?: string | null };
 };
 
 export function useMailContributions(mailId: string | undefined, stepNumber = 4) {
@@ -41,11 +41,11 @@ export function useMailContributions(mailId: string | undefined, stepNumber = 4)
 
     const rows: any[] = data || [];
     const userIds = [...new Set(rows.map((r) => r.user_id))];
-    let profileMap = new Map<string, { full_name: string; email: string }>();
+    let profileMap = new Map<string, { full_name: string; email: string; avatar_url?: string | null; updated_at?: string | null }>();
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, email")
+        .select("id, full_name, email, avatar_url, updated_at")
         .in("id", userIds);
       profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
     }
