@@ -10,12 +10,13 @@ import { Camera, Lock, Save, LogOut, UserCheck, UserX } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { UserAvatar } from "@/components/UserAvatar";
-import { uploadUserAvatar, validateAvatarFile, invalidateAvatarSrcCache } from "@/lib/avatar-storage";
+import { uploadUserAvatar, validateAvatarFile, invalidateAvatarSrcCache, seedAvatarSrcCache } from "@/lib/avatar-storage";
 
 export default function ProfilePage() {
-  const { user, profile, role, signOut, refreshProfile } = useAuth();
+  const { user, profile, role, signOut, refreshProfile, patchProfile, setVerifiedAvatarSrc } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [avatarCacheKey, setAvatarCacheKey] = useState(0);
+  const [avatarSrcOverride, setAvatarSrcOverride] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -147,8 +148,13 @@ export default function ProfilePage() {
       return;
     }
 
-    setAvatarCacheKey(Date.now());
+    const cacheKey = Date.now();
+    setAvatarCacheKey(cacheKey);
     invalidateAvatarSrcCache(result.path);
+    seedAvatarSrcCache(result.path, cacheKey, result.src);
+    setAvatarSrcOverride(result.src);
+    setVerifiedAvatarSrc(result.src);
+    patchProfile({ avatar_url: result.path, updated_at: new Date().toISOString() });
     await refreshProfile();
     toast.success("Photo de profil mise à jour");
     e.target.value = "";
@@ -168,6 +174,7 @@ export default function ProfilePage() {
             <div className="relative">
               <UserAvatar
                 avatarRef={profile?.avatar_url}
+                srcOverride={avatarSrcOverride}
                 name={profile?.full_name}
                 className="h-16 w-16"
                 fallbackClassName="text-lg"

@@ -51,7 +51,7 @@ const menuItems: MenuEntry[] = [
 
 export default function AccountPage() {
   const navigate = useNavigate();
-  const { user, role, profile, signOut, hasPermission } = useAuth();
+  const { user, role, profile, signOut, hasPermission, verifiedAvatarSrc } = useAuth();
   const { settings } = useSiteSettings();
   const { grantedRoles } = useWorkflowTrackingAccess();
   const { can } = useRolePermissions();
@@ -74,6 +74,7 @@ export default function AccountPage() {
       <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
         <UserAvatar
           avatarRef={profile?.avatar_url}
+          srcOverride={verifiedAvatarSrc}
           name={profile?.full_name || user?.email}
           className="h-14 w-14"
           fallbackClassName="bg-primary text-primary-foreground font-semibold text-lg"

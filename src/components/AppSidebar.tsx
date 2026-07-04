@@ -26,7 +26,7 @@ const mainNav = [
 ];
 
 export function AppSidebar() {
-  const { role, signOut, profile, hasPermission } = useAuth();
+  const { role, signOut, profile, hasPermission, verifiedAvatarSrc } = useAuth();
   const { settings } = useSiteSettings();
 
   const isSuperAdmin = role === "superadmin";
@@ -266,6 +266,7 @@ export function AppSidebar() {
           <div className="flex items-center gap-3">
             <UserAvatar
               avatarRef={profile?.avatar_url}
+              srcOverride={verifiedAvatarSrc}
               name={profile?.full_name}
               className="h-8 w-8"
               fallbackClassName="bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium"
