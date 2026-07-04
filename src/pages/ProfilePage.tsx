@@ -13,10 +13,9 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { uploadUserAvatar, validateAvatarFile, invalidateAvatarSrcCache, seedAvatarSrcCache } from "@/lib/avatar-storage";
 
 export default function ProfilePage() {
-  const { user, profile, role, signOut, refreshProfile, patchProfile, setVerifiedAvatarSrc } = useAuth();
+  const { user, profile, role, signOut, refreshProfile, patchProfile, setVerifiedAvatarSrc, verifiedAvatarSrc } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [avatarCacheKey, setAvatarCacheKey] = useState(0);
-  const [avatarSrcOverride, setAvatarSrcOverride] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -137,13 +136,18 @@ export default function ProfilePage() {
       return;
     }
 
-    const { error: profileError } = await supabase
+    const { data: updated, error: profileError } = await supabase
       .from("profiles")
       .update({ avatar_url: result.path })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .select("avatar_url, updated_at")
+      .single();
 
-    if (profileError) {
-      toast.error(profileError.message);
+    if (profileError || !updated?.avatar_url) {
+      toast.error(
+        profileError?.message ||
+          "Photo enregistrée dans le stockage mais profil non mis à jour — vérifiez les droits sur profiles.avatar_url."
+      );
       e.target.value = "";
       return;
     }
@@ -152,10 +156,8 @@ export default function ProfilePage() {
     setAvatarCacheKey(cacheKey);
     invalidateAvatarSrcCache(result.path);
     seedAvatarSrcCache(result.path, cacheKey, result.src);
-    setAvatarSrcOverride(result.src);
-    setVerifiedAvatarSrc(result.src);
-    patchProfile({ avatar_url: result.path, updated_at: new Date().toISOString() });
-    await refreshProfile();
+    patchProfile({ avatar_url: updated.avatar_url, updated_at: updated.updated_at });
+    setVerifiedAvatarSrc(result.src, result.path);
     toast.success("Photo de profil mise à jour");
     e.target.value = "";
   };
@@ -174,7 +176,7 @@ export default function ProfilePage() {
             <div className="relative">
               <UserAvatar
                 avatarRef={profile?.avatar_url}
-                srcOverride={avatarSrcOverride}
+                srcOverride={verifiedAvatarSrc}
                 name={profile?.full_name}
                 className="h-16 w-16"
                 fallbackClassName="text-lg"
