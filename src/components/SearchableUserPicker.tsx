@@ -3,12 +3,15 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserAvatar } from "@/components/UserAvatar";
 
 export type PickableUser = {
   id: string;
   full_name?: string | null;
   email?: string | null;
   role?: string | null;
+  avatar_url?: string | null;
+  updated_at?: string | null;
 };
 
 const MIN_SEARCH_LEN = 2;
@@ -120,6 +123,12 @@ export function SearchableUserMultiSelect({
                   onCheckedChange={() => !disabled && onToggle(u.id)}
                   disabled={disabled}
                 />
+                <UserAvatar
+                  avatarRef={u.avatar_url}
+                  name={u.full_name || u.email}
+                  className="h-8 w-8 shrink-0"
+                  cacheVersion={u.updated_at}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{u.full_name || u.email || "Sans nom"}</p>
                   {showRole && u.role && roleLabel && (
@@ -206,14 +215,22 @@ export function SearchableUserSingleSelect({
               type="button"
               onClick={() => onValueChange(u.id)}
               className={cn(
-                "w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors",
+                "w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors flex items-center gap-2",
                 value === u.id && "bg-primary/10 font-medium"
               )}
             >
-              <span className="block truncate">{u.full_name || u.email}</span>
-              {u.email && u.full_name && (
-                <span className="block text-xs text-muted-foreground truncate">{u.email}</span>
-              )}
+              <UserAvatar
+                avatarRef={u.avatar_url}
+                name={u.full_name || u.email}
+                className="h-7 w-7 shrink-0"
+                cacheVersion={u.updated_at}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{u.full_name || u.email}</span>
+                {u.email && u.full_name && (
+                  <span className="block text-xs text-muted-foreground truncate">{u.email}</span>
+                )}
+              </span>
             </button>
           ))
         )}

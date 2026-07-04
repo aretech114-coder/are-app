@@ -9,6 +9,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserAvatar } from "@/components/UserAvatar";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -263,9 +264,13 @@ export function AppSidebar() {
       <div className="mt-auto border-t border-sidebar-border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-medium text-sidebar-accent-foreground">
-              {profile?.full_name?.charAt(0)?.toUpperCase() || "?"}
-            </div>
+            <UserAvatar
+              avatarRef={profile?.avatar_url}
+              name={profile?.full_name}
+              className="h-8 w-8"
+              fallbackClassName="bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium"
+              cacheVersion={profile?.updated_at}
+            />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-medium text-sidebar-accent-foreground truncate">
                 {profile?.full_name || "Agent"}

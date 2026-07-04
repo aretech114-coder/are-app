@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { MailContribution } from "@/hooks/useMailContributions";
 import { filterVisibleContributions } from "@/lib/workflow-display";
-import { FileText, User, Clock } from "lucide-react";
+import { FileText, Clock } from "lucide-react";
+import { UserAvatar } from "@/components/UserAvatar";
 import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { AttachmentDownloadButton } from "@/components/AttachmentDownloadButton";
 import { format } from "date-fns";
@@ -58,7 +59,12 @@ export function MailContributionsPanel({
         <div key={c.id} className="p-3 rounded-md border bg-background space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-sm font-medium flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <UserAvatar
+                avatarRef={c.profile?.avatar_url}
+                name={c.profile?.full_name || c.profile?.email}
+                className="h-6 w-6"
+                cacheVersion={c.profile?.updated_at}
+              />
               {c.profile?.full_name || c.profile?.email || "Utilisateur"}
             </span>
             <div className="flex items-center gap-2">

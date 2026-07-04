@@ -1,31 +1,46 @@
-import { useEffect, useState } from "react";
-import { resolveAvatarSrc } from "@/lib/avatar-storage";
-import { avatarDisplayUrl } from "@/lib/avatar-url";
+import { useEffect, useMemo, useState } from "react";
+import {
+  getAvatarPublicSrc,
+  invalidateAvatarSrcCache,
+  resolveAvatarSrc,
+  toAvatarStoragePath,
+} from "@/lib/avatar-storage";
 
-/** Résout avatar_url (path ou URL legacy) en src affichable, avec cache-buster optionnel. */
+export { invalidateAvatarSrcCache };
+
+/** Résout avatar_url (path ou URL legacy) en src affichable avec fallback signed URL. */
 export function useAvatarSrc(
   avatarUrlOrPath: string | null | undefined,
   version?: string | number | null
 ): string | undefined {
-  const [src, setSrc] = useState<string | undefined>(undefined);
+  const path = useMemo(() => toAvatarStoragePath(avatarUrlOrPath), [avatarUrlOrPath]);
+
+  const optimisticSrc = useMemo(() => {
+    if (!path) return undefined;
+    return getAvatarPublicSrc(path, version);
+  }, [path, version]);
+
+  const [src, setSrc] = useState<string | undefined>(optimisticSrc);
 
   useEffect(() => {
-    if (!avatarUrlOrPath) {
+    if (!path) {
       setSrc(undefined);
       return;
     }
 
-    let cancelled = false;
+    setSrc(getAvatarPublicSrc(path, version));
 
-    resolveAvatarSrc(avatarUrlOrPath).then((url) => {
-      if (cancelled) return;
-      setSrc(url ? avatarDisplayUrl(url, version) : undefined);
+    let cancelled = false;
+    void resolveAvatarSrc(avatarUrlOrPath, version).then((resolved) => {
+      if (!cancelled && resolved) {
+        setSrc(resolved);
+      }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [avatarUrlOrPath, version]);
+  }, [avatarUrlOrPath, path, version]);
 
   return src;
 }
