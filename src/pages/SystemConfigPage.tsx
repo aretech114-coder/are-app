@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus, Building2, Loader2, Eye } from "lucide-react";
+import { Settings, Shield, Globe, Palette, Save, Upload, X, KeyRound, RotateCcw, Type, Key, Copy, Trash2, Plus, Building2, Loader2, Eye, Clock } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { getRoleLabel } from "@/lib/labels";
 import {
@@ -114,7 +114,9 @@ export default function SystemConfigPage() {
   const [fontHeading, setFontHeading] = useState("Inter");
   const [fontBody, setFontBody] = useState("Inter");
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState("25");
+  const [step8AutoAdvanceHours, setStep8AutoAdvanceHours] = useState("0");
   const [savingUploadLimit, setSavingUploadLimit] = useState(false);
+  const [savingStep8Delay, setSavingStep8Delay] = useState(false);
   const [trackingGrants, setTrackingGrants] = useState<AppRole[]>([]);
   const [trackingGrantsLoading, setTrackingGrantsLoading] = useState(true);
   const [togglingTrackingRole, setTogglingTrackingRole] = useState<string | null>(null);
@@ -149,6 +151,7 @@ export default function SystemConfigPage() {
     setFontHeading(settings.font_heading || "Inter");
     setFontBody(settings.font_body || "Inter");
     setMaxUploadSizeMb(settings.max_upload_size_mb || "25");
+    setStep8AutoAdvanceHours(settings.step8_auto_advance_hours || "0");
   }, [settings]);
 
   useEffect(() => {
@@ -363,6 +366,25 @@ export default function SystemConfigPage() {
       toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
     } finally {
       setSavingUploadLimit(false);
+    }
+  };
+
+  const saveStep8Delay = async () => {
+    const hours = Math.max(0, parseInt(step8AutoAdvanceHours, 10) || 0);
+    setSavingStep8Delay(true);
+    try {
+      await updateSetting("step8_auto_advance_hours", String(hours));
+      await refresh();
+      setStep8AutoAdvanceHours(String(hours));
+      toast.success(
+        hours === 0
+          ? "Passage auto 8→9 désactivé"
+          : `Passage auto 8→9 après ${hours} h (cron: workflow-step8-auto-advance)`,
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
+    } finally {
+      setSavingStep8Delay(false);
     }
   };
 
@@ -978,6 +1000,46 @@ export default function SystemConfigPage() {
                 <Save className="h-4 w-4 mr-2" />
               )}
               Enregistrer la limite
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Workflow — étape 8 (secrétariat)
+          </CardTitle>
+          <CardDescription>
+            Si le secrétariat n&apos;a pas transmis manuellement vers l&apos;archivage, le courrier passe
+            automatiquement à l&apos;étape 9 après le délai configuré. Planifier l&apos;edge function{" "}
+            <code className="text-xs">workflow-step8-auto-advance</code> (cron / pg_cron).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="space-y-2 sm:max-w-xs">
+              <Label htmlFor="step8_auto_advance_hours">Délai auto (heures, 0 = désactivé)</Label>
+              <Input
+                id="step8_auto_advance_hours"
+                type="number"
+                min={0}
+                max={720}
+                value={step8AutoAdvanceHours}
+                onChange={(e) => setStep8AutoAdvanceHours(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Valeur en base : {settings.step8_auto_advance_hours || "0"} h
+              </p>
+            </div>
+            <Button onClick={saveStep8Delay} disabled={savingStep8Delay}>
+              {savingStep8Delay ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Enregistrer le délai
             </Button>
           </div>
         </CardContent>

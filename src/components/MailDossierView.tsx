@@ -10,6 +10,7 @@ import { TreatmentsList } from "@/components/TreatmentsList";
 import { SubAssignmentPanel } from "@/components/SubAssignmentPanel";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 import { MailSecretariatRecap } from "@/components/MailSecretariatRecap";
+import { ClosureDocumentPanel } from "@/components/ClosureDocumentPanel";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { useActiveWorkflowSteps } from "@/hooks/useWorkflowSteps";
 import { getMailAttachmentUrls } from "@/lib/labels";
@@ -157,6 +158,10 @@ export function MailDossierView({
             contributions={contributions}
             step4AssigneeCount={step4AssigneeCount}
           />
+        )}
+
+        {currentStep >= 8 && (
+          <ClosureDocumentPanel mailId={mail.id} currentStep={currentStep} />
         )}
 
         {showTreatments && !showContributionsPanel && (

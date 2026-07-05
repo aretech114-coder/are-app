@@ -1,5 +1,5 @@
 import {
-  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList, Puzzle, Send, ScrollText,
+  Mail, Inbox, History, Archive, BarChart3, User, Shield, LogOut, Settings, Workflow, Plane, CalendarDays, Eye, ClipboardList, Puzzle, Send, ScrollText, FileText,
 } from "lucide-react";
 import { getRoleLabel } from "@/lib/workflow-engine";
 import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
@@ -20,6 +20,7 @@ const mainNav = [
   { title: "Boîte de réception", url: "/inbox", icon: Inbox, roles: ["__all__"] },
   { title: "Historique", url: "/history", icon: History, roles: ["__all__"] },
   { title: "Archives", url: "/archive", icon: Archive, roles: ["__all__"] },
+  { title: "GED", url: "/ged", icon: FileText, roles: ["__all__"] },
   { title: "Statistiques", url: "/analytics", icon: BarChart3, roles: ["__all__"] },
   { title: "Missions", url: "/missions", icon: Plane, roles: ["__all__"] },
   { title: "Réunions", url: "/reunions", icon: CalendarDays, roles: ["__all__"] },
@@ -35,6 +36,7 @@ export function AppSidebar() {
   const { grantedRoles } = useWorkflowTrackingAccess();
   const { can } = useRolePermissions();
   const showSuiviNav = canSeeSuiviNav(role, grantedRoles) && can("suivi", "view");
+  const showGedNav = settings.ged_module_enabled === "true" && can("archives", "view");
 
   const canAccessAdminUsers = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
   const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
@@ -44,6 +46,7 @@ export function AppSidebar() {
     if (isSuperAdmin || isAdmin) return true;
     if (item.url === "/registre" && !can("registre", "view")) return false;
     if (item.url === "/archive" && !can("archives", "view")) return false;
+    if (item.url === "/ged" && !showGedNav) return false;
     if (item.url === "/history" && !can("history", "view")) return false;
     if (item.url === "/inbox" && !can("inbox", "view")) return false;
     if (item.url === "/reunions" && !can("meetings", "view")) return false;

@@ -42,6 +42,8 @@ const defaults: SiteSettings = {
   authority_title_short: "DG",
   authority_title_long: "Directeur général",
   max_upload_size_mb: "25",
+  step8_auto_advance_hours: "0",
+  ged_module_enabled: "false",
 };
 
 const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
@@ -169,6 +171,16 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
     label: "Taille max. pièces jointes (Mo)",
     setting_type: "number",
     description: "Limite par fichier pour le registre et le workflow.",
+  },
+  step8_auto_advance_hours: {
+    label: "Délai auto transmission archivage (heures)",
+    setting_type: "number",
+    description: "Passage automatique de l'étape 8 à 9 après ce délai. 0 = désactivé.",
+  },
+  ged_module_enabled: {
+    label: "Module GED interne",
+    setting_type: "boolean",
+    description: "Active la génération de dossiers PDF consolidés à l'archivage.",
   },
 };
 

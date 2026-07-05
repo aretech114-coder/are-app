@@ -29,6 +29,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 import IntegrationsPage from "./pages/IntegrationsPage";
+import GedPage from "./pages/GedPage";
 import NotificationsTestPage from "./pages/NotificationsTestPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import AccountPage from "./pages/AccountPage";
@@ -116,6 +117,7 @@ function AppRoutes() {
       <Route path="/inbox" element={<ProtectedRoute><ReceptionRoute><InboxPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><ReceptionRoute><HistoryPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/archive" element={<ProtectedRoute><ReceptionRoute><ArchivePage /></ReceptionRoute></ProtectedRoute>} />
+      <Route path="/ged" element={<ProtectedRoute><ReceptionRoute><GedPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><ReceptionRoute><AnalyticsPage /></ReceptionRoute></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />

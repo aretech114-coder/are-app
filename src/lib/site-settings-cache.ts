@@ -28,6 +28,8 @@ export interface CachedSiteSettings {
   authority_title_short: string;
   authority_title_long: string;
   max_upload_size_mb: string;
+  step8_auto_advance_hours: string;
+  ged_module_enabled: string;
 }
 
 export function getLoginBackgroundSignature(
