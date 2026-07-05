@@ -54,6 +54,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | AH | `20260616700000_avatars_bucket_limits.sql` | Bucket avatars public + limite 2 Mo + policies idempotentes |
 | AJ | `20260616900000_workflow_steps_8_9_closure.sql` | **Étapes 8→9** : `mail_workflow_documents`, accusé obligatoire archivage, PJ optionnelle step 8, timestamps, storage `archives/`, backfill, settings auto-advance |
 | AK | `20260616910000_ged_module.sql` | Module GED : table `ged_documents`, bucket `ged-documents`, RLS |
+| AL | `20260616920000_update_profile_avatar_rpc.sql` | **Hotfix avatar** : RPC `update_profile_avatar` + policies UPDATE `profiles` avec WITH CHECK |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -175,6 +176,13 @@ Exécuter [`audit_closure_documents.sql`](audit_closure_documents.sql). Scénari
 Après **AK** : activer le module dans **Intégrations** (`ged_module_enabled`) ; déployer Edge Function `generate-ged-dossier`. Tester archivage → ligne dans `ged_documents` + PDF bucket `ged-documents`.
 
 Planifier cron Edge Function `workflow-step8-auto-advance` (setting `step8_auto_advance_hours` > 0 dans Configuration système).
+
+Après **AL** : `NOTIFY pgrst, 'reload schema';` — retester upload photo (Mon Profil). Vérifier :
+
+```sql
+SELECT proname FROM pg_proc WHERE proname = 'update_profile_avatar';
+SELECT id, avatar_url, updated_at FROM public.profiles WHERE id = auth.uid();
+```
 
 ## Assistant IA (OpenAI)
 

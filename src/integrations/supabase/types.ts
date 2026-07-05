@@ -1356,6 +1356,7 @@ export type Database = {
         Returns: Json
       }
       can_access_workflow_tracking: { Args: never; Returns: boolean }
+      update_profile_avatar: { Args: { _storage_path: string }; Returns: Json }
       has_accuse_reception_sortant: { Args: { _mail_id: string }; Returns: boolean }
       register_mail_workflow_document: {
         Args: {
