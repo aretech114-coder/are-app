@@ -10,7 +10,7 @@ import { Camera, Lock, Save, LogOut, UserCheck, UserX } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { UserAvatar } from "@/components/UserAvatar";
-import { uploadUserAvatar, validateAvatarFile, invalidateAvatarSrcCache, seedAvatarSrcCache } from "@/lib/avatar-storage";
+import { uploadUserAvatar, validateAvatarFile, invalidateAvatarSrcCache, seedAvatarSrcCache, persistProfileAvatarPath } from "@/lib/avatar-storage";
 
 export default function ProfilePage() {
   const { user, profile, role, signOut, refreshProfile, patchProfile, setVerifiedAvatarSrc, verifiedAvatarSrc } = useAuth();
@@ -137,41 +137,9 @@ export default function ProfilePage() {
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ avatar_url: result.path })
-      .eq("id", user.id);
-
-    if (updateError) {
-      toast.error(updateError.message);
-      e.target.value = "";
-      return;
-    }
-
-    const { data: profileRows, error: fetchError } = await supabase
-      .from("profiles")
-      .select("avatar_url, updated_at")
-      .eq("id", user.id)
-      .limit(1);
-
-    const updated = profileRows?.[0];
-
-    if (fetchError) {
-      console.warn("profiles select after avatar upload:", fetchError.message);
-    }
-
-    const avatarPersisted = updated?.avatar_url === result.path;
-
-    if (!avatarPersisted && fetchError) {
-      toast.error(fetchError.message);
-      e.target.value = "";
-      return;
-    }
-
-    if (!avatarPersisted) {
-      toast.error(
-        "Photo enregistrée dans le stockage mais profil non mis à jour — vérifiez les droits sur profiles.avatar_url."
-      );
+    const persist = await persistProfileAvatarPath(user.id, result.path);
+    if ("error" in persist) {
+      toast.error(persist.error);
       e.target.value = "";
       return;
     }
@@ -181,8 +149,8 @@ export default function ProfilePage() {
     invalidateAvatarSrcCache(result.path);
     seedAvatarSrcCache(result.path, cacheKey, result.src);
     patchProfile({
-      avatar_url: updated.avatar_url,
-      updated_at: updated.updated_at ?? new Date().toISOString(),
+      avatar_url: persist.avatar_url,
+      updated_at: persist.updated_at,
     });
     setVerifiedAvatarSrc(result.src, result.path);
     toast.success("Photo de profil mise à jour");

@@ -313,6 +313,45 @@ export async function uploadUserAvatar(
   return { path, src: verify.src };
 }
 
+/** Persiste avatar_url via RPC SECURITY DEFINER (fiable même si RLS UPDATE silencieux). */
+export async function persistProfileAvatarPath(
+  userId: string,
+  storagePath: string
+): Promise<{ avatar_url: string; updated_at: string } | { error: string }> {
+  const expected = avatarStoragePathForUser(userId);
+  if (storagePath !== expected) {
+    return { error: "Chemin avatar invalide" };
+  }
+
+  const { data, error } = await supabase.rpc("update_profile_avatar", {
+    _storage_path: storagePath,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const result = data as {
+    success?: boolean;
+    error?: string;
+    avatar_url?: string;
+    updated_at?: string;
+  };
+
+  if (!result?.success || !result.avatar_url) {
+    return {
+      error:
+        result?.error ||
+        "Impossible de mettre à jour le profil — appliquez la migration AL (update_profile_avatar).",
+    };
+  }
+
+  return {
+    avatar_url: result.avatar_url,
+    updated_at: result.updated_at ?? new Date().toISOString(),
+  };
+}
+
 /** Précharge l'image en cache navigateur (profil courant). */
 export function prefetchAvatarSrc(
   avatarUrlOrPath: string | null | undefined,
