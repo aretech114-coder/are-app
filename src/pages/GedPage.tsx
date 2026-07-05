@@ -30,8 +30,8 @@ export default function GedPage() {
   const [search, setSearch] = useState("");
 
   const moduleEnabled = settings.ged_module_enabled === "true";
-  const canView = moduleEnabled && (can("archives", "view") || can("integrations", "view"));
-  const canDownload = can("archives", "download");
+  const canView = moduleEnabled && can("ged", "view");
+  const canDownload = can("ged", "download");
 
   const fetchDocuments = useCallback(async () => {
     if (!moduleEnabled) {

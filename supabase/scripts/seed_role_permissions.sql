@@ -30,6 +30,7 @@ FROM (
       OR (pr.resource_key = 'workflow_config' AND act.action IN ('view', 'manage'))
       OR (pr.resource_key = 'users' AND act.action IN ('view', 'create', 'edit', 'delete'))
       OR (pr.resource_key = 'integrations' AND act.action IN ('view', 'manage'))
+      OR (pr.resource_key = 'ged' AND act.action IN ('view', 'download'))
     )
 ) r
 ON CONFLICT (role, resource_key, action) DO UPDATE SET

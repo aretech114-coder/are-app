@@ -13,7 +13,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail, Search } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail, Search, Camera } from "lucide-react";
 import {
   Pagination,
   PaginationContent,
@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { ROLE_LABELS } from "@/lib/labels";
 import { filterVisibleRoleOptions, isHiddenAppRole } from "@/lib/role-config";
+import { uploadAvatarForUserByAdmin, validateAvatarFile } from "@/lib/avatar-storage";
 
 const RDC_PROVINCES: { code: string; label: string }[] = [
   { code: "KN", label: "Kinshasa" },
@@ -142,6 +143,8 @@ export default function AdminPage() {
   const [editTenantId, setEditTenantId] = useState<string>("");
   const [editProvinceCode, setEditProvinceCode] = useState<string>("");
   const [editHabilitationSpeciale, setEditHabilitationSpeciale] = useState<boolean>(false);
+  const [editAvatarVersion, setEditAvatarVersion] = useState(0);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -375,7 +378,47 @@ export default function AdminPage() {
     setEditTenantId(u.tenant_id || "");
     setEditProvinceCode(u.province_code || "");
     setEditHabilitationSpeciale(!!u.habilitation_speciale);
+    setEditAvatarVersion(0);
     setEditOpen(true);
+  };
+
+  const handleEditAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editUser || !canEditUsers) return;
+
+    const validationError = validateAvatarFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      e.target.value = "";
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const result = await uploadAvatarForUserByAdmin(editUser.id, file);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+
+      setEditUser((prev: any) =>
+        prev
+          ? { ...prev, avatar_url: result.path, updated_at: result.updated_at }
+          : prev
+      );
+      setEditAvatarVersion(Date.now());
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editUser.id
+            ? { ...u, avatar_url: result.path, updated_at: result.updated_at }
+            : u
+        )
+      );
+      toast.success("Photo de profil mise à jour");
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
+    }
   };
 
   const handleUpdate = async () => {
@@ -1095,6 +1138,42 @@ export default function AdminPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {canEditUsers && editUser && (
+              <div className="flex items-center gap-4 pb-2 border-b">
+                <div className="relative">
+                  <UserAvatar
+                    avatarRef={editUser.avatar_url}
+                    name={editFullName || editUser.full_name}
+                    className="h-16 w-16"
+                    fallbackClassName="text-lg"
+                    cacheVersion={editAvatarVersion || editUser.updated_at}
+                  />
+                  <label
+                    className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors ${uploadingAvatar ? "opacity-50 pointer-events-none" : ""}`}
+                  >
+                    {uploadingAvatar ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Camera className="h-3 w-3" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingAvatar || saving}
+                      onChange={handleEditAvatarUpload}
+                    />
+                  </label>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{editFullName || editUser.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{editUser.email}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Photo visible partout (sidebar, assignations, dossiers).
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="editFullName">Nom complet</Label>
               <Input

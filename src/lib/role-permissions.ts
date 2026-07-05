@@ -13,6 +13,7 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
   { resource_key: "registre", label: "Registre", actions: ["view", "create", "edit", "delete", "export"], sort_order: 10 },
   { resource_key: "inbox", label: "Boîte de réception", actions: ["view", "treat"], sort_order: 20 },
   { resource_key: "archives", label: "Archives centrales", actions: ["view", "download"], sort_order: 30 },
+  { resource_key: "ged", label: "Gestion documentaire (GED)", actions: ["view", "download"], sort_order: 35 },
   { resource_key: "suivi", label: "Tableau de suivi", actions: ["view"], sort_order: 40 },
   { resource_key: "history", label: "Historique", actions: ["view"], sort_order: 50 },
   { resource_key: "analytics", label: "Statistiques", actions: ["view"], sort_order: 55 },
@@ -64,6 +65,16 @@ const ARCHIVES_DOWNLOAD = new Set([
   "autorite_2",
   "autorite_3",
   "dga",
+]);
+const GED_ACCESS = new Set([
+  "admin",
+  "dg",
+  "directeur",
+  "ministre",
+  "autorite_1",
+  "secretariat",
+  "archiviste",
+  "superadmin",
 ]);
 const SUIVI_VIEW = new Set([
   "superadmin",
@@ -135,6 +146,9 @@ export function legacyRoleAllows(role: string, resource: string, action: string)
     case "archives":
       if (action === "view") return NON_RECEPTION.has(role);
       if (action === "download") return ARCHIVES_DOWNLOAD.has(role);
+      return false;
+    case "ged":
+      if (action === "view" || action === "download") return GED_ACCESS.has(role);
       return false;
     case "suivi":
       return action === "view" && SUIVI_VIEW.has(role);

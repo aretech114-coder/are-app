@@ -36,17 +36,17 @@ export function AppSidebar() {
   const { grantedRoles } = useWorkflowTrackingAccess();
   const { can } = useRolePermissions();
   const showSuiviNav = canSeeSuiviNav(role, grantedRoles) && can("suivi", "view");
-  const showGedNav = settings.ged_module_enabled === "true" && can("archives", "view");
+  const showGedNav = settings.ged_module_enabled === "true" && can("ged", "view");
 
   const canAccessAdminUsers = isSuperAdmin || (isAdmin && hasPermission("manage_users"));
   const canAccessWorkflow = isSuperAdmin || (isAdmin && hasPermission("manage_workflow"));
 
   const visibleNav = mainNav.filter((item) => {
     if (item.url === "/analytics" && !can("analytics", "view")) return false;
+    if (item.url === "/ged" && !showGedNav) return false;
     if (isSuperAdmin || isAdmin) return true;
     if (item.url === "/registre" && !can("registre", "view")) return false;
     if (item.url === "/archive" && !can("archives", "view")) return false;
-    if (item.url === "/ged" && !showGedNav) return false;
     if (item.url === "/history" && !can("history", "view")) return false;
     if (item.url === "/inbox" && !can("inbox", "view")) return false;
     if (item.url === "/reunions" && !can("meetings", "view")) return false;
