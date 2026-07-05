@@ -20,8 +20,29 @@ Comptes : **Réception**, **DG** (`directeur` / `autorite_1`), **Conseiller A**,
 | 5b | C | Boîte de réception + Suivi (historique) | Courrier visible **sans** bouton Soumettre |
 | 6 | A | Soumettre traitement (`complete`) | OK ; si seul assigné → auto-avance vers **6** |
 | 7 | DG | Validation étape 6 (`approve`) | `current_step = 8` |
-| 8 | Secrétariat | Joindre preuve + confirmer (`complete`) | `current_step = 9` ou `archived` |
-| 9 | DG (optionnel) | Étape 4 avec 2 assignés : A soumet, puis **Valider (DG)** `dg_advance` | Passe étape 6 **sans** attendre B |
+| 8 | Secrétariat | **Transmettre à l'archivage** sans PJ (`complete`) | `current_step = 9`, statut **pas** `archived` |
+| 9 | Archiviste | Archiver **sans** accusé | **Refus** RPC / bouton désactivé |
+| 10 | Archiviste | Joindre accusé + `archive` | `status = archived` |
+
+## Scénarios étapes 8→9 (T15–T20)
+
+Prérequis : migrations **AJ** (+ **AK** pour T20 GED), frontend déployé, comptes **Secrétariat**, **Archiviste**.
+
+| # | Acteur | Action | Attendu |
+|---|--------|--------|---------|
+| T15 | Secrétariat | Étape 8 : **Transmettre à l'archivage** sans PJ | `current_step = 9` ; toast « Dossier transmis » ; pas d'erreur |
+| T16 | Archiviste | Étape 9 : tenter **Archiver** sans accusé | Bouton Confirmer **désactivé** ou toast/refus RPC |
+| T17 | Archiviste | Joindre accusé à l'étape 9 puis **Archiver** | `status = archived` ; visible Archives |
+| T18 | Secrétariat | Joindre accusé à l'étape 8 puis transmettre ; archiviste archive sans re-upload | Archive OK ; panneau accusé « Déposé à l'étape secrétariat » |
+| T19 | Secrétariat | Rédiger brouillon, **Enregistrer**, **Imprimer en-tête**, **Export Word** sans transmission | `outgoing_draft_html` persisté ; pas de changement d'étape |
+| T20 | Admin | `step8_auto_advance_hours = 1` ; courrier step 8 sans transmission > 1 h ; cron `workflow-step8-auto-advance` | Passage auto à étape 9 ; note transition « Passage automatique » |
+
+### T20 — GED (optionnel, migration AK)
+
+| # | Acteur | Action | Attendu |
+|---|--------|--------|---------|
+| T20b | Super admin | Activer **GED** dans Intégrations | Menu **GED** visible |
+| T20c | Archiviste | Archiver avec module GED actif | Ligne `ged_documents` + PDF téléchargeable |
 
 ## Vérifications complémentaires
 

@@ -405,6 +405,84 @@ export type Database = {
         }
         Relationships: []
       }
+      mail_workflow_documents: {
+        Row: {
+          id: string
+          mail_id: string
+          step_number: number
+          document_type: string
+          storage_bucket: string
+          storage_path: string
+          file_name: string | null
+          uploaded_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          mail_id: string
+          step_number: number
+          document_type: string
+          storage_bucket: string
+          storage_path: string
+          file_name?: string | null
+          uploaded_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          mail_id?: string
+          step_number?: number
+          document_type?: string
+          storage_bucket?: string
+          storage_path?: string
+          file_name?: string | null
+          uploaded_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ged_documents: {
+        Row: {
+          id: string
+          mail_id: string
+          reference_number: string | null
+          sender_name: string | null
+          pdf_storage_path: string
+          file_name: string
+          file_size_bytes: number | null
+          generated_by: string | null
+          generated_at: string
+          metadata: Json
+        }
+        Insert: {
+          id?: string
+          mail_id: string
+          reference_number?: string | null
+          sender_name?: string | null
+          pdf_storage_path: string
+          file_name: string
+          file_size_bytes?: number | null
+          generated_by?: string | null
+          generated_at?: string
+          metadata?: Json
+        }
+        Update: {
+          id?: string
+          mail_id?: string
+          reference_number?: string | null
+          sender_name?: string | null
+          pdf_storage_path?: string
+          file_name?: string
+          file_size_bytes?: number | null
+          generated_by?: string | null
+          generated_at?: string
+          metadata?: Json
+        }
+        Relationships: []
+      }
       mail_types: {
         Row: {
           code: string
@@ -477,6 +555,9 @@ export type Database = {
           sender_province: string | null
           status: Database["public"]["Enums"]["mail_status"]
           subject: string
+          outgoing_draft_html: string | null
+          step8_arrived_at: string | null
+          step8_transmitted_at: string | null
           target_service_id: string | null
           tenant_id: string | null
           updated_at: string | null
@@ -521,6 +602,9 @@ export type Database = {
           sender_province?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject: string
+          outgoing_draft_html?: string | null
+          step8_arrived_at?: string | null
+          step8_transmitted_at?: string | null
           target_service_id?: string | null
           tenant_id?: string | null
           updated_at?: string | null
@@ -565,6 +649,9 @@ export type Database = {
           sender_province?: string | null
           status?: Database["public"]["Enums"]["mail_status"]
           subject?: string
+          outgoing_draft_html?: string | null
+          step8_arrived_at?: string | null
+          step8_transmitted_at?: string | null
           target_service_id?: string | null
           tenant_id?: string | null
           updated_at?: string | null
@@ -1269,6 +1356,18 @@ export type Database = {
         Returns: Json
       }
       can_access_workflow_tracking: { Args: never; Returns: boolean }
+      has_accuse_reception_sortant: { Args: { _mail_id: string }; Returns: boolean }
+      register_mail_workflow_document: {
+        Args: {
+          _mail_id: string
+          _step_number: number
+          _document_type: string
+          _storage_bucket: string
+          _storage_path: string
+          _file_name?: string
+        }
+        Returns: Json
+      }
       has_role_permission: {
         Args: { _user_id: string; _resource: string; _action: string }
         Returns: boolean

@@ -46,6 +46,10 @@ import { DgDecisionSummary, type DgAssignmentRow } from "@/components/DgDecision
 import { useMailContributions } from "@/hooks/useMailContributions";
 import { MailContributionsPanel } from "@/components/MailContributionsPanel";
 import { MailSecretariatRecap } from "@/components/MailSecretariatRecap";
+import { ClosureDocumentPanel } from "@/components/ClosureDocumentPanel";
+import { OutgoingDraftEditor } from "@/components/OutgoingDraftEditor";
+import { useAccuseReceptionDocument } from "@/hooks/useMailWorkflowDocuments";
+import { uploadAndRegisterAccuseReception, checkHasAccuseReception } from "@/lib/mail-workflow-documents";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -84,6 +88,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [selectedViewers, setSelectedViewers] = useState<string[]>([]);
   const { contributions, fetchContributions } = useMailContributions(mailId, 4);
   const [step4AssigneeCount, setStep4AssigneeCount] = useState(0);
+  const { hasAccuse, invalidate: invalidateAccuseDoc } = useAccuseReceptionDocument(mailId);
 
   const isDgRole =
     role === "directeur" || role === "ministre" || role === "dg" || role === "autorite_1";
@@ -507,7 +512,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     if (currentStep === 8) {
       return [{
         key: "complete",
-        label: stepLabels.complete || "Valider retour et preuve de dépôt",
+        label: stepLabels.complete || "Transmettre à l'archivage",
         icon: Send,
         variant: "default",
       }];
@@ -575,7 +580,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     try {
       // Upload attachment (step 4 uploads handled in treatment RPC block)
       let annotationAttachmentUrl: string | null = null;
-      if (attachmentFile && currentStep !== 4) {
+      if (attachmentFile && currentStep !== 4 && currentStep !== 8 && currentStep !== 9) {
         const { file: compressedFile, originalSize, compressedSize, wasCompressed } =
           await compressFile(attachmentFile);
         if (wasCompressed) {
@@ -717,14 +722,60 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
         return;
       }
 
-      // STEP 8 COMPLETE: Use RPC to advance to step 9 (archivage)
+      // STEP 8: transmit to archivist (PJ optional)
       if (currentStep === 8 && action === "complete") {
-        const result = await advanceWorkflow(mailId, currentStep, "complete", user.id, noteParts || "Preuve de dépôt ajoutée.");
+        if (attachmentFile) {
+          try {
+            await uploadAndRegisterAccuseReception(mailId, attachmentFile, 8, maxUploadMb);
+            invalidateAccuseDoc();
+          } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Erreur upload accusé");
+            setLoading(false);
+            return;
+          }
+        }
+        const result = await advanceWorkflow(mailId, currentStep, "complete", user.id, noteParts || "Dossier transmis à l'archivage.");
         if (result.success) {
-          toast.success("Retour et preuve de dépôt validés — dossier transmis à l'archivage");
+          toast.success("Dossier transmis à l'archivage");
           notifyAfterAdvance(result.notifications);
         } else {
           toast.error(result.error || "Erreur lors de la transmission");
+        }
+        setShowDialog(false);
+        resetForm();
+        onAdvanced();
+        setLoading(false);
+        return;
+      }
+
+      // STEP 9: archive (accusé de réception required)
+      if (currentStep === 9 && action === "archive") {
+        if (attachmentFile) {
+          try {
+            await uploadAndRegisterAccuseReception(mailId, attachmentFile, 9, maxUploadMb);
+            invalidateAccuseDoc();
+          } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Erreur upload accusé");
+            setLoading(false);
+            return;
+          }
+        }
+        const hasAccuseNow = await checkHasAccuseReception(mailId);
+        if (!hasAccuseNow) {
+          toast.error("Accusé de réception du courrier sortant requis avant archivage.");
+          setLoading(false);
+          return;
+        }
+        const result = await advanceWorkflow(mailId, currentStep, "archive", user.id, noteParts || "Archivage définitif.");
+        if (result.success) {
+          toast.success("Courrier archivé définitivement");
+          if (settings.ged_module_enabled === "true") {
+            supabase.functions.invoke("generate-ged-dossier", { body: { mail_id: mailId } }).then(({ error }) => {
+              if (error) console.warn("GED generation:", error.message);
+            });
+          }
+        } else {
+          toast.error(result.error || "Erreur lors de l'archivage");
         }
         setShowDialog(false);
         resetForm();
@@ -831,13 +882,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
   const showAnnotation = currentStep === 2 || currentStep === 3 || currentStep === 6;
   const showAssignment = currentStep === 2 || currentStep === 3 || currentStep === 5;
-  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 6 || currentStep === 8;
+  const showAttachment = currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 6 || currentStep === 8 || currentStep === 9;
   const showTreatment = currentStep === 4;
 
   const attachmentUploadHint: Partial<Record<number, string>> = {
     2: "Annotation, modèle ou document d'appui pour le traitement",
     6: "Modèle, consignes ou document à transmettre au secrétariat pour la rédaction finale",
-    8: "Preuve de dépôt signée ou scan du courrier sortant (obligatoire)",
+    8: "Accusé de réception du courrier sortant (optionnel — peut être complété à l'archivage)",
+    9: "Accusé de réception du courrier sortant (obligatoire si non déposé à l'étape secrétariat)",
   };
 
   const roleLabel = (slug: string) => getRoleLabel(slug);
@@ -849,8 +901,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     5: "Vérification — DGA",
     6: UI_LABELS.dgValidation,
     7: "Consultation — Conseiller",
-    8: "Retour & Preuve de Dépôt — Secrétariat",
-    9: "Archivage Final",
+    8: "Secrétariat — Retour & transmission archivage",
+    9: "Archivage final",
   };
 
   return (
@@ -949,7 +1001,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               </>
             )}
 
-            {/* Step 8: recap + proof of deposit */}
+            {/* Step 8: recap + workspace rédaction */}
             {currentStep === 8 && (
               <div className="space-y-4">
                 <MailSecretariatRecap
@@ -958,6 +1010,21 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                   contributions={contributions}
                   step4AssigneeCount={step4AssigneeCount}
                   compact
+                />
+
+                <OutgoingDraftEditor
+                  mailId={mailId}
+                  initialHtml={mailData?.outgoing_draft_html}
+                  initialPlain={mailData?.ai_draft || arContent}
+                  referenceNumber={mailData?.reference_number}
+                  onSaved={(html) => setMailData((prev: any) => prev ? { ...prev, outgoing_draft_html: html } : prev)}
+                />
+
+                <ClosureDocumentPanel
+                  mailId={mailId}
+                  currentStep={currentStep}
+                  canUpload
+                  onRequestUpload={() => fileInputRef.current?.click()}
                 />
 
                 {mailData?.mail_type === "accuse_reception" || mailData?.mail_type === "accusé_reception" ? (
@@ -1089,20 +1156,28 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
                     <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
                       <p className="text-xs text-amber-700 dark:text-amber-400">
-                        <strong>📋 Instructions :</strong> Imprimez l'accusé de réception sur papier en-tête, 
-                        faites-le signer, puis joignez la preuve de dépôt signée ci-dessous avant de confirmer.
+                        <strong>Instructions :</strong> Imprimez l&apos;accusé sur papier en-tête, faites-le signer si nécessaire,
+                        puis joignez éventuellement le scan ci-dessous. La transmission vers l&apos;archivage est possible sans pièce jointe.
                       </p>
                     </div>
                   </div>
                 ) : (
                   <div className="p-3 rounded-lg border bg-muted/30">
                     <p className="text-sm text-muted-foreground">
-                      📄 Ce courrier n'est pas de type "Accusé de Réception". 
-                      Joignez la preuve de dépôt ci-dessous pour finaliser.
+                      Rédigez le courrier sortant dans l&apos;éditeur ci-dessus. Vous pouvez joindre l&apos;accusé de réception de façon optionnelle.
                     </p>
                   </div>
                 )}
               </div>
+            )}
+
+            {currentStep === 9 && (
+              <ClosureDocumentPanel
+                mailId={mailId}
+                currentStep={currentStep}
+                canUpload
+                onRequestUpload={() => fileInputRef.current?.click()}
+              />
             )}
 
             {/* Step 5/6: Show rejection warning */}
@@ -1265,8 +1340,8 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold flex items-center gap-1.5">
                   <Upload className="h-3.5 w-3.5" />
-                  {currentStep === 8
-                    ? "Preuve de dépôt / courrier signé"
+                  {currentStep === 8 || currentStep === 9
+                    ? "Accusé de réception du courrier sortant"
                     : currentStep === 6
                       ? "Document joint à la validation"
                       : "Joindre un document"}
@@ -1376,7 +1451,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 loading ||
                 requiresAssigneesOnConfirm ||
                 (showTreatment && action === "complete" && (!treatmentType || !treatmentContent)) ||
-                (currentStep === 8 && !attachmentFile)
+                (currentStep === 9 && action === "archive" && !hasAccuse && !attachmentFile)
               }
               variant={action === "reject" ? "destructive" : "default"}
             >

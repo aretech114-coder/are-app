@@ -52,6 +52,8 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | AF | `20260616500000_analytics_rbac.sql` | RBAC module Statistiques (`analytics.view`) |
 | AG | `20260616600000_inbox_unread_per_user.sql` | Inbox « Nouveaux » par utilisateur/étape (`mail_inbox_reads`) |
 | AH | `20260616700000_avatars_bucket_limits.sql` | Bucket avatars public + limite 2 Mo + policies idempotentes |
+| AJ | `20260616900000_workflow_steps_8_9_closure.sql` | **Étapes 8→9** : `mail_workflow_documents`, accusé obligatoire archivage, PJ optionnelle step 8, timestamps, storage `archives/`, backfill, settings auto-advance |
+| AK | `20260616910000_ged_module.sql` | Module GED : table `ged_documents`, bucket `ged-documents`, RLS |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -159,6 +161,21 @@ Normaliser les URLs legacy en path (section 6 du script audit), puis appliquer *
 
 Puis **ré-importer** la photo (Mon Profil) — le frontend stocke le chemin `{userId}/avatar.jpg` et affiche via URL publique synchrone.
 
+Après **AJ** : `NOTIFY pgrst, 'reload schema';` — déployer le frontend associé. Vérifier :
+
+```sql
+SELECT COUNT(*) FROM public.mail_workflow_documents;
+SELECT id, current_step, step8_arrived_at, step8_transmitted_at
+FROM public.mails WHERE current_step IN (8, 9) LIMIT 20;
+SELECT public.has_accuse_reception_sortant('<mail_uuid>');
+```
+
+Exécuter [`audit_closure_documents.sql`](audit_closure_documents.sql). Scénarios E2E **T15–T20** dans [`e2e_test_scenario.md`](e2e_test_scenario.md).
+
+Après **AK** : activer le module dans **Intégrations** (`ged_module_enabled`) ; déployer Edge Function `generate-ged-dossier`. Tester archivage → ligne dans `ged_documents` + PDF bucket `ged-documents`.
+
+Planifier cron Edge Function `workflow-step8-auto-advance` (setting `step8_auto_advance_hours` > 0 dans Configuration système).
+
 ## Assistant IA (OpenAI)
 
 ```bash
@@ -177,4 +194,15 @@ Exécuter `supabase/scripts/production_audit.sql` — requêtes séparées, une 
 |--------|--------|
 | `policy "X" already exists` | Exécuter `20260602190000` ou ajouter `DROP POLICY IF EXISTS` avant CREATE |
 | `column/table not in schema cache` | Migration bootstrap manquante + `NOTIFY pgrst, 'reload schema'` |
+
+## Sous-assignation (étape Traitement) — hors séquence A–AI
+
+Migration initiale (avril 2026, à vérifier/appliquer si absente en prod) :
+
+| Fichier | Objet |
+|---------|--------|
+| `20260428175825_3c4e7ec3-afe1-4f64-96b5-16cb6a4124ab.sql` | Table `mail_sub_assignments`, RLS, `workflow_steps.allow_sub_assignment` |
+
+**État fonctionnel et plan de finalisation :** [`docs/SOUS_ASSIGNATION_ETAPE_TRAITEMENT.md`](../../docs/SOUS_ASSIGNATION_ETAPE_TRAITEMENT.md)
+
 | `42702 ambiguous column` | Migration **M** (`v_aid` → `viewer_uid`) ou script audit corrigé (alias `expected.bucket_id`) |

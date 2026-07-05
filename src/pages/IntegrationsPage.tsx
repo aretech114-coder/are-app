@@ -5,8 +5,12 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { EmailNotificationTester } from "@/components/admin/EmailNotificationTester";
 import { WorkflowNotificationPanel } from "@/components/admin/WorkflowNotificationPanel";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { toast } from "sonner";
 
 interface ModuleCard {
   name: string;
@@ -30,7 +34,6 @@ const businessModules: ModuleCard[] = [
   { name: "Comptabilité", description: "Gestion budgétaire et suivi des dépenses", icon: Receipt, status: "soon" },
   { name: "Archivage Légal", description: "Conservation certifiée et conformité réglementaire", icon: Archive, status: "soon" },
   { name: "Webhooks Sortants", description: "Notifications en temps réel vers des systèmes externes", icon: Webhook, status: "soon" },
-  { name: "Gestion Documentaire", description: "Classement, versionnage et recherche de documents", icon: FileText, status: "soon" },
   { name: "Parapheur Électronique", description: "Signature et validation dématérialisée des documents", icon: PenTool, status: "soon" },
   { name: "Tableau de Bord Décisionnel", description: "Indicateurs stratégiques et rapports avancés", icon: BarChart3, status: "soon" },
 ];
@@ -83,8 +86,19 @@ function ModuleGrid({ modules }: { modules: ModuleCard[] }) {
 
 export default function IntegrationsPage() {
   const { role, hasPermission } = useAuth();
+  const { settings, updateSetting } = useSiteSettings();
   const isSuperAdmin = role === "superadmin";
   const canManageWorkflow = isSuperAdmin || (role === "admin" && hasPermission("manage_workflow"));
+  const gedEnabled = settings.ged_module_enabled === "true";
+
+  const toggleGed = async (enabled: boolean) => {
+    try {
+      await updateSetting("ged_module_enabled", enabled ? "true" : "false");
+      toast.success(enabled ? "Module GED activé" : "Module GED désactivé");
+    } catch {
+      toast.error("Impossible de mettre à jour le module GED");
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -100,6 +114,31 @@ export default function IntegrationsPage() {
           <h2 className="text-lg font-semibold">Notifications workflow</h2>
           <WorkflowNotificationPanel />
         </div>
+      )}
+
+      {canManageWorkflow && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Gestion documentaire (GED)
+            </CardTitle>
+            <CardDescription>
+              Module interne : génère un dossier PDF consolidé à chaque archivage ({`{expéditeur}_{réf}.pdf`}).
+              Consultation via le menu GED lorsque activé.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <Label htmlFor="ged_module_enabled" className="text-sm">
+              {gedEnabled ? "Module actif" : "Module inactif"}
+            </Label>
+            <Switch
+              id="ged_module_enabled"
+              checked={gedEnabled}
+              onCheckedChange={toggleGed}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {isSuperAdmin && (

@@ -294,12 +294,14 @@ export type MailDocumentSubfolder =
   | "annotations"
   | "treatments"
   | "validations"
-  | "deposits";
+  | "deposits"
+  | "archives";
 
 export function mailDocumentSubfolderForStep(step: number): MailDocumentSubfolder {
   if (step === 4) return "treatments";
   if (step === 6) return "validations";
   if (step === 8) return "deposits";
+  if (step === 9) return "archives";
   return "annotations";
 }
 
