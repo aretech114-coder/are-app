@@ -352,6 +352,71 @@ export async function persistProfileAvatarPath(
   };
 }
 
+/** Upload + persistance avatar pour un utilisateur (admin / super admin). */
+export async function uploadAvatarForUserByAdmin(
+  targetUserId: string,
+  file: File
+): Promise<{ path: string; src: string; updated_at: string } | { error: string }> {
+  let prepared: File;
+  try {
+    prepared = await compressAvatarImage(file);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Impossible de préparer l'image" };
+  }
+
+  const path = avatarStoragePathForUser(targetUserId);
+
+  const { error: uploadError } = await supabase.storage.from(AVATAR_BUCKET).upload(path, prepared, {
+    upsert: true,
+    contentType: "image/jpeg",
+    cacheControl: "86400",
+  });
+
+  if (uploadError) {
+    const hint = uploadError.message.includes("policy") || uploadError.message.includes("403")
+      ? " — vérifiez la migration AN (upload avatar admin)."
+      : "";
+    return { error: uploadError.message + hint };
+  }
+
+  const version = Date.now();
+  const verify = await verifyAvatarReadable(path, version, 1);
+  if (!verify.ok) {
+    return { error: verify.error };
+  }
+
+  const { data, error } = await supabase.rpc("update_profile_avatar_for_user", {
+    _target_user_id: targetUserId,
+    _storage_path: path,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const result = data as {
+    success?: boolean;
+    error?: string;
+    avatar_url?: string;
+    updated_at?: string;
+  };
+
+  if (!result?.success || !result.avatar_url) {
+    return {
+      error:
+        result?.error ||
+        "Impossible de mettre à jour le profil — appliquez la migration AN (update_profile_avatar_for_user).",
+    };
+  }
+
+  seedAvatarSrcCache(path, version, verify.src);
+  return {
+    path,
+    src: verify.src,
+    updated_at: result.updated_at ?? new Date().toISOString(),
+  };
+}
+
 /** Précharge l'image en cache navigateur (profil courant). */
 export function prefetchAvatarSrc(
   avatarUrlOrPath: string | null | undefined,

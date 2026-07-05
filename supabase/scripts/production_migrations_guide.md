@@ -55,6 +55,8 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | AJ | `20260616900000_workflow_steps_8_9_closure.sql` | **Étapes 8→9** : `mail_workflow_documents`, accusé obligatoire archivage, PJ optionnelle step 8, timestamps, storage `archives/`, backfill, settings auto-advance |
 | AK | `20260616910000_ged_module.sql` | Module GED : table `ged_documents`, bucket `ged-documents`, RLS |
 | AL | `20260616920000_update_profile_avatar_rpc.sql` | **Hotfix avatar** : RPC `update_profile_avatar` + policies UPDATE `profiles` avec WITH CHECK |
+| AM | `20260616930000_ged_rbac.sql` | RBAC GED (`ged.view` / `ged.download`) + RLS `ged_documents` / bucket |
+| AN | `20260616940000_admin_avatar_upload.sql` | Upload avatar admin : RPC `update_profile_avatar_for_user` + Storage policies |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -182,6 +184,20 @@ Après **AL** : `NOTIFY pgrst, 'reload schema';` — retester upload photo (Mon 
 ```sql
 SELECT proname FROM pg_proc WHERE proname = 'update_profile_avatar';
 SELECT id, avatar_url, updated_at FROM public.profiles WHERE id = auth.uid();
+```
+
+Après **AM** : `NOTIFY pgrst, 'reload schema';` — activer module GED dans Intégrations ; vérifier matrice **Autorisations par rôle** → ressource « Gestion documentaire (GED) ». Par défaut : DG, secrétariat, archiviste, admin.
+
+```sql
+SELECT role, action, is_allowed FROM public.role_permissions
+WHERE resource_key = 'ged' ORDER BY role, action;
+SELECT public.has_role_permission(auth.uid(), 'ged', 'view');
+```
+
+Après **AN** : retester upload photo depuis **Gestion utilisateurs** (modale crayon). Vérifier :
+
+```sql
+SELECT proname FROM pg_proc WHERE proname = 'update_profile_avatar_for_user';
 ```
 
 ## Assistant IA (OpenAI)
