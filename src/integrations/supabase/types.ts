@@ -1290,6 +1290,7 @@ export type Database = {
       workflow_transitions: {
         Row: {
           action: string
+          attachment_urls: Json
           created_at: string | null
           from_step: number | null
           id: string
@@ -1301,6 +1302,7 @@ export type Database = {
         }
         Insert: {
           action: string
+          attachment_urls?: Json
           created_at?: string | null
           from_step?: number | null
           id?: string
@@ -1312,6 +1314,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          attachment_urls?: Json
           created_at?: string | null
           from_step?: number | null
           id?: string
@@ -1370,6 +1373,17 @@ export type Database = {
           _storage_bucket: string
           _storage_path: string
           _file_name?: string
+        }
+        Returns: Json
+      }
+      set_workflow_transition_attachments: {
+        Args: {
+          _action: string
+          _attachment_urls?: Json
+          _from_step: number
+          _mail_id: string
+          _performed_by: string
+          _to_step: number
         }
         Returns: Json
       }

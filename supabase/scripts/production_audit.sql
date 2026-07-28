@@ -38,6 +38,7 @@ SELECT 'FUNCTION' AS kind, expected.fn AS name,
 FROM unnest(ARRAY[
   'has_role','can_access_mail','list_my_mails','advance_workflow_step',
   'resolve_step_assignee','submit_step4_treatment','submit_step7_acknowledgement',
+  'set_workflow_transition_attachments',
   'get_user_province','resolve_fallback_user'
 ]) AS expected(fn)
 LEFT JOIN pg_proc p ON p.proname = expected.fn
@@ -49,6 +50,16 @@ SELECT COUNT(*) AS insert_policies_mails,
        CASE WHEN COUNT(*) >= 3 THEN 'OK' ELSE 'MANQUANT' END AS status
 FROM pg_policies
 WHERE schemaname = 'public' AND tablename = 'mails' AND cmd = 'INSERT';
+
+-- 4b) Colonne workflow_transitions.attachment_urls
+SELECT expected.col AS column_name,
+       CASE WHEN c.column_name IS NOT NULL THEN 'OK' ELSE 'MANQUANT' END AS status
+FROM unnest(ARRAY['attachment_urls']) AS expected(col)
+LEFT JOIN information_schema.columns c
+  ON c.table_schema = 'public'
+ AND c.table_name = 'workflow_transitions'
+ AND c.column_name = expected.col
+ORDER BY status DESC, column_name;
 
 -- 5) Policies gravity mails (SELECT/UPDATE)
 SELECT policyname, cmd

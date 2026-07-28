@@ -377,7 +377,7 @@ export default function MailEntry() {
                 <Upload className="h-8 w-8 mx-auto text-primary mb-2" />
                 <p className="text-sm text-muted-foreground">Déposez les fichiers ici ou</p>
                 <Button type="button" variant="default" size="sm" className="mt-2">
-                  Sélectionnez des fichiers
+                  Joindre un fichier...
                 </Button>
                 <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
               </div>

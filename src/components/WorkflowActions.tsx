@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
   uploadMailDocument,
   mailDocumentSubfolderForStep,
   formatNotificationFailureMessage,
+  setWorkflowTransitionAttachments,
 } from "@/lib/workflow-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { compressFile, formatFileSize } from "@/lib/file-compressor";
@@ -50,6 +51,8 @@ import { ClosureDocumentPanel } from "@/components/ClosureDocumentPanel";
 import { OutgoingDraftEditor } from "@/components/OutgoingDraftEditor";
 import { useAccuseReceptionDocument } from "@/hooks/useMailWorkflowDocuments";
 import { uploadAndRegisterAccuseReception, checkHasAccuseReception } from "@/lib/mail-workflow-documents";
+import { AttachmentDropzone } from "@/components/AttachmentDropzone";
+import { parseWorkflowTransitionNotes } from "@/lib/workflow-notes";
 
 interface WorkflowActionsProps {
   mailId: string;
@@ -73,8 +76,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [annotation, setAnnotation] = useState("");
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [myAssignmentCompleted, setMyAssignmentCompleted] = useState(false);
   const [isLastPendingAssignee, setIsLastPendingAssignee] = useState(false);
   const [hasActiveAssignment, setHasActiveAssignment] = useState(false);
@@ -127,6 +129,45 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const maxUploadMb = parseMaxUploadMb(settings.max_upload_size_mb);
   const authShort = settings.authority_title_short || UI_LABELS.dgShort;
   const authLong = settings.authority_title_long || UI_LABELS.dg;
+
+  const handleAttachmentFiles = (incoming: FileList | null) => {
+    if (!incoming?.length) return;
+    const next: File[] = [];
+    for (const file of Array.from(incoming)) {
+      const limitError = getUploadLimitError(file, maxUploadMb);
+      if (limitError) {
+        toast.error(limitError);
+        continue;
+      }
+      next.push(file);
+    }
+    if (next.length > 0) {
+      setAttachmentFiles((prev) => [...prev, ...next]);
+    }
+  };
+
+  const removeAttachmentFile = (index: number) => {
+    setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const buildLegacyAttachmentNotes = (attachments: { url: string }[]) =>
+    attachments.map((meta) => `📎 Document joint: ${meta.url}`);
+
+  const uploadWorkflowFiles = async (
+    files: File[],
+    subfolder: ReturnType<typeof mailDocumentSubfolderForStep>
+  ) => {
+    const uploaded: { url: string; name?: string; path?: string; bucket?: string }[] = [];
+    for (const file of files) {
+      const { file: compressedFile, originalSize, compressedSize, wasCompressed } =
+        await compressFile(file);
+      if (wasCompressed) {
+        toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
+      }
+      uploaded.push(await uploadMailDocument(mailId, compressedFile, subfolder, maxUploadMb));
+    }
+    return uploaded;
+  };
 
   const stepInfo = getStepInfo(currentStep);
 
@@ -252,6 +293,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   // Minister annotation from step 2 (visible at step 3)
   const [dgStep2Context, setDgStep2Context] = useState<{
     notes: string | null;
+    attachment_urls?: unknown;
     assignments: DgAssignmentRow[];
     meetings: { title: string; event_date: string; event_time: string | null; location: string | null }[];
   } | null>(null);
@@ -337,7 +379,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     const [transRes, assignRes, meetRes] = await Promise.all([
       supabase
         .from("workflow_transitions")
-        .select("notes, to_step")
+        .select("notes, to_step, attachment_urls")
         .eq("mail_id", mailId)
         .eq("from_step", 2)
         .in("to_step", [3, 4])
@@ -373,6 +415,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
     setDgStep2Context({
       notes,
+      attachment_urls: transRes.data?.attachment_urls,
       assignments,
       meetings: meetRes.data || [],
     });
@@ -578,27 +621,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
     setLoading(true);
 
     try {
-      // Upload attachment (step 4 uploads handled in treatment RPC block)
-      let annotationAttachmentUrl: string | null = null;
-      if (attachmentFile && currentStep !== 4 && currentStep !== 8 && currentStep !== 9) {
-        const { file: compressedFile, originalSize, compressedSize, wasCompressed } =
-          await compressFile(attachmentFile);
-        if (wasCompressed) {
-          toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
-        }
+      // Upload attachments (step 4 uploads handled in treatment RPC block, step 8/9 via mail_workflow_documents)
+      let annotationAttachments: { url: string; name?: string; path?: string; bucket?: string }[] = [];
+      if (attachmentFiles.length > 0 && currentStep !== 4 && currentStep !== 8 && currentStep !== 9) {
         try {
-          const meta = await uploadMailDocument(
-            mailId,
-            compressedFile,
-            mailDocumentSubfolderForStep(currentStep),
-            maxUploadMb
+          annotationAttachments = await uploadWorkflowFiles(
+            attachmentFiles,
+            mailDocumentSubfolderForStep(currentStep)
           );
-          annotationAttachmentUrl = meta.url;
         } catch (uploadErr: any) {
           const msg = uploadErr?.message || "";
           if (/row-level security/i.test(msg)) {
             throw new Error(
-              "Impossible de joindre le fichier : droits d'upload insuffisants. Vérifiez les policies Storage mail-documents."
+              "Impossible de joindre les fichiers : droits d'upload insuffisants. Vérifiez les policies Storage mail-documents."
             );
           }
           throw uploadErr;
@@ -608,7 +643,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       // Build full notes
       const noteParts = [
         annotation && `📝 Annotation: ${annotation}`,
-        annotationAttachmentUrl && `📎 Document joint: ${annotationAttachmentUrl}`,
+        ...buildLegacyAttachmentNotes(annotationAttachments),
         selectedAssignees.length > 0 && `👥 Personnes assignées: ${selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean).join(", ")}`,
         selectedViewers.length > 0 && `👁 Copie lecture seule: ${selectedViewers.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean).join(", ")}`,
         treatmentType && `📄 Type de document: ${treatmentType === "note_technique" ? "Note Technique" : "Accusé de Réception"}`,
@@ -628,6 +663,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
           assigneeIds: selectedAssignees.length > 0 ? selectedAssignees : undefined,
         });
         if (result.success) {
+          if (annotationAttachments.length > 0 && typeof result.newStep === "number") {
+            const attachResult = await setWorkflowTransitionAttachments(
+              mailId,
+              user.id,
+              currentStep,
+              result.newStep,
+              "dg_advance",
+              annotationAttachments
+            );
+            if (!attachResult.success) {
+              toast.warning(attachResult.error || "Pièces jointes non rattachées à l'historique workflow.");
+            }
+          }
           toast.success(`Courrier avancé à l'étape ${result.newStep}`);
           notifyAfterAdvance(result.notifications);
           setShowDialog(false);
@@ -643,21 +691,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       // STEP 4: atomic RPC (contribution + assignment + optional auto-advance)
       if (currentStep === 4 && action === "complete") {
         let treatmentAttachments: { url: string; name?: string }[] = [];
-        if (attachmentFile) {
-          const { file: compressedFile, originalSize, compressedSize, wasCompressed } =
-            await compressFile(attachmentFile);
-          if (wasCompressed) {
-            toast.info(`Fichier compressé : ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)}`);
-          }
+        if (attachmentFiles.length > 0) {
           try {
-            treatmentAttachments = [
-              await uploadMailDocument(mailId, compressedFile, "treatments", maxUploadMb),
-            ];
+            treatmentAttachments = await uploadWorkflowFiles(attachmentFiles, "treatments");
           } catch (uploadErr: any) {
             const msg = uploadErr?.message || "";
             if (/row-level security/i.test(msg)) {
               throw new Error(
-                "Impossible de joindre le fichier : droits d'upload insuffisants. Appliquez la migration Storage sur Supabase."
+                "Impossible de joindre les fichiers : droits d'upload insuffisants. Appliquez la migration Storage sur Supabase."
               );
             }
             throw uploadErr;
@@ -724,9 +765,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
       // STEP 8: transmit to archivist (PJ optional)
       if (currentStep === 8 && action === "complete") {
-        if (attachmentFile) {
+        if (attachmentFiles.length > 0) {
           try {
-            await uploadAndRegisterAccuseReception(mailId, attachmentFile, 8, maxUploadMb);
+            for (const file of attachmentFiles) {
+              await uploadAndRegisterAccuseReception(mailId, file, 8, maxUploadMb);
+            }
             invalidateAccuseDoc();
           } catch (e: unknown) {
             toast.error(e instanceof Error ? e.message : "Erreur upload accusé");
@@ -750,9 +793,11 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
 
       // STEP 9: archive (accusé de réception required)
       if (currentStep === 9 && action === "archive") {
-        if (attachmentFile) {
+        if (attachmentFiles.length > 0) {
           try {
-            await uploadAndRegisterAccuseReception(mailId, attachmentFile, 9, maxUploadMb);
+            for (const file of attachmentFiles) {
+              await uploadAndRegisterAccuseReception(mailId, file, 9, maxUploadMb);
+            }
             invalidateAccuseDoc();
           } catch (e: unknown) {
             toast.error(e instanceof Error ? e.message : "Erreur upload accusé");
@@ -798,6 +843,19 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
       });
 
       if (result.success) {
+        if (annotationAttachments.length > 0 && typeof result.newStep === "number") {
+          const attachResult = await setWorkflowTransitionAttachments(
+            mailId,
+            user.id,
+            currentStep,
+            result.newStep,
+            effectiveAction,
+            annotationAttachments
+          );
+          if (!attachResult.success) {
+            toast.warning(attachResult.error || "Pièces jointes non rattachées à l'historique workflow.");
+          }
+        }
         // Save calendar event if RDV was scheduled
         if (scheduleRdv && rdvDate && user) {
           const participants = selectedAssignees.map(id => assignableUsers.find(u => u.id === id)?.full_name).filter(Boolean) as string[];
@@ -841,7 +899,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
   const resetForm = () => {
     setNotes("");
     setAnnotation("");
-    setAttachmentFile(null);
+    setAttachmentFiles([]);
     setSelectedAssignees([]);
     setSelectedViewers([]);
     setTreatmentType("");
@@ -1023,8 +1081,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 <ClosureDocumentPanel
                   mailId={mailId}
                   currentStep={currentStep}
-                  canUpload
-                  onRequestUpload={() => fileInputRef.current?.click()}
+                  canUpload={false}
                 />
 
                 {mailData?.mail_type === "accuse_reception" || mailData?.mail_type === "accusé_reception" ? (
@@ -1175,8 +1232,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               <ClosureDocumentPanel
                 mailId={mailId}
                 currentStep={currentStep}
-                canUpload
-                onRequestUpload={() => fileInputRef.current?.click()}
+                canUpload={false}
               />
             )}
 
@@ -1193,13 +1249,14 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
               </div>
             )}
 
-            {currentStep === 3 && dgStep2Context?.notes && (
+            {currentStep === 3 && dgStep2Context && (
               <div className="rounded-lg border bg-muted/30 p-3 min-w-0">
                 <p className="text-xs font-semibold text-primary mb-2">
                   Rappel — décision du {UI_LABELS.dgShort}
                 </p>
                 <DgDecisionSummary
                   notes={dgStep2Context.notes}
+                  parsed={parseWorkflowTransitionNotes(dgStep2Context.notes, dgStep2Context.attachment_urls)}
                   assignments={dgStep2Context.assignments}
                   meetings={dgStep2Context.meetings}
                   compact
@@ -1344,47 +1401,27 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                     ? "Accusé de réception du courrier sortant"
                     : currentStep === 6
                       ? "Document joint à la validation"
-                      : "Joindre un document"}
+                      : "Joindre un fichier..."}
                 </Label>
-                {attachmentUploadHint[currentStep] && (
-                  <p className="text-xs text-muted-foreground">{attachmentUploadHint[currentStep]}</p>
-                )}
-                <div
-                  className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {attachmentFile ? (
-                    <div className="flex items-center justify-center gap-2 text-sm">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <span className="truncate">{attachmentFile.name}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setAttachmentFile(null); }}>
-                        ✕
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Cliquez pour sélectionner un fichier</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-2">{formatMaxUploadLabel(maxUploadMb)}</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) {
-                        setAttachmentFile(null);
-                        return;
-                      }
-                      const limitError = getUploadLimitError(file, maxUploadMb);
-                      if (limitError) {
-                        toast.error(limitError);
-                        e.target.value = "";
-                        return;
-                      }
-                      setAttachmentFile(file);
-                    }}
-                  />
-                </div>
+                <AttachmentDropzone
+                  items={attachmentFiles.map((file, index) => ({
+                    id: `${file.name}-${file.lastModified}-${index}`,
+                    name: file.name,
+                    size: file.size,
+                    status: "ready",
+                  }))}
+                  onAddFiles={handleAttachmentFiles}
+                  onRemove={(id) => {
+                    const index = attachmentFiles.findIndex(
+                      (file, fileIndex) => `${file.name}-${file.lastModified}-${fileIndex}` === id
+                    );
+                    if (index >= 0) removeAttachmentFile(index);
+                  }}
+                  hint={attachmentUploadHint[currentStep]}
+                  maxLabel={formatMaxUploadLabel(maxUploadMb)}
+                  emptyLabel="Glisser-déposer ou cliquer pour joindre un ou plusieurs fichiers."
+                  disabled={loading}
+                />
               </div>
             )}
 
@@ -1451,7 +1488,7 @@ export function WorkflowActions({ mailId, currentStep, onAdvanced }: WorkflowAct
                 loading ||
                 requiresAssigneesOnConfirm ||
                 (showTreatment && action === "complete" && (!treatmentType || !treatmentContent)) ||
-                (currentStep === 9 && action === "archive" && !hasAccuse && !attachmentFile)
+                (currentStep === 9 && action === "archive" && !hasAccuse && attachmentFiles.length === 0)
               }
               variant={action === "reject" ? "destructive" : "default"}
             >

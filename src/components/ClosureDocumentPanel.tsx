@@ -19,7 +19,7 @@ export function ClosureDocumentPanel({
   onRequestUpload,
   showUploadHint = false,
 }: Props) {
-  const { document, hasAccuse, signedUrl, isLoading } = useAccuseReceptionDocument(mailId);
+  const { document, documents, hasAccuse, signedUrls, isLoading } = useAccuseReceptionDocument(mailId);
 
   if (currentStep < 8) return null;
 
@@ -48,13 +48,21 @@ export function ClosureDocumentPanel({
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Chargement…</p>
       ) : hasAccuse && document ? (
-        <div className="flex items-center justify-between gap-2 flex-wrap text-sm">
-          <span className="text-muted-foreground truncate">
-            {document.file_name || document.storage_path.split("/").pop()}
-          </span>
-          {signedUrl && (
-            <AttachmentDownloadButton url={signedUrl} fileName={document.file_name || "accuse_reception.pdf"} />
-          )}
+        <div className="space-y-2">
+          {documents.map((doc, index) => {
+            const signedUrl = signedUrls.find((item) => item.id === doc.id)?.url;
+            return (
+              <div key={doc.id} className="flex items-center justify-between gap-2 flex-wrap text-sm">
+                <span className="text-muted-foreground truncate">
+                  {documents.length > 1 ? `${index + 1}. ` : ""}
+                  {doc.file_name || doc.storage_path.split("/").pop()}
+                </span>
+                {signedUrl && (
+                  <AttachmentDownloadButton url={signedUrl} fileName={doc.file_name || "accuse_reception.pdf"} />
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
@@ -68,7 +76,7 @@ export function ClosureDocumentPanel({
         <div className="flex justify-end">
           <Button type="button" size="sm" variant="outline" onClick={onRequestUpload}>
             <Upload className="h-3.5 w-3.5 mr-1" />
-            {hasAccuse ? "Remplacer le document" : "Joindre l'accusé"}
+            {hasAccuse ? "Joindre un autre accusé" : "Joindre un fichier..."}
           </Button>
         </div>
       )}
