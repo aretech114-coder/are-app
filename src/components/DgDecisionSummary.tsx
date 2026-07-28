@@ -74,7 +74,7 @@ export function DgDecisionSummary({
         </section>
       )}
 
-      {parsed?.attachmentUrl && (
+      {parsed && parsed.attachmentUrls.length > 0 && (
         <section className={`rounded-lg border bg-muted/40 ${pad}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
@@ -83,7 +83,11 @@ export function DgDecisionSummary({
                 {attachmentTitle || `Document joint par le ${UI_LABELS.dgShort}`}
               </p>
             </div>
-            <AttachmentViewer url={parsed.attachmentUrl} inline />
+            <AttachmentViewer
+              urls={parsed.attachmentUrls}
+              mail={parsed.attachmentMeta.length > 0 ? { attachment_urls: parsed.attachmentMeta } : undefined}
+              inline
+            />
           </div>
         </section>
       )}

@@ -21,18 +21,18 @@ export interface MailWorkflowDocument {
   updated_at: string;
 }
 
-export async function fetchAccuseReceptionDocument(
+export async function fetchAccuseReceptionDocuments(
   mailId: string
-): Promise<MailWorkflowDocument | null> {
+): Promise<MailWorkflowDocument[]> {
   const { data, error } = await supabase
     .from("mail_workflow_documents")
     .select("*")
     .eq("mail_id", mailId)
     .eq("document_type", "accuse_reception_sortant")
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return data as MailWorkflowDocument | null;
+  return (data as MailWorkflowDocument[]) || [];
 }
 
 export async function getWorkflowDocumentSignedUrl(
@@ -65,7 +65,8 @@ export async function uploadAndRegisterAccuseReception(
     throw new Error(result?.error || "Enregistrement du document échoué");
   }
 
-  const doc = await fetchAccuseReceptionDocument(mailId);
+  const docs = await fetchAccuseReceptionDocuments(mailId);
+  const doc = docs.find((item) => item.storage_path === meta.path) || docs[docs.length - 1];
   if (!doc) throw new Error("Document enregistré mais introuvable");
   return doc;
 }

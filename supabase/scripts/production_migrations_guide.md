@@ -57,6 +57,7 @@ Base Production **partielle** : appliquer les migrations bootstrap une par une d
 | AL | `20260616920000_update_profile_avatar_rpc.sql` | **Hotfix avatar** : RPC `update_profile_avatar` + policies UPDATE `profiles` avec WITH CHECK |
 | AM | `20260616930000_ged_rbac.sql` | RBAC GED (`ged.view` / `ged.download`) + RLS `ged_documents` / bucket |
 | AN | `20260616940000_admin_avatar_upload.sql` | Upload avatar admin : RPC `update_profile_avatar_for_user` + Storage policies |
+| AO | `20260728114000_workflow_transition_attachment_urls.sql` | Multi-fichiers workflow : `workflow_transitions.attachment_urls`, accusés 8/9 multiples, RPC `set_workflow_transition_attachments` |
 
 Après **J** : exécuter [`workflow_are_config.sql`](workflow_are_config.sql) (UUID responsables) puis [`e2e_test_scenario.md`](e2e_test_scenario.md).
 
@@ -77,6 +78,8 @@ Après **X** : retester validation étape 2 DG sur un courrier en retard — ne 
 Après **Y** : déployer Edge Function `dispatch-workflow-notifications` ; tester registre → étape 2 et validation DG → étape 4 ; vérifier : `SELECT status, count(*) FROM notification_deliveries GROUP BY status;`
 
 Après **Z** : retester soumission traitement étape 4 (dernier conseiller) → e-mail responsable étape suivante ; vérifier que le RPC retourne `assigned_to` : soumettre étape 4 puis `SELECT step_number, recipient_email, status FROM notification_deliveries WHERE mail_id = '<uuid>' ORDER BY created_at DESC LIMIT 5;`
+
+Après **AO** : `NOTIFY pgrst, 'reload schema';` — exécuter [`audit_workflow_transition_attachment_urls.sql`](audit_workflow_transition_attachment_urls.sql), puis si nécessaire [`backfill_workflow_transition_attachment_urls.sql`](backfill_workflow_transition_attachment_urls.sql). Vérifier qu’un courrier étape 2/4/6/8/9 accepte plusieurs fichiers côté front et que l’historique les affiche encore.
 
 Après **AA** : `NOTIFY pgrst, 'reload schema';` — exécuter [`seed_role_permissions.sql`](seed_role_permissions.sql) ; vérifier matrice dans Configuration système → Autorisations par rôle ; tester :
 

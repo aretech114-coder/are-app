@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { resolveAttachmentUrls } from "@/lib/mail-storage";
 import type { MailAttachmentMeta } from "@/lib/labels";
+import { parseWorkflowTransitionNotes } from "@/lib/workflow-notes";
 
 const CONTRIBUTOR_COLORS = [
   { border: "border-l-blue-500", bg: "bg-blue-50/50 dark:bg-blue-950/20", text: "text-blue-700 dark:text-blue-300" },
@@ -24,7 +25,7 @@ interface Treatment {
   authorName: string;
   authorId: string;
   content: string;
-  attachmentUrl: string | null;
+  attachmentUrls: string[];
   attachmentMeta: MailAttachmentMeta[];
   documentType: string | null;
   submittedAt: string | null;
@@ -68,11 +69,11 @@ export function TreatmentsList({
           const attachments: MailAttachmentMeta[] = Array.isArray(r.attachment_urls)
             ? r.attachment_urls
             : [];
-          let attachmentUrl: string | null = attachments[0]?.url ?? null;
+          let attachmentUrls = attachments.map((a) => a.url).filter(Boolean);
           if (attachments.some((a) => a.bucket && a.path)) {
             try {
               const fresh = await resolveAttachmentUrls(attachments);
-              attachmentUrl = fresh[0] ?? attachmentUrl;
+              if (fresh.length > 0) attachmentUrls = fresh;
             } catch {
               /* keep stored url */
             }
@@ -81,7 +82,7 @@ export function TreatmentsList({
             authorName: profileMap.get(r.user_id) || "Conseiller",
             authorId: r.user_id,
             content: (r.body || "").trim(),
-            attachmentUrl,
+            attachmentUrls,
             attachmentMeta: attachments,
             documentType: null,
             submittedAt: r.processed_at || r.updated_at,
@@ -89,14 +90,14 @@ export function TreatmentsList({
         })
       );
 
-      setTreatments(fromContributions.filter((t) => t.content || t.attachmentUrl));
+      setTreatments(fromContributions.filter((t) => t.content || t.attachmentUrls.length > 0));
       setLoading(false);
       return;
     }
 
     const { data: allTransitions } = await supabase
       .from("workflow_transitions")
-      .select("performed_by, notes, action, from_step, created_at")
+      .select("performed_by, notes, action, from_step, created_at, attachment_urls")
       .eq("mail_id", mailId)
       .eq("from_step", 4)
       .order("created_at", { ascending: true });
@@ -122,8 +123,7 @@ export function TreatmentsList({
     const parsed: Treatment[] = personalSubmissions.map(t => {
       const notes = t.notes || "";
       
-      const attachMatch = notes.match(/📎 Document joint: (.+?)(?:\n|$)/);
-      const attachmentUrl = attachMatch ? attachMatch[1].trim() : null;
+      const parsedNotes = parseWorkflowTransitionNotes(notes, (t as { attachment_urls?: unknown }).attachment_urls);
 
       const typeMatch = notes.match(/📄 Type de document: (.+?)(?:\n|$)/);
       const documentType = typeMatch ? typeMatch[1].trim() : null;
@@ -135,14 +135,14 @@ export function TreatmentsList({
         authorName: profileMap.get(t.performed_by) || "Conseiller",
         authorId: t.performed_by,
         content,
-        attachmentUrl,
-        attachmentMeta: attachmentUrl ? [{ url: attachmentUrl }] : [],
+        attachmentUrls: parsedNotes?.attachmentUrls || [],
+        attachmentMeta: parsedNotes?.attachmentMeta || [],
         documentType,
         submittedAt: t.created_at,
       };
     });
 
-    setTreatments(parsed.filter((t) => t.content || t.attachmentUrl));
+    setTreatments(parsed.filter((t) => t.content || t.attachmentUrls.length > 0));
     setLoading(false);
   };
 
@@ -180,12 +180,14 @@ export function TreatmentsList({
               )}
             </div>
             <p className="text-sm whitespace-pre-wrap">{t.content}</p>
-            {t.attachmentUrl && (
+            {t.attachmentUrls.length > 0 && (
               <div className="flex items-center gap-2 p-2 rounded border bg-background/50">
                 <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span className="text-xs truncate flex-1">Pièce jointe</span>
+                <span className="text-xs truncate flex-1">
+                  {t.attachmentUrls.length > 1 ? `Pièces jointes (${t.attachmentUrls.length})` : "Pièce jointe"}
+                </span>
                 <AttachmentViewer
-                  url={t.attachmentUrl}
+                  urls={t.attachmentUrls}
                   mail={
                     t.attachmentMeta.length > 0
                       ? { attachment_urls: t.attachmentMeta }
@@ -206,9 +208,7 @@ export function TreatmentsList({
                           size="icon"
                         />
                       ))
-                    : (
-                        <AttachmentDownloadButton url={t.attachmentUrl} variant="ghost" size="icon" />
-                      ))}
+                    : null)}
               </div>
             )}
           </div>

@@ -13,6 +13,7 @@ import { getStepLabel, getStepColor } from "@/lib/workflow-engine";
 import { Search, Eye, CheckCircle, Clock, Paperclip } from "lucide-react";
 import { AttachmentIndicator, AttachmentViewer } from "@/components/AttachmentViewer";
 import { getMailAttachmentUrls } from "@/lib/labels";
+import { parseWorkflowTransitionNotes } from "@/lib/workflow-notes";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -72,7 +73,12 @@ export default function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<GroupedEntry | null>(null);
-  const [workflowAttachments, setWorkflowAttachments] = useState<{ step: number; url: string; performer: string }[]>([]);
+  const [workflowAttachments, setWorkflowAttachments] = useState<{
+    step: number;
+    urls: string[];
+    performer: string;
+    attachmentMeta: any[];
+  }[]>([]);
   const { data: circuitLabel } = useMailCircuitLabel(selectedEntry?.mail?.target_service_id);
 
   useEffect(() => {
@@ -123,7 +129,7 @@ export default function HistoryPage() {
           latestStep: raw.step_number,
           latestStatus: raw.status,
           latestDate: raw.created_at,
-          hasAttachment: !!(mail.attachment_url || (Array.isArray(mail.attachment_urls) && mail.attachment_urls.length > 0)),
+          hasAttachment: getMailAttachmentUrls(mail).length > 0,
         });
       }
     }
@@ -140,7 +146,7 @@ export default function HistoryPage() {
     (async () => {
       const { data: transitions } = await supabase
         .from("workflow_transitions")
-        .select("from_step, notes, performed_by")
+        .select("from_step, notes, performed_by, attachment_urls")
         .eq("mail_id", selectedEntry.mail_id)
         .order("created_at", { ascending: true });
 
@@ -150,14 +156,15 @@ export default function HistoryPage() {
       const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", performerIds);
       const nameMap = new Map((profiles || []).map(p => [p.id, p.full_name]));
 
-      const attachments: { step: number; url: string; performer: string }[] = [];
+      const attachments: { step: number; urls: string[]; performer: string; attachmentMeta: any[] }[] = [];
       for (const t of transitions) {
-        const match = t.notes?.match(/📎 Document joint: (.+?)(?:\n|$)/);
-        if (match) {
+        const parsed = parseWorkflowTransitionNotes(t.notes, t.attachment_urls);
+        if (parsed?.attachmentUrls.length) {
           attachments.push({
             step: t.from_step || 0,
-            url: match[1].trim(),
+            urls: parsed.attachmentUrls,
             performer: nameMap.get(t.performed_by) || "Système",
+            attachmentMeta: parsed.attachmentMeta,
           });
         }
       }
@@ -373,7 +380,11 @@ export default function HistoryPage() {
                               É{wa.step}
                             </span>
                             <span className="text-xs text-muted-foreground flex-1 truncate">{wa.performer}</span>
-                            <AttachmentViewer url={wa.url} inline />
+                            <AttachmentViewer
+                              urls={wa.urls}
+                              mail={wa.attachmentMeta.length > 0 ? { attachment_urls: wa.attachmentMeta } : undefined}
+                              inline
+                            />
                           </div>
                         ))}
                       </div>

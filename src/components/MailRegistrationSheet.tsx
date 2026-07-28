@@ -568,7 +568,7 @@ export function MailRegistrationSheet({ open, onOpenChange, direction, onCreated
             >
               <Upload className="h-5 w-5 mx-auto text-muted-foreground" />
               <p className="text-xs text-muted-foreground mt-1">
-                Glisser-déposer ou cliquer pour ajouter — une ou plusieurs pièces jointes (PDF, images, documents).
+                Glisser-déposer ou cliquer pour joindre un ou plusieurs fichiers (PDF, images, documents).
               </p>
               <p className="text-xs text-muted-foreground">{formatMaxUploadLabel(maxUploadMb)}</p>
               <input

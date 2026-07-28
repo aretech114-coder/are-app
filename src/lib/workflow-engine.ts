@@ -69,6 +69,28 @@ export interface AdvanceOptions {
   viewerIds?: string[];
 }
 
+export async function setWorkflowTransitionAttachments(
+  mailId: string,
+  performedBy: string,
+  fromStep: number,
+  toStep: number,
+  action: string,
+  attachmentUrls: { url: string; name?: string; path?: string; bucket?: string }[]
+): Promise<{ success: boolean; error?: string }> {
+  const { data, error } = await (supabase as any).rpc("set_workflow_transition_attachments", {
+    _mail_id: mailId,
+    _performed_by: performedBy,
+    _from_step: fromStep,
+    _to_step: toStep,
+    _action: action,
+    _attachment_urls: attachmentUrls,
+  });
+
+  if (error) return { success: false, error: error.message };
+  if (!data?.success) return { success: false, error: data?.error || "Erreur inconnue" };
+  return { success: true };
+}
+
 interface AdvanceResult {
   success: boolean;
   newStep: number;

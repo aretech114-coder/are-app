@@ -19,6 +19,7 @@ interface Transition {
   to_step: number;
   action: string;
   notes: string | null;
+  attachment_urls?: unknown;
   created_at: string;
   performed_by: string;
 }
@@ -79,8 +80,8 @@ export function WorkflowTimeline({
   }
 
   const renderTransition = (t: Transition) => {
-    const parsed = parseWorkflowTransitionNotes(t.notes);
-    const lines = formatTransitionNotesForDisplay(t.notes);
+    const parsed = parseWorkflowTransitionNotes(t.notes, t.attachment_urls);
+    const lines = formatTransitionNotesForDisplay(t.notes, t.attachment_urls);
     const stepLabel =
       activeSteps.length > 0 && t.from_step != null
         ? getDisplayStepLabel(activeSteps, t.from_step)
@@ -109,12 +110,25 @@ export function WorkflowTimeline({
               ))}
             </ul>
           )}
-          {parsed?.attachmentUrl && (
+          {parsed && parsed.attachmentUrls.length > 0 && (
             <div className="pt-1 flex items-center gap-1">
-              <AttachmentViewer url={parsed.attachmentUrl} inline />
-              {allowDownload && (
-                <AttachmentDownloadButton url={parsed.attachmentUrl} variant="ghost" size="icon" />
-              )}
+              <AttachmentViewer
+                urls={parsed.attachmentUrls}
+                mail={parsed.attachmentMeta.length > 0 ? { attachment_urls: parsed.attachmentMeta } : undefined}
+                inline
+              />
+              {allowDownload &&
+                parsed.attachmentMeta.map((meta, i) => (
+                  <AttachmentDownloadButton
+                    key={i}
+                    url={meta.url}
+                    name={meta.name}
+                    bucket={meta.bucket}
+                    path={meta.path}
+                    variant="ghost"
+                    size="icon"
+                  />
+                ))}
             </div>
           )}
           <p className="text-muted-foreground">
@@ -158,8 +172,8 @@ export function WorkflowTimeline({
   return (
     <div className="space-y-3">
       {transitions.map((t) => {
-        const parsed = parseWorkflowTransitionNotes(t.notes);
-        const lines = formatTransitionNotesForDisplay(t.notes);
+        const parsed = parseWorkflowTransitionNotes(t.notes, t.attachment_urls);
+        const lines = formatTransitionNotesForDisplay(t.notes, t.attachment_urls);
 
         return (
           <div key={t.id} className="flex items-start gap-3 text-xs">
@@ -181,12 +195,25 @@ export function WorkflowTimeline({
                   ))}
                 </ul>
               )}
-              {parsed?.attachmentUrl && (
+              {parsed && parsed.attachmentUrls.length > 0 && (
                 <div className="pt-1 flex items-center gap-1">
-                  <AttachmentViewer url={parsed.attachmentUrl} inline />
-                  {allowDownload && (
-                    <AttachmentDownloadButton url={parsed.attachmentUrl} variant="ghost" size="icon" />
-                  )}
+                  <AttachmentViewer
+                    urls={parsed.attachmentUrls}
+                    mail={parsed.attachmentMeta.length > 0 ? { attachment_urls: parsed.attachmentMeta } : undefined}
+                    inline
+                  />
+                  {allowDownload &&
+                    parsed.attachmentMeta.map((meta, i) => (
+                      <AttachmentDownloadButton
+                        key={i}
+                        url={meta.url}
+                        name={meta.name}
+                        bucket={meta.bucket}
+                        path={meta.path}
+                        variant="ghost"
+                        size="icon"
+                      />
+                    ))}
                 </div>
               )}
               <p className="text-muted-foreground">

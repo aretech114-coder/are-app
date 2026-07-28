@@ -57,7 +57,7 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
       const [transitionsRes, assignmentsRes, meetingsRes] = await Promise.all([
         supabase
           .from("workflow_transitions")
-          .select("from_step, to_step, notes, action")
+          .select("from_step, to_step, notes, action, attachment_urls")
           .eq("mail_id", mailId)
           .order("created_at", { ascending: true }),
         supabase
@@ -97,18 +97,18 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
       const dircabTransition = transitionsRes.data?.find(
         (t) => t.from_step === 3 && t.to_step === 4
       );
-      if (dircabTransition?.notes) {
-        const parsed = parseWorkflowTransitionNotes(dircabTransition.notes);
-        dircabOrientation = parsed?.annotation || dircabTransition.notes;
+      if (dircabTransition) {
+        const parsed = parseWorkflowTransitionNotes(dircabTransition.notes, dircabTransition.attachment_urls);
+        dircabOrientation = parsed?.annotation || dircabTransition.notes || "";
       }
 
       const verificationTransition = transitionsRes.data?.find(
         (t) => t.from_step === 5 && t.to_step === 6
       );
-      if (verificationTransition?.notes) {
-        const parsed = parseWorkflowTransitionNotes(verificationTransition.notes);
+      if (verificationTransition) {
+        const parsed = parseWorkflowTransitionNotes(verificationTransition.notes, verificationTransition.attachment_urls);
         dircabVerification =
-          parsed?.additionalNotes || parsed?.annotation || verificationTransition.notes;
+          parsed?.additionalNotes || parsed?.annotation || verificationTransition.notes || "";
       }
 
       const validationTransition = transitionsRes.data?.find(
@@ -117,11 +117,14 @@ export function useMailWorkflowContext(mailId: string | undefined): MailWorkflow
           (t.to_step === 7 || t.to_step === 8) &&
           (t.action === "approve" || t.action === "complete")
       );
-      if (validationTransition?.notes) {
+      if (validationTransition) {
         ministerValidationNotes = validationTransition.notes;
-        ministerValidationParsed = parseWorkflowTransitionNotes(validationTransition.notes);
+        ministerValidationParsed = parseWorkflowTransitionNotes(
+          validationTransition.notes,
+          validationTransition.attachment_urls
+        );
         ministerValidation =
-          ministerValidationParsed?.annotation || validationTransition.notes;
+          ministerValidationParsed?.annotation || validationTransition.notes || "";
       }
 
       if (assignmentsRes.data && assignmentsRes.data.length > 0) {

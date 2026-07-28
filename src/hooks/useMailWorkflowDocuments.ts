@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   checkHasAccuseReception,
-  fetchAccuseReceptionDocument,
+  fetchAccuseReceptionDocuments,
   getWorkflowDocumentSignedUrl,
   type MailWorkflowDocument,
 } from "@/lib/mail-workflow-documents";
@@ -12,8 +12,8 @@ export function useAccuseReceptionDocument(mailId: string | undefined) {
   const docQuery = useQuery({
     queryKey: ["mail_workflow_document", "accuse_reception_sortant", mailId],
     queryFn: async () => {
-      if (!mailId) return null;
-      return fetchAccuseReceptionDocument(mailId);
+      if (!mailId) return [];
+      return fetchAccuseReceptionDocuments(mailId);
     },
     enabled: !!mailId,
   });
@@ -28,25 +28,32 @@ export function useAccuseReceptionDocument(mailId: string | undefined) {
   });
 
   const urlQuery = useQuery({
-    queryKey: ["mail_workflow_document_url", docQuery.data?.id],
+    queryKey: ["mail_workflow_document_urls", mailId, docQuery.data?.length],
     queryFn: async () => {
-      const doc = docQuery.data;
-      if (!doc) return null;
-      return getWorkflowDocumentSignedUrl(doc);
+      const docs = docQuery.data || [];
+      return Promise.all(
+        docs.map(async (doc) => ({
+          id: doc.id,
+          url: await getWorkflowDocumentSignedUrl(doc),
+        }))
+      );
     },
-    enabled: !!docQuery.data?.storage_path,
+    enabled: !!docQuery.data?.length,
   });
 
   const invalidate = () => {
     if (!mailId) return;
     qc.invalidateQueries({ queryKey: ["mail_workflow_document", "accuse_reception_sortant", mailId] });
+    qc.invalidateQueries({ queryKey: ["mail_workflow_document_urls", mailId] });
     qc.invalidateQueries({ queryKey: ["has_accuse_reception", mailId] });
   };
 
   return {
-    document: docQuery.data as MailWorkflowDocument | null | undefined,
+    document: (docQuery.data?.[0] as MailWorkflowDocument | undefined) ?? null,
+    documents: (docQuery.data as MailWorkflowDocument[] | undefined) ?? [],
     hasAccuse: hasQuery.data ?? false,
-    signedUrl: urlQuery.data,
+    signedUrl: urlQuery.data?.[0]?.url ?? null,
+    signedUrls: urlQuery.data ?? [],
     isLoading: docQuery.isLoading || hasQuery.isLoading,
     invalidate,
   };
