@@ -41,7 +41,7 @@ const defaults: SiteSettings = {
   show_login_title: "true",
   authority_title_short: "DG",
   authority_title_long: "Directeur général",
-  max_upload_size_mb: "25",
+  max_upload_size_mb: "150",
   step8_auto_advance_hours: "0",
   ged_module_enabled: "false",
 };
