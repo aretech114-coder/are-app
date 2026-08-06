@@ -23,6 +23,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   MAX_UPLOAD_MB,
   MIN_UPLOAD_MB,
+  DISPLAY_MAX_UPLOAD_MB,
   parseMaxUploadMb,
 } from "@/lib/upload-limits";
 import { RolePermissionsMatrix } from "@/components/RolePermissionsMatrix";
@@ -150,7 +151,7 @@ export default function SystemConfigPage() {
     });
     setFontHeading(settings.font_heading || "Inter");
     setFontBody(settings.font_body || "Inter");
-    setMaxUploadSizeMb(settings.max_upload_size_mb || "25");
+    setMaxUploadSizeMb(settings.max_upload_size_mb || "150");
     setStep8AutoAdvanceHours(settings.step8_auto_advance_hours || "0");
   }, [settings]);
 
@@ -989,7 +990,8 @@ export default function SystemConfigPage() {
                 onChange={(e) => setMaxUploadSizeMb(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Entre {MIN_UPLOAD_MB} et {MAX_UPLOAD_MB} Mo. Valeur actuelle en base :{" "}
+                Entre {MIN_UPLOAD_MB} et {MAX_UPLOAD_MB} Mo (effectif). Les formulaires courrier affichent{" "}
+                {DISPLAY_MAX_UPLOAD_MB} Mo aux utilisateurs. Valeur en base :{" "}
                 {parseMaxUploadMb(settings.max_upload_size_mb)} Mo.
               </p>
             </div>
