@@ -465,6 +465,7 @@ export default function SuiviPage() {
         { header: "N° courrier", key: "ref", width: 18 },
         { header: "Objet", key: "subject", width: 36 },
         { header: "Expéditeur", key: "sender", width: 24 },
+        { header: "Organisation", key: "organization", width: 28 },
         { header: "Étape", key: "step", width: 22 },
         { header: "Statut courrier", key: "status", width: 14 },
         { header: "Priorité", key: "priority", width: 12 },
@@ -496,6 +497,7 @@ export default function SuiviPage() {
             ref: mail.reference_number,
             subject: mail.subject,
             sender: mail.sender_name,
+            organization: mail.sender_organization || "",
             step: getStepLabel(mail.current_step || 1),
             status: statusLabels[mail.status] || mail.status,
             priority: priorityLabels[mail.priority] || mail.priority,
@@ -519,6 +521,7 @@ export default function SuiviPage() {
             ref: mail.reference_number,
             subject: mail.subject,
             sender: mail.sender_name,
+            organization: mail.sender_organization || "",
             step: getStepLabel(mail.current_step || 1),
             status: statusLabels[mail.status] || mail.status,
             priority: priorityLabels[mail.priority] || mail.priority,
@@ -837,6 +840,7 @@ export default function SuiviPage() {
                 <TableHead>Référence</TableHead>
                 <TableHead>Objet</TableHead>
                 <TableHead>Expéditeur</TableHead>
+                <TableHead>Organisation</TableHead>
                 <TableHead>Étape</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Priorité</TableHead>
@@ -854,13 +858,13 @@ export default function SuiviPage() {
             <TableBody>
               {loading || trackingAccessLoading ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
                     Chargement...
                   </TableCell>
                 </TableRow>
               ) : displayRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
                     Aucun dossier trouvé
                   </TableCell>
                 </TableRow>
@@ -879,6 +883,9 @@ export default function SuiviPage() {
                       <TableCell className="font-mono text-xs">{mail.reference_number}</TableCell>
                       <TableCell className="max-w-[180px] truncate text-sm">{mail.subject}</TableCell>
                       <TableCell className="text-sm">{mail.sender_name}</TableCell>
+                      <TableCell className="text-sm max-w-[160px] truncate" title={mail.sender_organization || undefined}>
+                        {mail.sender_organization || "—"}
+                      </TableCell>
                       <TableCell>
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getStepColor(mail.current_step || 1)}`}
