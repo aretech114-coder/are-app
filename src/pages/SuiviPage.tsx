@@ -35,12 +35,23 @@ import {
   type TrackingMail,
   type TrackingSummary,
 } from "@/lib/workflow-tracking";
-import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip } from "lucide-react";
+import {
+  anyCollaboratorOverdue,
+  enrichMailsWithAssignees,
+  mailHasAssignee,
+  maxCollaboratorOverdueHours,
+  type SuiviAssigneeRow,
+  type SuiviTreatmentLabel,
+} from "@/lib/suivi-assignments";
+import { Search, CalendarIcon, Eye, AlertTriangle, Clock, CheckCircle, Archive, BarChart3, Pencil, Trash2, TrendingUp, TrendingDown, Paperclip, Download, Loader2 } from "lucide-react";
 import { AttachmentIndicator } from "@/components/AttachmentViewer";
 import { getMailAttachmentUrls } from "@/lib/labels";
 import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import ExcelJS from "exceljs";
+import { toast } from "sonner";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -67,6 +78,57 @@ const priorityLabels: Record<string, string> = {
 };
 
 const COLORS = ["hsl(199,89%,48%)", "hsl(270,60%,55%)", "hsl(38,92%,50%)", "hsl(152,69%,40%)", "hsl(0,84%,60%)", "hsl(190,80%,45%)", "hsl(215,28%,50%)", "hsl(25,90%,55%)", "hsl(320,60%,50%)"];
+
+const treatmentBadgeClass: Record<SuiviTreatmentLabel, string> = {
+  Traité: "bg-success/10 text-success border-success/30",
+  "En cours": "bg-info/10 text-info border-info/30",
+  "En retard": "bg-destructive/10 text-destructive border-destructive/30",
+  Proposé: "bg-warning/10 text-warning border-warning/30",
+};
+
+function AssigneesCell({
+  assignees,
+  fallbackName,
+}: {
+  assignees: SuiviAssigneeRow[];
+  fallbackName: string;
+}) {
+  if (assignees.length === 0) {
+    return <span className="text-xs">{fallbackName}</span>;
+  }
+  return (
+    <div className="max-h-24 overflow-y-auto space-y-1.5 pr-1 min-w-[140px]">
+      {assignees.map((a) => (
+        <div key={a.assigned_to} className="text-xs leading-tight">
+          <div className="font-medium truncate" title={a.full_name}>
+            {a.full_name}
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            {a.assigned_at ? format(new Date(a.assigned_at), "dd/MM/yy HH:mm") : "—"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TreatmentCell({ assignees }: { assignees: SuiviAssigneeRow[] }) {
+  if (assignees.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="max-h-24 overflow-y-auto space-y-1 pr-1 min-w-[100px]">
+      {assignees.map((a) => (
+        <div key={a.assigned_to} className="flex flex-col gap-0.5">
+          <Badge variant="outline" className={`text-[10px] w-fit ${treatmentBadgeClass[a.treatment_label]}`}>
+            {a.treatment_label}
+            {a.is_overdue && a.overdue_hours > 0 ? ` +${a.overdue_hours}h` : ""}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function SuiviPage() {
   const { role, hasPermission } = useAuth();
@@ -98,6 +160,8 @@ export default function SuiviPage() {
   const [editMail, setEditMail] = useState<TrackingMail | null>(null);
   const [deleteMail, setDeleteMail] = useState<TrackingMail | null>(null);
   const [showStats, setShowStats] = useState(true);
+  const [assigneesByMailId, setAssigneesByMailId] = useState<Record<string, SuiviAssigneeRow[]>>({});
+  const [exporting, setExporting] = useState(false);
 
   const canEditDelete =
     !hasGlobalTracking &&
@@ -116,6 +180,7 @@ export default function SuiviPage() {
     filterStatus,
     filterStep,
     filterPriority,
+    filterUser,
     includeArchived,
     quickOverdue,
     quickUrgent,
@@ -152,13 +217,22 @@ export default function SuiviPage() {
 
   const fetchRestrictedData = useCallback(async () => {
     setLoading(true);
-    const [mailsData, { data: profilesData }] = await Promise.all([
-      listMyMails(["pending", "in_progress", "processed", "archived"]),
-      supabase.from("profiles").select("id, full_name, email"),
-    ]);
-    setMails(mailsData || []);
-    setProfiles(profilesData || []);
-    setLoading(false);
+    try {
+      const [mailsData, { data: profilesData }] = await Promise.all([
+        listMyMails(["pending", "in_progress", "processed", "archived"]),
+        supabase.from("profiles").select("id, full_name, email"),
+      ]);
+      const rows = mailsData || [];
+      setMails(rows);
+      setProfiles(profilesData || []);
+      setAssigneesByMailId(await enrichMailsWithAssignees(rows));
+    } catch (err) {
+      console.error("fetchRestrictedData failed:", err);
+      setMails([]);
+      setAssigneesByMailId({});
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const fetchGlobalData = useCallback(async () => {
@@ -173,11 +247,13 @@ export default function SuiviPage() {
       setTotalCount(total);
       setSummary(summaryData);
       setProfiles(profilesData || []);
+      setAssigneesByMailId(await enrichMailsWithAssignees(pageMails));
     } catch (err) {
       console.error("fetchGlobalData failed:", err);
       setMails([]);
       setTotalCount(0);
       setSummary(null);
+      setAssigneesByMailId({});
     } finally {
       setLoading(false);
     }
@@ -206,35 +282,75 @@ export default function SuiviPage() {
     return Math.max(0, Math.floor((Date.now() - new Date(mail.deadline_at).getTime()) / (1000 * 60 * 60)));
   };
 
-  const filtered = useMemo(() => {
-    if (hasGlobalTracking) return mails;
+  const getRowAssignees = (mailId: string) => assigneesByMailId[mailId] ?? [];
 
-    return mails.filter((m) => {
-      if (
-        search &&
-        !(
-          m.subject?.toLowerCase().includes(search.toLowerCase()) ||
-          m.sender_name?.toLowerCase().includes(search.toLowerCase()) ||
-          m.reference_number?.toLowerCase().includes(search.toLowerCase())
-        )
-      ) {
-        return false;
-      }
-      if (filterStatus !== "all" && m.status !== filterStatus) return false;
-      if (filterStep !== "all" && String(m.current_step) !== filterStep) return false;
-      if (filterUser !== "all" && m.assigned_agent_id !== filterUser && m.registered_by !== filterUser) {
-        return false;
-      }
-      if (filterPriority !== "all" && m.priority !== filterPriority) return false;
-      if (dateFrom && new Date(m.created_at) < dateFrom) return false;
-      if (dateTo) {
-        const end = new Date(dateTo);
-        end.setHours(23, 59, 59);
-        if (new Date(m.created_at) > end) return false;
-      }
-      return true;
+  const getSlaDisplay = (mail: TrackingMail) => {
+    const assignees = getRowAssignees(mail.id);
+    const collabOverdue = anyCollaboratorOverdue(assignees);
+    const collabHours = maxCollaboratorOverdueHours(assignees);
+    if (collabOverdue && collabHours > 0) {
+      return {
+        kind: collabHours > 72 ? "critical" : "warning",
+        hours: collabHours,
+        label: collabHours > 72 ? `Critique +${collabHours}h` : `+${collabHours}h`,
+      } as const;
+    }
+    if (assignees.length === 0 && isOverdue(mail)) {
+      const h = getOverdueHours(mail);
+      return {
+        kind: h > 72 ? "critical" : "warning",
+        hours: h,
+        label: h > 72 ? `Critique +${h}h` : `+${h}h`,
+      } as const;
+    }
+    return { kind: "ok" as const, hours: 0, label: "OK" };
+  };
+
+  const filtered = useMemo(() => {
+    const base = hasGlobalTracking
+      ? mails
+      : mails.filter((m) => {
+          if (
+            search &&
+            !(
+              m.subject?.toLowerCase().includes(search.toLowerCase()) ||
+              m.sender_name?.toLowerCase().includes(search.toLowerCase()) ||
+              m.reference_number?.toLowerCase().includes(search.toLowerCase())
+            )
+          ) {
+            return false;
+          }
+          if (filterStatus !== "all" && m.status !== filterStatus) return false;
+          if (filterStep !== "all" && String(m.current_step) !== filterStep) return false;
+          if (filterPriority !== "all" && m.priority !== filterPriority) return false;
+          if (dateFrom && new Date(m.created_at) < dateFrom) return false;
+          if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59);
+            if (new Date(m.created_at) > end) return false;
+          }
+          return true;
+        });
+
+    if (filterUser === "all") return base;
+
+    return base.filter((m) => {
+      if (mailHasAssignee(m.id, filterUser, assigneesByMailId)) return true;
+      if (m.assigned_agent_id === filterUser || m.registered_by === filterUser) return true;
+      return false;
     });
-  }, [hasGlobalTracking, mails, search, filterStatus, filterStep, filterUser, filterPriority, dateFrom, dateTo]);
+  }, [
+    hasGlobalTracking,
+    mails,
+    search,
+    filterStatus,
+    filterStep,
+    filterUser,
+    filterPriority,
+    dateFrom,
+    dateTo,
+    assigneesByMailId,
+  ]);
 
   const totalMails = hasGlobalTracking ? (summary?.total ?? totalCount) : filtered.length;
   const pending = hasGlobalTracking
@@ -251,7 +367,9 @@ export default function SuiviPage() {
     : filtered.filter((m) => m.status === "archived").length;
   const overdue = hasGlobalTracking
     ? (summary?.overdue ?? 0)
-    : filtered.filter((m) => isOverdue(m)).length;
+    : filtered.filter(
+        (m) => isOverdue(m) || anyCollaboratorOverdue(assigneesByMailId[m.id])
+      ).length;
   const urgent = hasGlobalTracking
     ? (summary?.urgent ?? 0)
     : filtered.filter((m) => m.priority === "urgent").length;
@@ -319,6 +437,125 @@ export default function SuiviPage() {
     setDateTo(undefined);
   };
 
+  const exportSuiviExcel = async () => {
+    setExporting(true);
+    try {
+      let mailsToExport: TrackingMail[] = [];
+      let assigneesMap: Record<string, SuiviAssigneeRow[]> = {};
+
+      if (hasGlobalTracking) {
+        const first = await fetchTrackingMails(trackingFilters, 1, pageSize);
+        const all: TrackingMail[] = [...first.mails];
+        const total = first.total;
+        const pages = Math.max(1, Math.ceil(total / pageSize));
+        for (let p = 2; p <= pages; p++) {
+          const next = await fetchTrackingMails(trackingFilters, p, pageSize);
+          all.push(...next.mails);
+        }
+        mailsToExport = all;
+        assigneesMap = await enrichMailsWithAssignees(all);
+      } else {
+        mailsToExport = filtered;
+        assigneesMap = assigneesByMailId;
+      }
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Suivi assignations");
+      ws.columns = [
+        { header: "N° courrier", key: "ref", width: 18 },
+        { header: "Objet", key: "subject", width: 36 },
+        { header: "Expéditeur", key: "sender", width: 24 },
+        { header: "Étape", key: "step", width: 22 },
+        { header: "Statut courrier", key: "status", width: 14 },
+        { header: "Priorité", key: "priority", width: 12 },
+        { header: "Assigné", key: "assignee", width: 24 },
+        { header: "Date assignation", key: "assignedAt", width: 18 },
+        { header: "Statut traitement", key: "treatment", width: 16 },
+        { header: "Retard collab. (h)", key: "collabOverdue", width: 16 },
+        { header: "Échéance dossier", key: "deadline", width: 18 },
+        { header: "Date création", key: "created", width: 16 },
+        { header: "SLA dossier", key: "slaDossier", width: 14 },
+      ];
+
+      for (const mail of mailsToExport) {
+        const assignees = assigneesMap[mail.id] ?? [];
+        const dossierOverdue = Boolean(
+          mail.deadline_at &&
+            new Date(mail.deadline_at) < new Date() &&
+            mail.status !== "archived"
+        );
+        const dossierOverdueH = mail.deadline_at
+          ? Math.max(
+              0,
+              Math.floor((Date.now() - new Date(mail.deadline_at).getTime()) / (1000 * 60 * 60))
+            )
+          : 0;
+
+        if (assignees.length === 0) {
+          ws.addRow({
+            ref: mail.reference_number,
+            subject: mail.subject,
+            sender: mail.sender_name,
+            step: getStepLabel(mail.current_step || 1),
+            status: statusLabels[mail.status] || mail.status,
+            priority: priorityLabels[mail.priority] || mail.priority,
+            assignee: mail.assigned_agent_id
+              ? profiles.find((p) => p.id === mail.assigned_agent_id)?.full_name || mail.assigned_agent_id
+              : "—",
+            assignedAt: "",
+            treatment: "—",
+            collabOverdue: "",
+            deadline: mail.deadline_at
+              ? format(new Date(mail.deadline_at), "dd/MM/yyyy HH:mm", { locale: fr })
+              : "",
+            created: format(new Date(mail.created_at), "dd/MM/yyyy", { locale: fr }),
+            slaDossier: dossierOverdue ? `+${dossierOverdueH}h` : "OK",
+          });
+          continue;
+        }
+
+        for (const a of assignees) {
+          ws.addRow({
+            ref: mail.reference_number,
+            subject: mail.subject,
+            sender: mail.sender_name,
+            step: getStepLabel(mail.current_step || 1),
+            status: statusLabels[mail.status] || mail.status,
+            priority: priorityLabels[mail.priority] || mail.priority,
+            assignee: a.full_name,
+            assignedAt: a.assigned_at
+              ? format(new Date(a.assigned_at), "dd/MM/yyyy HH:mm", { locale: fr })
+              : "",
+            treatment: a.treatment_label,
+            collabOverdue: a.is_overdue ? a.overdue_hours : 0,
+            deadline: mail.deadline_at
+              ? format(new Date(mail.deadline_at), "dd/MM/yyyy HH:mm", { locale: fr })
+              : "",
+            created: format(new Date(mail.created_at), "dd/MM/yyyy", { locale: fr }),
+            slaDossier: dossierOverdue ? `+${dossierOverdueH}h` : "OK",
+          });
+        }
+      }
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `suivi_assignations_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Export Excel généré");
+    } catch (err) {
+      console.error("exportSuiviExcel:", err);
+      toast.error(err instanceof Error ? err.message : "Échec de l'export");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const paginationItems = useMemo(() => {
     if (totalPages <= 7) {
       return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -347,10 +584,20 @@ export default function SuiviPage() {
             {hasGlobalTracking ? "Vue globale workflow" : "Vue de vos dossiers"}
           </Badge>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setShowStats(!showStats)}>
-          <BarChart3 className="h-4 w-4 mr-1" />
-          {showStats ? "Masquer" : "Afficher"} stats
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportSuiviExcel} disabled={exporting || loading}>
+            {exporting ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1" />
+            )}
+            Exporter Excel
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowStats(!showStats)}>
+            <BarChart3 className="h-4 w-4 mr-1" />
+            {showStats ? "Masquer" : "Afficher"} stats
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -536,21 +783,21 @@ export default function SuiviPage() {
                 <SelectItem value="urgent">Urgent</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filterUser} onValueChange={setFilterUser}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Utilisateur" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous utilisateurs</SelectItem>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {!hasGlobalTracking && (
               <>
-                <Select value={filterUser} onValueChange={setFilterUser}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Utilisateur" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous utilisateurs</SelectItem>
-                    {profiles.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className={cn("gap-1", dateFrom && "text-primary")}>
@@ -593,7 +840,8 @@ export default function SuiviPage() {
                 <TableHead>Étape</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Priorité</TableHead>
-                <TableHead>Assigné à</TableHead>
+                <TableHead className="min-w-[140px]">Assignés (collab.)</TableHead>
+                <TableHead className="min-w-[110px]">Statut trait.</TableHead>
                 <TableHead>Échéance</TableHead>
                 <TableHead>SLA</TableHead>
                 <TableHead className="w-8">
@@ -606,21 +854,22 @@ export default function SuiviPage() {
             <TableBody>
               {loading || trackingAccessLoading ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                     Chargement...
                   </TableCell>
                 </TableRow>
               ) : displayRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                     Aucun dossier trouvé
                   </TableCell>
                 </TableRow>
               ) : (
                 displayRows.map((mail) => {
-                  const overdueH = getOverdueHours(mail);
-                  const isCritical = overdueH > 72;
-                  const isWarning = overdueH > 0 && overdueH <= 72;
+                  const assignees = getRowAssignees(mail.id);
+                  const sla = getSlaDisplay(mail);
+                  const isCritical = sla.kind === "critical";
+                  const isWarning = sla.kind === "warning";
 
                   return (
                     <TableRow
@@ -656,8 +905,16 @@ export default function SuiviPage() {
                           {priorityLabels[mail.priority] || mail.priority}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {mail.assigned_agent_id ? getProfileName(mail.assigned_agent_id) : "—"}
+                      <TableCell>
+                        <AssigneesCell
+                          assignees={assignees}
+                          fallbackName={
+                            mail.assigned_agent_id ? getProfileName(mail.assigned_agent_id) : "—"
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TreatmentCell assignees={assignees} />
                       </TableCell>
                       <TableCell className="text-xs">
                         {mail.deadline_at ? (
@@ -670,18 +927,16 @@ export default function SuiviPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {isOverdue(mail) ? (
-                          isCritical ? (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-bold whitespace-nowrap">
-                              🚨 Critique +{overdueH}h
-                            </span>
-                          ) : (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/15 text-warning font-medium whitespace-nowrap">
-                              ⚠️ +{overdueH}h
-                            </span>
-                          )
-                        ) : (
+                        {sla.kind === "ok" ? (
                           <span className="text-[10px] text-muted-foreground">OK</span>
+                        ) : isCritical ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive font-bold whitespace-nowrap">
+                            Critique +{sla.hours}h
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/15 text-warning font-medium whitespace-nowrap">
+                            +{sla.hours}h
+                          </span>
                         )}
                       </TableCell>
                       <TableCell>
