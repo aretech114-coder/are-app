@@ -840,8 +840,8 @@ export default function SuiviPage() {
                 <TableHead>Étape</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Priorité</TableHead>
-                <TableHead>Assignés</TableHead>
-                <TableHead>Traitement</TableHead>
+                <TableHead className="min-w-[140px]">Assignés (collab.)</TableHead>
+                <TableHead className="min-w-[110px]">Statut trait.</TableHead>
                 <TableHead>Échéance</TableHead>
                 <TableHead>SLA</TableHead>
                 <TableHead className="w-8">
