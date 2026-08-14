@@ -12,8 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UserAvatar } from "@/components/UserAvatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail, Search, Camera } from "lucide-react";
+import { Shield, UserPlus, Loader2, RefreshCw, Pencil, Plus, Tags, DatabaseBackup, Trash2, Eye, Mail, Search, Camera, UserX, UserCheck } from "lucide-react";
 import {
   Pagination,
   PaginationContent,
@@ -31,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROLE_LABELS } from "@/lib/labels";
 import { filterVisibleRoleOptions, isHiddenAppRole } from "@/lib/role-config";
 import { uploadAvatarForUserByAdmin, validateAvatarFile } from "@/lib/avatar-storage";
+import { isPrivilegedAccountRole } from "@/lib/account-status";
 
 const RDC_PROVINCES: { code: string; label: string }[] = [
   { code: "KN", label: "Kinshasa" },
@@ -162,8 +164,13 @@ export default function AdminPage() {
 
   const [userSearch, setUserSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "disabled">("all");
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState<25 | 50 | 100>(25);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [editDisabled, setEditDisabled] = useState(false);
+  const [bulkAction, setBulkAction] = useState<"disable" | "enable" | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const fetchRoles = async () => {
     setRolesLoading(true);
@@ -378,6 +385,7 @@ export default function AdminPage() {
     setEditTenantId(u.tenant_id || "");
     setEditProvinceCode(u.province_code || "");
     setEditHabilitationSpeciale(!!u.habilitation_speciale);
+    setEditDisabled(!!u.is_disabled);
     setEditAvatarVersion(0);
     setEditOpen(true);
   };
@@ -421,6 +429,19 @@ export default function AdminPage() {
     }
   };
 
+  const invokeSetUsersDisabled = async (userIds: string[], disabled: boolean) => {
+    const res = await supabase.functions.invoke("set-users-disabled", {
+      body: { user_ids: userIds, disabled },
+    });
+    if (res.error) {
+      throw new Error(res.error.message || "Erreur de mise à jour des comptes");
+    }
+    if (res.data?.error) {
+      throw new Error(res.data.error);
+    }
+    return res.data as { updated?: number };
+  };
+
   const handleUpdate = async () => {
     if (!editUser) return;
 
@@ -444,11 +465,7 @@ export default function AdminPage() {
         body.password = editPassword;
       }
 
-      if (Object.keys(body).length === 1) {
-        toast.error("Aucune modification autorisée à enregistrer");
-        setSaving(false);
-        return;
-      }
+      const disabledChanged = canEditUsers && editDisabled !== !!editUser.is_disabled;
 
       // Update tenant assignment directly on profile (not via edge function)
       const newTenantId = editTenantId || null;
@@ -462,6 +479,11 @@ export default function AdminPage() {
       const currentProvince = editUser.province_code || null;
       const newHabilitation = !!editHabilitationSpeciale;
       const currentHabilitation = !!editUser.habilitation_speciale;
+      const extraProfileChanged =
+        newTenantId !== currentTenantId ||
+        newProvince !== currentProvince ||
+        newHabilitation !== currentHabilitation;
+
       if (newProvince !== currentProvince || newHabilitation !== currentHabilitation) {
         const { error: profErr } = await supabase
           .from("profiles")
@@ -472,7 +494,7 @@ export default function AdminPage() {
         }
       }
 
-      if (Object.keys(body).length === 1 && newTenantId === currentTenantId) {
+      if (Object.keys(body).length === 1 && !extraProfileChanged && !disabledChanged) {
         toast.error("Aucune modification autorisée à enregistrer");
         setSaving(false);
         return;
@@ -491,6 +513,10 @@ export default function AdminPage() {
         }
       }
 
+      if (disabledChanged) {
+        await invokeSetUsersDisabled([editUser.id], editDisabled);
+      }
+
       toast.success("Utilisateur mis à jour");
       setEditOpen(false);
       fetchUsers();
@@ -498,6 +524,26 @@ export default function AdminPage() {
       toast.error(err.message || "Erreur inattendue");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleBulkStatus = async () => {
+    if (!bulkAction || selectedUserIds.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const data = await invokeSetUsersDisabled(selectedUserIds, bulkAction === "disable");
+      toast.success(
+        bulkAction === "disable"
+          ? `${data.updated ?? selectedUserIds.length} compte(s) désactivé(s)`
+          : `${data.updated ?? selectedUserIds.length} compte(s) activé(s)`
+      );
+      setSelectedUserIds([]);
+      setBulkAction(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Erreur inattendue");
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -660,19 +706,21 @@ export default function AdminPage() {
     return users.filter((u) => {
       const userRole = u.user_roles?.[0]?.role || "agent";
       if (userRoleFilter !== "all" && userRole !== userRoleFilter) return false;
+      if (userStatusFilter === "disabled" && !u.is_disabled) return false;
+      if (userStatusFilter === "active" && u.is_disabled) return false;
       if (!q) return true;
       const name = (u.full_name || "").toLowerCase();
       const mail = (u.email || "").toLowerCase();
       const roleLabel = getRoleLabel(userRole).toLowerCase();
       return name.includes(q) || mail.includes(q) || roleLabel.includes(q);
     });
-  }, [users, userSearch, userRoleFilter, allRoles]);
+  }, [users, userSearch, userRoleFilter, userStatusFilter, allRoles]);
 
   const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / userPageSize));
 
   useEffect(() => {
     setUserPage(1);
-  }, [userSearch, userRoleFilter, userPageSize]);
+  }, [userSearch, userRoleFilter, userStatusFilter, userPageSize]);
 
   useEffect(() => {
     if (userPage > userTotalPages) setUserPage(userTotalPages);
@@ -685,6 +733,27 @@ export default function AdminPage() {
 
   const userRangeStart = filteredUsers.length === 0 ? 0 : (userPage - 1) * userPageSize + 1;
   const userRangeEnd = Math.min(userPage * userPageSize, filteredUsers.length);
+
+  const isBulkEligible = (u: any) => {
+    const userRole = u.user_roles?.[0]?.role || "agent";
+    return !isPrivilegedAccountRole(userRole) && u.id !== user?.id;
+  };
+
+  const selectableOnPage = paginatedUsers.filter(isBulkEligible);
+  const allPageSelected =
+    selectableOnPage.length > 0 && selectableOnPage.every((u) => selectedUserIds.includes(u.id));
+
+  const toggleSelectUser = (id: string, checked: boolean) => {
+    setSelectedUserIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+  };
+
+  const toggleSelectPage = (checked: boolean) => {
+    const pageIds = selectableOnPage.map((u) => u.id);
+    setSelectedUserIds((prev) => {
+      if (checked) return [...new Set([...prev, ...pageIds])];
+      return prev.filter((id) => !pageIds.includes(id));
+    });
+  };
 
   if (!canAccessUserManagement) {
     return (
@@ -866,6 +935,19 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="w-[160px]">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Statut</Label>
+                  <Select value={userStatusFilter} onValueChange={(v) => setUserStatusFilter(v as "all" | "active" | "disabled")}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      <SelectItem value="active">Actifs</SelectItem>
+                      <SelectItem value="disabled">Désactivés</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="w-[100px]">
                   <Label className="text-xs text-muted-foreground mb-1 block">Par page</Label>
                   <Select
@@ -884,13 +966,40 @@ export default function AdminPage() {
                 </div>
               </div>
             </CardContent>
+            {canEditUsers && selectedUserIds.length > 0 && (
+              <CardContent className="py-3 border-b flex flex-wrap items-center gap-2 bg-muted/40">
+                <span className="text-sm font-medium">{selectedUserIds.length} sélectionné(s)</span>
+                <Button variant="outline" size="sm" onClick={() => setBulkAction("enable")} disabled={bulkBusy}>
+                  <UserCheck className="h-4 w-4 mr-1" />
+                  Activer
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setBulkAction("disable")} disabled={bulkBusy}>
+                  <UserX className="h-4 w-4 mr-1" />
+                  Désactiver
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedUserIds([])} disabled={bulkBusy}>
+                  Annuler
+                </Button>
+              </CardContent>
+            )}
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      {canEditUsers && (
+                        <Checkbox
+                          checked={allPageSelected}
+                          onCheckedChange={(v) => toggleSelectPage(v === true)}
+                          aria-label="Sélectionner la page"
+                          disabled={selectableOnPage.length === 0}
+                        />
+                      )}
+                    </TableHead>
                     <TableHead>Utilisateur</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Rôle</TableHead>
+                    <TableHead>Statut</TableHead>
                     <TableHead>Inscrit le</TableHead>
                     <TableHead className="w-32 text-right">Actions</TableHead>
                   </TableRow>
@@ -898,19 +1007,19 @@ export default function AdminPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Aucun utilisateur
                       </TableCell>
                     </TableRow>
                   ) : filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Aucun utilisateur ne correspond aux filtres
                       </TableCell>
                     </TableRow>
@@ -919,8 +1028,19 @@ export default function AdminPage() {
                       const userRole = u.user_roles?.[0]?.role || "agent";
                       const isSelf = u.id === user?.id;
                       const isTargetSuperAdmin = userRole === "superadmin";
+                      const bulkEligible = isBulkEligible(u);
                       return (
-                        <TableRow key={u.id}>
+                        <TableRow key={u.id} className={u.is_disabled ? "opacity-70" : ""}>
+                          <TableCell>
+                            {canEditUsers && (
+                              <Checkbox
+                                checked={selectedUserIds.includes(u.id)}
+                                onCheckedChange={(v) => toggleSelectUser(u.id, v === true)}
+                                disabled={!bulkEligible}
+                                aria-label={`Sélectionner ${u.full_name || u.email}`}
+                              />
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <UserAvatar
@@ -935,6 +1055,11 @@ export default function AdminPage() {
                           <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                           <TableCell>
                             <Badge variant={roleBadgeVariant(userRole) as any}>{getRoleLabel(userRole)}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={u.is_disabled ? "destructive" : "outline"}>
+                              {u.is_disabled ? "Désactivé" : "Actif"}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {new Date(u.created_at).toLocaleDateString("fr-FR")}
@@ -1250,6 +1375,24 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center justify-between rounded-md border border-border p-3">
               <div className="space-y-0.5">
+                <Label className="text-sm">Compte actif</Label>
+                <p className="text-xs text-muted-foreground">
+                  Un compte désactivé est renvoyé vers la page de maintenance.
+                </p>
+              </div>
+              <Switch
+                checked={!editDisabled}
+                onCheckedChange={(active) => setEditDisabled(!active)}
+                disabled={
+                  saving ||
+                  !canEditUsers ||
+                  editUser?.id === user?.id ||
+                  (isAdmin && (editUser?.user_roles?.[0]?.role || "agent") === "superadmin")
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div className="space-y-0.5">
                 <Label className="text-sm">Habilitation spéciale</Label>
                 <p className="text-xs text-muted-foreground">
                   Permet l'accès aux courriers de toutes les provinces.
@@ -1291,6 +1434,28 @@ export default function AdminPage() {
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkAction !== null} onOpenChange={(open) => { if (!open && !bulkBusy) setBulkAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === "disable" ? "Désactiver les comptes" : "Activer les comptes"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === "disable"
+                ? `Désactiver ${selectedUserIds.length} compte(s) sélectionné(s) ? Ils seront renvoyés vers la page de maintenance.`
+                : `Réactiver ${selectedUserIds.length} compte(s) sélectionné(s) ?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkStatus} disabled={bulkBusy}>
+              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirmer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

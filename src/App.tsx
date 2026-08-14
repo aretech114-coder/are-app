@@ -3,9 +3,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { SiteSettingsProvider } from "@/hooks/useSiteSettings";
+import { SiteSettingsProvider, useSiteSettings } from "@/hooks/useSiteSettings";
+import { isMaintenanceEnabled, MAINTENANCE_OPEN_PATHS } from "@/lib/account-status";
 
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
@@ -33,6 +35,7 @@ import GedPage from "./pages/GedPage";
 import NotificationsTestPage from "./pages/NotificationsTestPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import AccountPage from "./pages/AccountPage";
+import MaintenancePage from "./pages/MaintenancePage";
 import { useWorkflowTrackingAccess } from "@/hooks/useWorkflowTrackingAccess";
 import { canAccessSuiviPage } from "@/lib/workflow-tracking";
 
@@ -40,8 +43,11 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { settings } = useSiteSettings();
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Chargement...</div>;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) {
+    return <Navigate to={isMaintenanceEnabled(settings.maintenance_enabled) ? "/maintenance" : "/auth"} replace />;
+  }
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -95,14 +101,43 @@ function SuiviRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { user, loading, role } = useAuth();
-  if (loading) return null;
+  const { user, loading, role, profile, signOut } = useAuth();
+  const { settings, loading: settingsLoading } = useSiteSettings();
+  const location = useLocation();
+  const maintenanceOn = isMaintenanceEnabled(settings.maintenance_enabled);
+  const isDisabled = !!profile?.is_disabled;
+  const path = location.pathname;
+  const isOpenPath = (MAINTENANCE_OPEN_PATHS as readonly string[]).includes(path);
+
+  useEffect(() => {
+    if (user && isDisabled) {
+      void signOut();
+    }
+    // signOut is recreated each render; only react to session + flag.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isDisabled]);
+
+  if (loading || settingsLoading) return null;
+
+  if (user && isDisabled && path !== "/maintenance") {
+    return <Navigate to="/maintenance" replace />;
+  }
+
+  if (maintenanceOn && role !== "superadmin" && !isOpenPath) {
+    return <Navigate to="/maintenance" replace />;
+  }
 
   const defaultRoute = role === "reception" ? "/registre" : "/inbox";
+  const authTarget = user
+    ? maintenanceOn && role !== "superadmin"
+      ? "/maintenance"
+      : defaultRoute
+    : null;
 
   return (
     <Routes>
-      <Route path="/auth" element={user ? <Navigate to={defaultRoute} replace /> : <Auth />} />
+      <Route path="/maintenance" element={<MaintenancePage />} />
+      <Route path="/auth" element={authTarget ? <Navigate to={authTarget} replace /> : <Auth />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/forgot-password" element={user ? <Navigate to={defaultRoute} replace /> : <ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />

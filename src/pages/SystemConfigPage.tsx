@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -74,6 +75,21 @@ function sanitizeFileName(name: string): string {
 
 const isValidHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
 
+function isoToDatetimeLocal(iso: string | undefined | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function datetimeLocalToIso(local: string): string {
+  if (!local) return "";
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
 export default function SystemConfigPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +143,15 @@ export default function SystemConfigPage() {
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
   const loginBgInputRef = useRef<HTMLInputElement>(null);
   const loginLogoInputRef = useRef<HTMLInputElement>(null);
+  const maintenanceBgInputRef = useRef<HTMLInputElement>(null);
+
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+  const [maintenanceUntilLocal, setMaintenanceUntilLocal] = useState("");
+  const [maintenanceTitle, setMaintenanceTitle] = useState("");
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
+  const [maintenanceBgImageUrl, setMaintenanceBgImageUrl] = useState("");
+  const [uploadingMaintenanceBg, setUploadingMaintenanceBg] = useState(false);
+  const [savingMaintenance, setSavingMaintenance] = useState(false);
 
   useEffect(() => {
     setSiteTitle(settings.site_title);
@@ -153,6 +178,14 @@ export default function SystemConfigPage() {
     setFontBody(settings.font_body || "Inter");
     setMaxUploadSizeMb(settings.max_upload_size_mb || "150");
     setStep8AutoAdvanceHours(settings.step8_auto_advance_hours || "0");
+    setMaintenanceEnabled(settings.maintenance_enabled === "true");
+    setMaintenanceUntilLocal(isoToDatetimeLocal(settings.maintenance_until));
+    setMaintenanceTitle(settings.maintenance_title || "Maintenance planifiée");
+    setMaintenanceMessage(
+      settings.maintenance_message ||
+        "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard."
+    );
+    setMaintenanceBgImageUrl(settings.maintenance_bg_image_url || "");
   }, [settings]);
 
   useEffect(() => {
@@ -319,6 +352,43 @@ export default function SystemConfigPage() {
       prev.map((p) => (p.id === id ? { ...p, is_enabled: !currentValue } : p))
     );
     toast.success("Permission mise à jour");
+  };
+
+  const saveMaintenanceSettings = async () => {
+    setSavingMaintenance(true);
+    try {
+      await updateSetting("maintenance_enabled", maintenanceEnabled ? "true" : "false");
+      await updateSetting("maintenance_until", datetimeLocalToIso(maintenanceUntilLocal));
+      await updateSetting("maintenance_title", maintenanceTitle.trim() || "Maintenance planifiée");
+      await updateSetting(
+        "maintenance_message",
+        maintenanceMessage.trim() ||
+          "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard."
+      );
+      await updateSetting("maintenance_bg_image_url", maintenanceBgImageUrl);
+      await refresh();
+      toast.success(
+        maintenanceEnabled
+          ? "Mode maintenance activé"
+          : "Paramètres de maintenance enregistrés (mode désactivé)"
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
+    } finally {
+      setSavingMaintenance(false);
+    }
+  };
+
+  const toggleMaintenance = async (enabled: boolean) => {
+    setMaintenanceEnabled(enabled);
+    try {
+      await updateSetting("maintenance_enabled", enabled ? "true" : "false");
+      await refresh();
+      toast.success(enabled ? "Mode maintenance activé" : "Mode maintenance désactivé — l'application reprend");
+    } catch (err: unknown) {
+      setMaintenanceEnabled(!enabled);
+      toast.error(err instanceof Error ? err.message : "Impossible de changer le mode maintenance");
+    }
   };
 
   const uploadFile = async (
@@ -570,6 +640,128 @@ export default function SystemConfigPage() {
                 toast.success(newValue === "true" ? "Titre affiché" : "Titre masqué");
               }}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Maintenance planifiée
+          </CardTitle>
+          <CardDescription>
+            Page publique avec décompte. Désactivée par défaut. Le super admin reste connecté pour éteindre le mode.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Activer le mode maintenance</Label>
+              <p className="text-xs text-muted-foreground">
+                {maintenanceEnabled
+                  ? "Les visiteurs et comptes non super admin sont renvoyés vers la page de maintenance. /auth reste saisissable dans la barre d'adresse."
+                  : "L'application fonctionne normalement."}
+              </p>
+            </div>
+            <Switch checked={maintenanceEnabled} onCheckedChange={toggleMaintenance} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Fin prévue (décompte)</Label>
+              <Input
+                type="datetime-local"
+                value={maintenanceUntilLocal}
+                onChange={(e) => setMaintenanceUntilLocal(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Titre</Label>
+              <Input
+                value={maintenanceTitle}
+                onChange={(e) => setMaintenanceTitle(e.target.value)}
+                placeholder="Maintenance planifiée"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">Message</Label>
+            <Textarea
+              value={maintenanceMessage}
+              onChange={(e) => setMaintenanceMessage(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">Image de fond</Label>
+            <div className="flex items-center gap-2">
+              {maintenanceBgImageUrl ? (
+                <div className="relative">
+                  <img src={maintenanceBgImageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border" />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setMaintenanceBgImageUrl("");
+                      await updateSetting("maintenance_bg_image_url", "");
+                      await refresh();
+                    }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={uploadingMaintenanceBg}
+                onClick={() => maintenanceBgInputRef.current?.click()}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                {uploadingMaintenanceBg ? "Upload..." : "Uploader"}
+              </Button>
+              <input
+                ref={maintenanceBgInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    uploadFile(
+                      file,
+                      "maintenance-bg",
+                      "maintenance_bg_image_url",
+                      setUploadingMaintenanceBg,
+                      setMaintenanceBgImageUrl
+                    );
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={saveMaintenanceSettings} disabled={savingMaintenance}>
+              {savingMaintenance ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Enregistrer
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => window.open("/maintenance?preview=1", "_blank", "noopener,noreferrer")}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Prévisualiser
+            </Button>
           </div>
         </CardContent>
       </Card>

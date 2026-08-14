@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export const SITE_SETTINGS_CACHE_KEY = "are-app:public-site-settings:v1";
+export const SITE_SETTINGS_CACHE_KEY = "are-app:public-site-settings:v2";
 
 export interface CachedSiteSettings {
   site_title: string;
@@ -30,6 +30,11 @@ export interface CachedSiteSettings {
   max_upload_size_mb: string;
   step8_auto_advance_hours: string;
   ged_module_enabled: string;
+  maintenance_enabled: string;
+  maintenance_until: string;
+  maintenance_title: string;
+  maintenance_message: string;
+  maintenance_bg_image_url: string;
 }
 
 export function getLoginBackgroundSignature(
