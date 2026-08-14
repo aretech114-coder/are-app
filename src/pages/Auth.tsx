@@ -32,8 +32,30 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        const msg = (error.message || "").toLowerCase();
+        if (msg.includes("banned") || msg.includes("disabled")) {
+          navigate("/maintenance", { replace: true });
+          return;
+        }
+        throw error;
+      }
+
+      const userId = data.user?.id;
+      if (userId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_disabled")
+          .eq("id", userId)
+          .maybeSingle();
+        if (profile?.is_disabled) {
+          await supabase.auth.signOut();
+          navigate("/maintenance", { replace: true });
+          return;
+        }
+      }
+
       toast.success("Connexion réussie");
       navigate("/");
     } catch (error: any) {

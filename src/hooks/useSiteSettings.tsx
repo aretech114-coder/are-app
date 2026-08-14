@@ -44,6 +44,11 @@ const defaults: SiteSettings = {
   max_upload_size_mb: "150",
   step8_auto_advance_hours: "0",
   ged_module_enabled: "false",
+  maintenance_enabled: "false",
+  maintenance_until: "",
+  maintenance_title: "Maintenance planifiée",
+  maintenance_message: "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard.",
+  maintenance_bg_image_url: "",
 };
 
 const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
@@ -181,6 +186,31 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
     label: "Module GED interne",
     setting_type: "boolean",
     description: "Active la génération de dossiers PDF consolidés à l'archivage.",
+  },
+  maintenance_enabled: {
+    label: "Mode maintenance",
+    setting_type: "boolean",
+    description: "Active la page de maintenance pour les visiteurs.",
+  },
+  maintenance_until: {
+    label: "Fin de maintenance prévue",
+    setting_type: "text",
+    description: "Date et heure du décompte affiché sur la page de maintenance.",
+  },
+  maintenance_title: {
+    label: "Titre page maintenance",
+    setting_type: "text",
+    description: "Titre affiché sur la page de maintenance.",
+  },
+  maintenance_message: {
+    label: "Message page maintenance",
+    setting_type: "text",
+    description: "Texte d'information affiché sous le titre.",
+  },
+  maintenance_bg_image_url: {
+    label: "Fond page maintenance",
+    setting_type: "image",
+    description: "Image d'arrière-plan de la page de maintenance.",
   },
 };
 

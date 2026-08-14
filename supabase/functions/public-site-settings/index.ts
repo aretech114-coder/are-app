@@ -31,6 +31,11 @@ const ALLOWED_KEYS = new Set([
   "show_login_title",
   "authority_title_short",
   "authority_title_long",
+  "maintenance_enabled",
+  "maintenance_until",
+  "maintenance_title",
+  "maintenance_message",
+  "maintenance_bg_image_url",
 ]);
 
 serve(async (req) => {

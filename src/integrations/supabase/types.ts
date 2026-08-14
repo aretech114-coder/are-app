@@ -844,6 +844,7 @@ export type Database = {
           habilitation_speciale: boolean
           id: string
           is_available: boolean
+          is_disabled: boolean
           password_changed_at: string | null
           province_code: string | null
           tenant_id: string | null
@@ -859,6 +860,7 @@ export type Database = {
           habilitation_speciale?: boolean
           id: string
           is_available?: boolean
+          is_disabled?: boolean
           password_changed_at?: string | null
           province_code?: string | null
           tenant_id?: string | null
@@ -874,6 +876,7 @@ export type Database = {
           habilitation_speciale?: boolean
           id?: string
           is_available?: boolean
+          is_disabled?: boolean
           password_changed_at?: string | null
           province_code?: string | null
           tenant_id?: string | null
