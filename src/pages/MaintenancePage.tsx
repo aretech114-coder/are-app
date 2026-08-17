@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Button } from "@/components/ui/button";
 import { getLoginBackgroundStyle } from "@/lib/site-settings-cache";
-import { NEW_APP_URL } from "@/lib/account-status";
+import { resolveMaintenanceButtonTarget } from "@/lib/account-status";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -19,10 +20,12 @@ function useCountdown(untilIso: string) {
   return useMemo(() => {
     const until = untilIso ? new Date(untilIso).getTime() : NaN;
     const hasTarget = Number.isFinite(until);
-    const diff = hasTarget ? Math.max(0, until - now) : 0;
-    const totalSec = Math.floor(diff / 1000);
+    const diff = hasTarget ? until - now : 0;
+    const isFuture = hasTarget && diff > 0;
+    const remaining = isFuture ? diff : 0;
+    const totalSec = Math.floor(remaining / 1000);
     return {
-      hasTarget,
+      isFuture,
       days: Math.floor(totalSec / 86400),
       hours: Math.floor((totalSec % 86400) / 3600),
       minutes: Math.floor((totalSec % 3600) / 60),
@@ -32,6 +35,7 @@ function useCountdown(untilIso: string) {
 }
 
 export default function MaintenancePage() {
+  const navigate = useNavigate();
   const { settings } = useSiteSettings();
   const bgUrl = settings.maintenance_bg_image_url || settings.login_bg_image_url;
   const bgStyle = getLoginBackgroundStyle({
@@ -40,10 +44,25 @@ export default function MaintenancePage() {
   });
   const hasBgImage = !!bgUrl;
   const countdown = useCountdown(settings.maintenance_until);
-  const title = settings.maintenance_title || "Maintenance planifiée";
+  const showCountdown = settings.maintenance_show_countdown === "true" && countdown.isFuture;
+
+  const title = settings.maintenance_title || "Maintenance terminée";
   const message =
     settings.maintenance_message ||
-    "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard.";
+    "La plateforme est à nouveau disponible. Merci de cliquer sur « Se connecter » pour accéder à votre espace.";
+  const buttonLabel = settings.maintenance_button_label || "Se connecter";
+  const footnote =
+    settings.maintenance_footnote ||
+    "Saisissez votre adresse e-mail et le mot de passe initial qui vous a été communiqué — il ne s'agit pas de votre ancien mot de passe.";
+
+  const handlePrimaryAction = () => {
+    const target = resolveMaintenanceButtonTarget(settings.maintenance_button_url);
+    if (target.kind === "login") {
+      navigate("/auth");
+      return;
+    }
+    window.location.assign(target.url);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative" style={bgStyle}>
@@ -70,7 +89,7 @@ export default function MaintenancePage() {
           </p>
         </div>
 
-        {countdown.hasTarget && (
+        {showCountdown && (
           <div className="grid grid-cols-4 gap-2 sm:gap-3">
             {[
               { label: "Jours", value: countdown.days },
@@ -85,7 +104,9 @@ export default function MaintenancePage() {
                 }`}
               >
                 <div className="text-2xl sm:text-3xl font-semibold tabular-nums">{pad2(unit.value)}</div>
-                <div className={`text-[10px] uppercase tracking-wide mt-1 ${hasBgImage ? "text-white/70" : "text-muted-foreground"}`}>
+                <div
+                  className={`text-[10px] uppercase tracking-wide mt-1 ${hasBgImage ? "text-white/70" : "text-muted-foreground"}`}
+                >
                   {unit.label}
                 </div>
               </div>
@@ -93,15 +114,20 @@ export default function MaintenancePage() {
           </div>
         )}
 
-        <Button
-          size="lg"
-          className="w-full sm:w-auto"
-          onClick={() => {
-            window.location.assign(NEW_APP_URL);
-          }}
-        >
-          Connecté Tester la nouvelle version
-        </Button>
+        <div className="space-y-3">
+          <Button size="lg" className="w-full sm:w-auto" onClick={handlePrimaryAction}>
+            {buttonLabel}
+          </Button>
+          {footnote.trim() ? (
+            <p
+              className={`text-xs leading-relaxed max-w-md mx-auto ${
+                hasBgImage ? "text-white/85 drop-shadow-md" : "text-muted-foreground"
+              }`}
+            >
+              {footnote}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );

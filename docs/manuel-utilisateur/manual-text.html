@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Manuel Utilisateur — ARE App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    @page { size: A4 landscape; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; color: #1e293b; background: #fff; }
+
+    .page {
+      width: 297mm;
+      height: 210mm;
+      padding: 14mm 18mm 12mm;
+      page-break-after: always;
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+    }
+    .page:last-child { page-break-after: auto; }
+
+    /* Couverture */
+    .cover {
+      background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 24mm 28mm;
+    }
+    .cover-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      width: fit-content;
+    }
+    .cover h1 { font-size: 42px; font-weight: 800; line-height: 1.15; margin-bottom: 12px; }
+    .cover .subtitle { font-size: 18px; opacity: 0.92; margin-bottom: 36px; max-width: 70%; }
+    .cover .meta { font-size: 13px; opacity: 0.85; margin-top: auto; }
+    .cover .url { font-size: 16px; font-weight: 600; margin-top: 8px; }
+
+    /* En-tête de section */
+    .header {
+      background: #0ea5e9;
+      color: #fff;
+      margin: -14mm -18mm 10mm;
+      padding: 8mm 18mm;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h2 { font-size: 20px; font-weight: 700; }
+    .header .num { font-size: 12px; opacity: 0.8; font-weight: 500; }
+
+    h3 { font-size: 14px; font-weight: 700; color: #0ea5e9; margin: 14px 0 8px; }
+    p { font-size: 11.5px; line-height: 1.65; margin-bottom: 8px; }
+    ul, ol { font-size: 11.5px; line-height: 1.65; margin: 0 0 10px 18px; }
+    li { margin-bottom: 4px; }
+
+    .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .three-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10.5px;
+      margin: 8px 0 12px;
+    }
+    th {
+      background: #0ea5e9;
+      color: #fff;
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 600;
+    }
+    td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    .box {
+      background: #f0f9ff;
+      border-left: 4px solid #0ea5e9;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin: 10px 0;
+      font-size: 11px;
+    }
+    .box strong { color: #0369a1; }
+
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      background: #0ea5e9;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      min-width: 90px;
+    }
+    .flow-step span { display: block; font-size: 9px; font-weight: 400; opacity: 0.85; margin-top: 2px; }
+    .flow-arrow { color: #0ea5e9; font-size: 20px; font-weight: 700; }
+
+    .footer {
+      position: absolute;
+      bottom: 10mm;
+      left: 18mm;
+      right: 18mm;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+    }
+
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px dotted #cbd5e1;
+      font-size: 12px;
+    }
+    .toc-item.part { font-weight: 700; color: #0ea5e9; margin-top: 12px; border: none; }
+
+    .step-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .step-card .n { font-size: 22px; font-weight: 800; color: #0ea5e9; }
+    .step-card .t { font-size: 11px; font-weight: 700; margin: 4px 0; }
+    .step-card .d { font-size: 10px; color: #64748b; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+<!-- COUVERTURE -->
+<div class="page cover">
+  <div class="cover-badge">Guide de formation</div>
+  <h1>Manuel Utilisateur</h1>
+  <p class="subtitle">Système de Gestion Électronique du Courrier — ARE App</p>
+  <p class="meta">Version 1.0 — Juillet 2026</p>
+  <p class="url">https://are-app.cloud</p>
+</div>
+
+<!-- SOMMAIRE -->
+<div class="page">
+  <div class="header"><h2>Sommaire</h2><span class="num">Guide ARE</span></div>
+  <div class="two-cols" style="margin-top:8px">
+    <div>
+      <div class="toc-item part">Partie I — Guide utilisateur</div>
+      <div class="toc-item"><span>1. Accéder à la plateforme</span><span>3</span></div>
+      <div class="toc-item"><span>2. Se connecter</span><span>4</span></div>
+      <div class="toc-item"><span>3. Découvrir l'interface</span><span>5</span></div>
+      <div class="toc-item"><span>4. Gérer mon compte</span><span>6</span></div>
+      <div class="toc-item"><span>5. La boîte de réception</span><span>8</span></div>
+      <div class="toc-item"><span>6. Comment on m'assigne</span><span>9</span></div>
+      <div class="toc-item"><span>7. Le parcours d'un courrier</span><span>10</span></div>
+      <div class="toc-item"><span>8. Traiter un courrier (étape 4)</span><span>11</span></div>
+    </div>
+    <div>
+      <div class="toc-item"><span>9. Rôle du Directeur général</span><span>12</span></div>
+      <div class="toc-item"><span>10. Secrétariat et archivage</span><span>13</span></div>
+      <div class="toc-item"><span>11. Historique et archives</span><span>14</span></div>
+      <div class="toc-item"><span>12. Notifications</span><span>15</span></div>
+      <div class="toc-item"><span>13. Bonnes pratiques</span><span>16</span></div>
+      <div class="toc-item part">Partie II — Captures d'écran</div>
+      <div class="toc-item"><span>Pages visuelles dédiées (sans texte)</span><span>Annexe</span></div>
+    </div>
+  </div>
+  <div class="box" style="margin-top:24px">
+    <strong>À propos de ce guide</strong> — Ce manuel est conçu pour les utilisateurs finaux. Il évite le vocabulaire technique et se concentre sur les actions concrètes : se connecter, consulter ses courriers assignés, traiter et suivre le workflow.
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 2</span></div>
+</div>
+
+<!-- 1. ACCÈS -->
+<div class="page">
+  <div class="header"><h2>1. Accéder à la plateforme</h2><span class="num">Section 1</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Adresse de la plateforme</h3>
+      <p>Ouvrez votre navigateur (Chrome, Edge ou Firefox recommandé) et saisissez :</p>
+      <div class="box"><strong>https://are-app.cloud</strong></div>
+      <p>Ajoutez cette adresse à vos favoris pour y accéder rapidement au quotidien.</p>
+      <h3>Prérequis</h3>
+      <ul>
+        <li>Connexion Internet stable</li>
+        <li>Écran d'au moins 1280 px de large (recommandé)</li>
+        <li>Identifiants fournis par votre administrateur</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Vos identifiants</h3>
+      <p>Votre administrateur vous transmet :</p>
+      <ul>
+        <li>Une <strong>adresse e-mail professionnelle</strong> (identifiant de connexion)</li>
+        <li>Un <strong>mot de passe temporaire</strong> à modifier dès la première connexion</li>
+      </ul>
+      <div class="box">
+        <strong>Première connexion</strong> — Changez votre mot de passe immédiatement via <em>Mon Profil</em>. Ne partagez jamais vos identifiants.
+      </div>
+      <h3>Sur mobile</h3>
+      <p>L'application reste utilisable sur téléphone ou tablette. Certaines actions (pièces jointes, rédaction longue) sont plus confortables sur ordinateur.</p>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 3</span></div>
+</div>
+
+<!-- 2. CONNEXION -->
+<div class="page">
+  <div class="header"><h2>2. Se connecter</h2><span class="num">Section 2</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Étapes de connexion</h3>
+      <ol>
+        <li>Rendez-vous sur <strong>https://are-app.cloud</strong></li>
+        <li>Saisissez votre <strong>adresse e-mail</strong></li>
+        <li>Saisissez votre <strong>mot de passe</strong></li>
+        <li>Cochez <em>Se souvenir de moi</em> uniquement sur un poste personnel sécurisé</li>
+        <li>Cliquez sur <strong>Se connecter</strong></li>
+      </ol>
+      <p>En cas d'échec : vérifiez l'e-mail, la touche Verr. Maj. et réessayez.</p>
+    </div>
+    <div>
+      <h3>Mot de passe oublié</h3>
+      <ol>
+        <li>Sur la page de connexion, cliquez sur <strong>Mot de passe oublié ?</strong></li>
+        <li>Saisissez votre adresse e-mail</li>
+        <li>Ouvrez le lien reçu par e-mail</li>
+        <li>Définissez un nouveau mot de passe</li>
+      </ol>
+      <h3>Règles du mot de passe</h3>
+      <ul>
+        <li>Au moins <strong>8 caractères</strong></li>
+        <li>Au moins une <strong>majuscule</strong></li>
+        <li>Au moins un <strong>chiffre</strong></li>
+        <li>Au moins un <strong>caractère spécial</strong> (!@#$…)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 4</span></div>
+</div>
+
+<!-- 3. INTERFACE -->
+<div class="page">
+  <div class="header"><h2>3. Découvrir l'interface</h2><span class="num">Section 3</span></div>
+  <p>Après connexion, le <strong>menu latéral gauche</strong> donne accès aux fonctions selon votre rôle. Le titre et le logo affichés sont ceux de votre institution.</p>
+  <table>
+    <thead><tr><th>Menu</th><th>À quoi ça sert</th><th>Qui y accède</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Boîte de réception</strong></td><td>Courriers qui vous sont assignés ou nécessitant votre action</td><td>Tous les utilisateurs</td></tr>
+      <tr><td><strong>Historique</strong></td><td>Courriers déjà traités — consultation seule</td><td>Selon vos droits</td></tr>
+      <tr><td><strong>Archives</strong></td><td>Courriers clôturés définitivement</td><td>Selon vos droits</td></tr>
+      <tr><td><strong>Mon Profil</strong></td><td>Identité, photo, mot de passe, disponibilité</td><td>Tous</td></tr>
+      <tr><td><strong>Statistiques</strong></td><td>Indicateurs d'activité</td><td>Selon autorisation</td></tr>
+      <tr><td><strong>Tableau de suivi</strong></td><td>Vue d'ensemble des courriers en cours</td><td>DG, secrétariat, cadres</td></tr>
+    </tbody>
+  </table>
+  <div class="box"><strong>Votre rôle détermine ce que vous voyez.</strong> Concentrez-vous sur votre boîte de réception et les boutons proposés dans chaque dossier — c'est votre guide au quotidien.</div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 5</span></div>
+</div>
+
+<!-- 4. COMPTE -->
+<div class="page">
+  <div class="header"><h2>4. Gérer mon compte</h2><span class="num">Section 4</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Informations personnelles</h3>
+      <p>Accès : menu latéral → <strong>Mon Profil</strong></p>
+      <ul>
+        <li>Modifiez votre <strong>nom complet</strong></li>
+        <li>Cliquez sur <strong>Enregistrer</strong> pour sauvegarder</li>
+      </ul>
+      <h3>Photo de profil</h3>
+      <ul>
+        <li>Cliquez sur l'icône appareil photo sur votre avatar</li>
+        <li>Choisissez une image (JPG, PNG…)</li>
+        <li>La photo apparaît dans les listes et assignations</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Changer mon mot de passe</h3>
+      <p>Section <strong>Sécurité</strong> dans Mon Profil :</p>
+      <ol>
+        <li>Saisissez le mot de passe <strong>actuel</strong></li>
+        <li>Saisissez le <strong>nouveau</strong> mot de passe</li>
+        <li><strong>Confirmez</strong> le nouveau mot de passe</li>
+        <li>Cliquez sur <strong>Changer le mot de passe</strong></li>
+      </ol>
+      <h3>Disponibilité (absence)</h3>
+      <p>Basculez entre <strong>Disponible</strong> et <strong>Absent</strong> :</p>
+      <ul>
+        <li>En absence, le courrier peut être orienté vers un suppléant configuré</li>
+        <li>Repassez en Disponible à votre retour</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 6</span></div>
+</div>
+
+<!-- 5. INBOX -->
+<div class="page">
+  <div class="header"><h2>5. La boîte de réception</h2><span class="num">Section 5</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Votre point de départ quotidien</h3>
+      <p>La <strong>Boîte de réception</strong> regroupe les courriers qui vous concernent : assignation, action requise à l'étape en cours.</p>
+      <h3>Filtres utiles</h3>
+      <table>
+        <thead><tr><th>Filtre</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr><td>Nouveaux</td><td>Courriers non encore ouverts</td></tr>
+          <tr><td>En cours</td><td>Traitement à effectuer</td></tr>
+          <tr><td>En retard</td><td>Échéance dépassée</td></tr>
+          <tr><td>Par étape</td><td>Filtrer sur une étape du workflow</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Ouvrir un courrier</h3>
+      <p>Cliquez sur une ligne de la liste : le <strong>dossier</strong> s'ouvre avec :</p>
+      <ul>
+        <li>Le document principal (lecteur intégré)</li>
+        <li>Les instructions du DG</li>
+        <li>L'historique des étapes</li>
+        <li>Les actions disponibles pour vous</li>
+        <li>Les contributions des autres assignés</li>
+      </ul>
+      <div class="box"><strong>Astuce :</strong> traitez d'abord les courriers « En retard » pour respecter les délais.</div>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 7</span></div>
+</div>
+
+<!-- 6. ASSIGNATION -->
+<div class="page">
+  <div class="header"><h2>6. Comment on m'assigne un courrier</h2><span class="num">Section 6</span></div>
+  <p>Vous n'assignez généralement pas vous-même un courrier. Voici comment cela fonctionne :</p>
+  <ol>
+    <li>Le <strong>Directeur général</strong> (étape 2) oriente le courrier et désigne les personnes à traiter</li>
+    <li>Vous recevez une <strong>notification</strong> (dans l'application et parfois par e-mail)</li>
+    <li>Le courrier apparaît dans votre <strong>Boîte de réception</strong></li>
+  </ol>
+  <table style="margin-top:14px">
+    <thead><tr><th>Type d'assignation</th><th>Ce que vous pouvez faire</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Assigné traitant</strong></td><td>Rédiger votre contribution, joindre des pièces, soumettre votre traitement</td></tr>
+      <tr><td><strong>En copie (lecture seule)</strong></td><td>Consulter le dossier sans soumettre de traitement</td></tr>
+      <tr><td><strong>Responsable du dossier</strong></td><td>Rôle renforcé sur certaines étapes (selon configuration)</td></tr>
+    </tbody>
+  </table>
+  <div class="box"><strong>Courrier invisible ?</strong> Vérifiez vos filtres dans la boîte de réception. Si le problème persiste, contactez le secrétariat ou votre supérieur.</div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 8</span></div>
+</div>
+
+<!-- 7. WORKFLOW -->
+<div class="page">
+  <div class="header"><h2>7. Le parcours d'un courrier</h2><span class="num">Section 7</span></div>
+  <p>Sur ARE App, le traitement suit <strong>cinq étapes actives</strong>. Chaque étape a un responsable et un objectif précis.</p>
+  <div class="flow">
+    <div class="flow-step">2<span>Traitement DG</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">4<span>Traitement</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">6<span>Validation DG</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">8<span>Retour & Preuve</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">9<span>Archivage</span></div>
+  </div>
+  <div class="three-cols" style="margin-top:10px">
+    <div class="step-card"><div class="n">2</div><div class="t">Traitement DG</div><div class="d">Le DG oriente le courrier, rédige les instructions et choisit les assignés.</div></div>
+    <div class="step-card"><div class="n">4</div><div class="t">Traitement</div><div class="d">Les agents et conseillers assignés rédigent leurs notes et soumettent.</div></div>
+    <div class="step-card"><div class="n">6</div><div class="t">Validation DG</div><div class="d">Le DG valide ou rejette le traitement avant envoi.</div></div>
+    <div class="step-card"><div class="n">8</div><div class="t">Retour & Preuve</div><div class="d">Le secrétariat finalise et transmet vers l'archivage.</div></div>
+    <div class="step-card"><div class="n">9</div><div class="t">Archivage final</div><div class="d">L'archiviste clôture définitivement le dossier.</div></div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 9</span></div>
+</div>
+
+<!-- 8. TRAITEMENT -->
+<div class="page">
+  <div class="header"><h2>8. Traiter un courrier (étape 4)</h2><span class="num">Section 8</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Étapes à suivre</h3>
+      <ol>
+        <li>Ouvrez le courrier depuis la <strong>Boîte de réception</strong></li>
+        <li>Lisez le document et les <strong>instructions du DG</strong></li>
+        <li>Consultez les contributions des autres assignés si besoin</li>
+        <li>Rédigez votre <strong>note de traitement</strong></li>
+        <li><strong>Joignez une pièce</strong> si nécessaire</li>
+        <li>Cliquez sur <strong>Soumettre mon traitement</strong></li>
+      </ol>
+    </div>
+    <div>
+      <h3>Après votre soumission</h3>
+      <ul>
+        <li>Votre contribution est enregistrée et visible par les autres assignés et le DG</li>
+        <li>Le courrier avance quand tous les assignés ont soumis, ou si le DG valide manuellement</li>
+        <li>Vous conservez un accès en lecture via <strong>Historique</strong></li>
+      </ul>
+      <h3>Plusieurs assignés</h3>
+      <p>Chacun soumet sa propre contribution. Vous voyez ce que les autres ont déjà soumis. Le dossier n'avance que lorsque les règles de l'étape sont respectées.</p>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 10</span></div>
+</div>
+
+<!-- 9. DG -->
+<div class="page">
+  <div class="header"><h2>9. Rôle du Directeur général</h2><span class="num">Section 9</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Étape 2 — Orientation</h3>
+      <ul>
+        <li>Lire le courrier entrant</li>
+        <li>Rédiger les <strong>instructions</strong></li>
+        <li><strong>Sélectionner les assignés</strong> (traitants et personnes en copie)</li>
+        <li>Confirmer pour envoyer à l'étape de traitement</li>
+      </ul>
+      <div class="box">Au moins un assigné traitant doit être sélectionné pour valider.</div>
+    </div>
+    <div>
+      <h3>Étape 6 — Validation</h3>
+      <ul>
+        <li>Consulter les contributions de l'étape 4</li>
+        <li><strong>Valider</strong> pour faire avancer le courrier</li>
+        <li><strong>Rejeter</strong> si le traitement est insuffisant</li>
+      </ul>
+      <p>Le DG peut aussi utiliser <strong>Valider (DG) — passer à l'étape suivante</strong> en étape 4 pour avancer sans attendre tous les assignés (selon la politique interne).</p>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 11</span></div>
+</div>
+
+<!-- 10. SECRÉTARIAT -->
+<div class="page">
+  <div class="header"><h2>10. Secrétariat et archivage</h2><span class="num">Section 10</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Étape 8 — Retour & Preuve de dépôt</h3>
+      <p>Le secrétariat :</p>
+      <ul>
+        <li>Prépare ou complète le document de sortie</li>
+        <li>Dépose la preuve de dépôt si disponible</li>
+        <li>Clique sur <strong>Transmettre à l'archivage</strong></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Étape 9 — Archivage final</h3>
+      <p>L'archiviste :</p>
+      <ol>
+        <li>Vérifie que le dossier est complet</li>
+        <li>Dépose l'accusé de réception sortant si requis</li>
+        <li>Clique sur <strong>Archiver définitivement</strong></li>
+      </ol>
+      <p>Le courrier passe en statut <strong>archivé</strong> et devient consultable dans Archives.</p>
+    </div>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 12</span></div>
+</div>
+
+<!-- 11. HISTORIQUE -->
+<div class="page">
+  <div class="header"><h2>11. Historique, archives et pièces jointes</h2><span class="num">Section 11</span></div>
+  <table>
+    <thead><tr><th>Écran</th><th>Contenu</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Historique</strong></td><td>Courriers que vous avez traités — lecture seule</td></tr>
+      <tr><td><strong>Archives</strong></td><td>Courriers clôturés définitivement (selon droits)</td></tr>
+      <tr><td><strong>Tableau de suivi</strong></td><td>Vue d'ensemble pour DG, secrétariat et cadres autorisés</td></tr>
+    </tbody>
+  </table>
+  <h3>Pièces jointes</h3>
+  <div class="two-cols">
+    <ul>
+      <li><strong>Document principal</strong> : visible dans le lecteur intégré</li>
+      <li><strong>Pièces jointes</strong> : icône trombone — téléchargement ou aperçu</li>
+    </ul>
+    <ul>
+      <li>Respectez les formats acceptés (PDF, Word, images)</li>
+      <li>En cas d'échec : réduisez la taille du fichier et réessayez</li>
+    </ul>
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 13</span></div>
+</div>
+
+<!-- 12. NOTIFICATIONS -->
+<div class="page">
+  <div class="header"><h2>12. Notifications</h2><span class="num">Section 12</span></div>
+  <p>Vous êtes prévenu lorsque :</p>
+  <div class="two-cols">
+    <ul>
+      <li>Un <strong>nouveau courrier</strong> vous est assigné</li>
+      <li>Une <strong>étape change</strong> sur un dossier qui vous concerne</li>
+      <li>Le DG effectue une <strong>pré-assignation</strong></li>
+    </ul>
+    <ul>
+      <li>Une <strong>échéance</strong> approche (si alertes activées)</li>
+      <li>Un courrier est <strong>rejeté</strong> ou renvoyé en traitement</li>
+    </ul>
+  </div>
+  <div class="box">
+    <strong>Comment consulter ?</strong> — Cliquez sur la cloche de notifications en haut de l'écran. Un clic ouvre souvent directement le courrier concerné. Vérifiez aussi votre boîte e-mail professionnelle.
+  </div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur</span><span>Page 14</span></div>
+</div>
+
+<!-- 13. BONNES PRATIQUES -->
+<div class="page">
+  <div class="header"><h2>13. Bonnes pratiques et dépannage</h2><span class="num">Section 13</span></div>
+  <div class="two-cols">
+    <div>
+      <h3>Bonnes pratiques</h3>
+      <ul>
+        <li>Traitez les courriers par ordre d'urgence</li>
+        <li>Rédigez des notes claires et complètes</li>
+        <li>Ne partagez jamais votre mot de passe</li>
+        <li>Déconnectez-vous sur un poste partagé</li>
+        <li>Signalez votre absence avant votre départ</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Problèmes fréquents</h3>
+      <table>
+        <thead><tr><th>Situation</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Je ne vois pas un courrier</td><td>Vérifier filtres Inbox ; confirmer assignation</td></tr>
+          <tr><td>Pas de bouton Soumettre</td><td>Vous n'êtes pas assigné traitant</td></tr>
+          <tr><td>Mot de passe refusé</td><td>Vérifier majuscule, chiffre, caractère spécial</td></tr>
+          <tr><td>Page blanche</td><td>Actualiser ; vider le cache ; autre navigateur</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="box" style="margin-top:12px"><strong>Support</strong> — Contactez l'administrateur ARE de votre institution pour toute assistance.</div>
+  <div class="footer"><span>ARE App — Manuel Utilisateur — https://are-app.cloud</span><span>Page 15</span></div>
+</div>
+
+<!-- FIN PARTIE I -->
+<div class="page cover" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+  <div class="cover-badge">Fin Partie I</div>
+  <h1 style="font-size:32px">Captures d'écran</h1>
+  <p class="subtitle">Les pages suivantes contiennent uniquement des captures réelles de la plateforme. Vous pouvez les retirer ou les remplacer sans affecter le guide textuel.</p>
+  <p class="url">https://are-app.cloud</p>
+</div>
+
+</body>
+</html>

@@ -46,9 +46,15 @@ const defaults: SiteSettings = {
   ged_module_enabled: "false",
   maintenance_enabled: "false",
   maintenance_until: "",
-  maintenance_title: "Maintenance planifiée",
-  maintenance_message: "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard.",
+  maintenance_title: "Maintenance terminée",
+  maintenance_message:
+    "La plateforme est à nouveau disponible. Merci de cliquer sur « Se connecter » pour accéder à votre espace.",
   maintenance_bg_image_url: "",
+  maintenance_show_countdown: "false",
+  maintenance_button_label: "Se connecter",
+  maintenance_button_url: "",
+  maintenance_footnote:
+    "Saisissez votre adresse e-mail et le mot de passe initial qui vous a été communiqué — il ne s'agit pas de votre ancien mot de passe.",
 };
 
 const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
@@ -211,6 +217,26 @@ const SETTING_METADATA: Record<SiteSettingKey, SettingMetadata> = {
     label: "Fond page maintenance",
     setting_type: "image",
     description: "Image d'arrière-plan de la page de maintenance.",
+  },
+  maintenance_show_countdown: {
+    label: "Afficher le décompte",
+    setting_type: "boolean",
+    description: "Affiche le décompte tant que la date de fin est dans le futur.",
+  },
+  maintenance_button_label: {
+    label: "Libellé du bouton",
+    setting_type: "text",
+    description: "Texte du bouton principal (ex. Se connecter).",
+  },
+  maintenance_button_url: {
+    label: "Cible du bouton",
+    setting_type: "text",
+    description: "Vide = nouvelle plateforme ; « login » ou « /auth » = connexion locale ; sinon URL externe.",
+  },
+  maintenance_footnote: {
+    label: "Note sous le bouton",
+    setting_type: "text",
+    description: "Message d'aide affiché sous le bouton (mot de passe initial, etc.).",
   },
 };
 

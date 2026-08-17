@@ -36,6 +36,10 @@ const ALLOWED_KEYS = new Set([
   "maintenance_title",
   "maintenance_message",
   "maintenance_bg_image_url",
+  "maintenance_show_countdown",
+  "maintenance_button_label",
+  "maintenance_button_url",
+  "maintenance_footnote",
 ]);
 
 serve(async (req) => {

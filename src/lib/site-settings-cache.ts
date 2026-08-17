@@ -35,6 +35,10 @@ export interface CachedSiteSettings {
   maintenance_title: string;
   maintenance_message: string;
   maintenance_bg_image_url: string;
+  maintenance_show_countdown: string;
+  maintenance_button_label: string;
+  maintenance_button_url: string;
+  maintenance_footnote: string;
 }
 
 export function getLoginBackgroundSignature(
