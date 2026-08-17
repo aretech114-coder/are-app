@@ -150,6 +150,10 @@ export default function SystemConfigPage() {
   const [maintenanceTitle, setMaintenanceTitle] = useState("");
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
   const [maintenanceBgImageUrl, setMaintenanceBgImageUrl] = useState("");
+  const [maintenanceShowCountdown, setMaintenanceShowCountdown] = useState(false);
+  const [maintenanceButtonLabel, setMaintenanceButtonLabel] = useState("Se connecter");
+  const [maintenanceButtonUrl, setMaintenanceButtonUrl] = useState("");
+  const [maintenanceFootnote, setMaintenanceFootnote] = useState("");
   const [uploadingMaintenanceBg, setUploadingMaintenanceBg] = useState(false);
   const [savingMaintenance, setSavingMaintenance] = useState(false);
 
@@ -180,12 +184,19 @@ export default function SystemConfigPage() {
     setStep8AutoAdvanceHours(settings.step8_auto_advance_hours || "0");
     setMaintenanceEnabled(settings.maintenance_enabled === "true");
     setMaintenanceUntilLocal(isoToDatetimeLocal(settings.maintenance_until));
-    setMaintenanceTitle(settings.maintenance_title || "Maintenance planifiée");
+    setMaintenanceTitle(settings.maintenance_title || "Maintenance terminée");
     setMaintenanceMessage(
       settings.maintenance_message ||
-        "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard."
+        "La plateforme est à nouveau disponible. Merci de cliquer sur « Se connecter » pour accéder à votre espace."
     );
     setMaintenanceBgImageUrl(settings.maintenance_bg_image_url || "");
+    setMaintenanceShowCountdown(settings.maintenance_show_countdown === "true");
+    setMaintenanceButtonLabel(settings.maintenance_button_label || "Se connecter");
+    setMaintenanceButtonUrl(settings.maintenance_button_url || "");
+    setMaintenanceFootnote(
+      settings.maintenance_footnote ||
+        "Saisissez votre adresse e-mail et le mot de passe initial qui vous a été communiqué — il ne s'agit pas de votre ancien mot de passe."
+    );
   }, [settings]);
 
   useEffect(() => {
@@ -359,13 +370,17 @@ export default function SystemConfigPage() {
     try {
       await updateSetting("maintenance_enabled", maintenanceEnabled ? "true" : "false");
       await updateSetting("maintenance_until", datetimeLocalToIso(maintenanceUntilLocal));
-      await updateSetting("maintenance_title", maintenanceTitle.trim() || "Maintenance planifiée");
+      await updateSetting("maintenance_title", maintenanceTitle.trim() || "Maintenance terminée");
       await updateSetting(
         "maintenance_message",
         maintenanceMessage.trim() ||
-          "La plateforme est temporairement indisponible. Merci de revenir un peu plus tard."
+          "La plateforme est à nouveau disponible. Merci de cliquer sur « Se connecter » pour accéder à votre espace."
       );
       await updateSetting("maintenance_bg_image_url", maintenanceBgImageUrl);
+      await updateSetting("maintenance_show_countdown", maintenanceShowCountdown ? "true" : "false");
+      await updateSetting("maintenance_button_label", maintenanceButtonLabel.trim() || "Se connecter");
+      await updateSetting("maintenance_button_url", maintenanceButtonUrl.trim());
+      await updateSetting("maintenance_footnote", maintenanceFootnote.trim());
       await refresh();
       toast.success(
         maintenanceEnabled
@@ -693,6 +708,50 @@ export default function SystemConfigPage() {
               onChange={(e) => setMaintenanceMessage(e.target.value)}
               rows={3}
             />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Libellé du bouton</Label>
+              <Input
+                value={maintenanceButtonLabel}
+                onChange={(e) => setMaintenanceButtonLabel(e.target.value)}
+                placeholder="Se connecter"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Cible du bouton</Label>
+              <Input
+                value={maintenanceButtonUrl}
+                onChange={(e) => setMaintenanceButtonUrl(e.target.value)}
+                placeholder="https://new.are-app.cloud (vide = nouvelle plateforme)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Laisser vide pour rediriger vers la nouvelle plateforme. Saisir « login » ou « /auth » pour la page de connexion locale.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">Note sous le bouton</Label>
+            <Textarea
+              value={maintenanceFootnote}
+              onChange={(e) => setMaintenanceFootnote(e.target.value)}
+              rows={2}
+              placeholder="Mot de passe initial communiqué…"
+            />
+          </div>
+
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Afficher le décompte</Label>
+              <p className="text-xs text-muted-foreground">
+                {maintenanceShowCountdown
+                  ? "Visible tant que la date de fin est dans le futur."
+                  : "Décompte masqué (recommandé une fois la maintenance terminée)."}
+              </p>
+            </div>
+            <Switch checked={maintenanceShowCountdown} onCheckedChange={setMaintenanceShowCountdown} />
           </div>
 
           <div className="space-y-1.5">
